@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace PartyBell;
 
@@ -79,6 +80,12 @@ internal sealed class Feed
             client.Send(Messages.History(All(), false));
             clients.Add(client);
         }
+    }
+
+    public Task Goodbye()
+    {
+        lock (gate)
+            return Task.WhenAll(clients.Select(c => c.Goodbye()));
     }
 
     public void Leave(PhoneClient client)

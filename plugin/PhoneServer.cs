@@ -12,6 +12,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
 {
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan KeepAlive = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan GoodbyeTimeout = TimeSpan.FromSeconds(1);
 
     private TcpListener? listener;
     private CancellationTokenSource? cancel;
@@ -42,6 +43,8 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
 
     private void Stop()
     {
+        if (cancel != null)
+            Task.WhenAny(feed.Goodbye(), Task.Delay(GoodbyeTimeout)).Wait();
         cancel?.Cancel();
         cancel = null;
         listener?.Stop();

@@ -8,12 +8,18 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.text.SpannableStringBuilder
+import android.text.style.ForegroundColorSpan
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.Person
 import androidx.core.app.RemoteInput
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
+import androidx.core.text.inSpans
+import com.benji.partybell.ui.roleColor
+import com.benji.partybell.ui.roleRank
 
 class Notifier(private val context: Context, private val settings: AppSettings) {
     companion object {
@@ -25,6 +31,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val CHAT_ID = 2
         private const val READY_ID = 4
         private const val QUEUE_ID = 5
+        private const val LOST_ID = 6
         private const val READY_TIMEOUT_MS = 35_000L
         private const val QUEUE_TIMEOUT_MS = 45_000L
         private const val RESULT_TIMEOUT_MS = 60_000L
@@ -35,6 +42,9 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val OLD_CHANNEL_SERVICE = "service"
         private const val CHANNEL_ALERTS = "alerts"
         private const val CHANNEL_MESSAGES = "messages"
+        private const val CHANNEL_LOST = "lost"
+        private const val ROLE_BAR = "▎"
+        private const val OPEN_SLOT = 0xFFB9B4A8.toInt()
         private val conversations = mutableMapOf<String, MutableList<NotificationCompat.MessagingStyle.Message>>()
         private var nextId = FIRST_EVENT_ID
     }
@@ -62,6 +72,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL_SERVICE, NotificationManagerCompat.IMPORTANCE_MIN)
                 .setName("Connection")
+                .setShowBadge(false)
+                .build()
+        )
+        manager.createNotificationChannel(
+            NotificationChannelCompat.Builder(CHANNEL_LOST, NotificationManagerCompat.IMPORTANCE_LOW)
+                .setName("Lost connection")
                 .setShowBadge(false)
                 .build()
         )
@@ -113,6 +129,21 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     fun dismiss(kind: String) {
         if (kind == EventKind.Queue.key) manager.cancel(QUEUE_ID)
     }
+
+    @SuppressLint("MissingPermission")
+    fun lost() {
+        if (!settings.notifies(NotifyKind.Disconnected) || !canPost()) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_LOST)
+            .setSmallIcon(R.drawable.ic_bell)
+            .setContentTitle("Lost connection to your PC")
+            .setContentIntent(openApp())
+            .setSilent(true)
+            .setAutoCancel(true)
+            .build()
+        manager.notify(LOST_ID, notification)
+    }
+
+    fun found() = manager.cancel(LOST_ID)
 
     fun clearChat() {
         listOf(ChatChannel.PARTY, ChatChannel.ALLIANCE).forEach {
@@ -174,11 +205,11 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         when (item.kind) {
             EventKind.ReadyCheck -> return readyCheck(item.answerable)
             EventKind.ReadyCheckDone -> return alert(READY_ID, "Ready check", item.text, RESULT_TIMEOUT_MS)
-            EventKind.Queue -> return alert(QUEUE_ID, "Duty ready", item.detail, QUEUE_TIMEOUT_MS)
+            EventKind.Queue -> return queue(item.detail)
             else -> Unit
         }
         val (title, text) = when (item.kind) {
-            EventKind.Full -> item.text to PartyState.party.value.let { "${it.members.size}/${it.capacity}" }
+            EventKind.Full -> item.text to roleBars(PartyState.party.value)
             EventKind.Disbanded -> item.text to ""
             else -> item.name to item.text
         }
@@ -190,6 +221,26 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             .setAutoCancel(true)
             .build()
         manager.notify(nextId++, notification)
+    }
+
+    private fun roleBars(party: Party): CharSequence {
+        val own = party.members.groupBy { it.group }.values.firstOrNull().orEmpty().sortedBy { roleRank(it.role) }
+        val slots = minOf(party.capacity, Party.GROUP_SIZE)
+        val colors = own.take(slots).map { roleColor(it.role).toArgb() } + List(slots - own.size.coerceAtMost(slots)) { OPEN_SLOT }
+        val bars = SpannableStringBuilder()
+        colors.forEach { bars.inSpans(ForegroundColorSpan(it)) { append(ROLE_BAR) } }
+        return bars
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun queue(duty: String) {
+        val notification = alertBuilder("Duty ready", duty, QUEUE_TIMEOUT_MS)
+            .setWhen(System.currentTimeMillis() + QUEUE_TIMEOUT_MS)
+            .setShowWhen(true)
+            .setUsesChronometer(true)
+            .setChronometerCountDown(true)
+            .build()
+        manager.notify(QUEUE_ID, notification)
     }
 
     @SuppressLint("MissingPermission")

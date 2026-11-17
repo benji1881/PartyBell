@@ -62,7 +62,7 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
                 AllowedEntities.SpecialCharacters | AllowedEntities.CharacterList | AllowedEntities.OtherCharacters |
                 AllowedEntities.Payloads | AllowedEntities.Unknown9);
             if (message->ToString() != line)
-                return "invalid";
+                return "unsupported";
             UIModule.Instance()->ProcessChatBoxEntry(message);
             return null;
         }

@@ -13,6 +13,7 @@ enum class NotifyKind(val key: String, val label: String, val default: Boolean) 
     FreeCompany("notify_fc", "Free Company chat", false),
     ReadyCheck("notify_readycheck", "Ready checks", true),
     Queue("notify_queue", "Duty pops", true),
+    Disconnected("notify_disconnected", "Lost connection", true),
 }
 
 class AppSettings(context: Context) {

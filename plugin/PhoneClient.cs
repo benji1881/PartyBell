@@ -14,11 +14,20 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
 
     private readonly Channel<string> outbox = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
 
+    private Task sending = Task.CompletedTask;
+
     public void Send(string json) => outbox.Writer.TryWrite(json);
+
+    public Task Goodbye()
+    {
+        outbox.Writer.TryWrite(Messages.Bye());
+        outbox.Writer.TryComplete();
+        return sending;
+    }
 
     public async Task Run(CancellationToken token)
     {
-        var sending = SendLoop(token);
+        sending = SendLoop(token);
         await ReceiveLoop(token);
         outbox.Writer.TryComplete();
         await sending;
@@ -40,6 +49,8 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
         {
             await foreach (var json in outbox.Reader.ReadAllAsync(token))
                 await socket.SendAsync(sealer.Seal(Encoding.UTF8.GetBytes(json)), WebSocketMessageType.Binary, true, token);
+            if (socket.State == WebSocketState.Open)
+                await socket.CloseOutputAsync(WebSocketCloseStatus.NormalClosure, null, token);
         }
         catch (Exception e) when (IsDisconnect(e))
         {

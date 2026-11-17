@@ -23,6 +23,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         const val POLICY_CLOSE = 1008
         const val NOT_PAIRED = 4001
         const val UPDATE_NEEDED = 4002
+        const val LOST_DELAY_MS = 60_000L
         val waiting = setOf(Status.NotPaired, Status.UpdatePlugin, Status.UpdateApp)
     }
 
@@ -31,6 +32,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         .pingInterval(20, TimeUnit.SECONDS)
         .build()
     private val handler = Handler(Looper.getMainLooper())
+    private val lost = Runnable { notifier.lost() }
     private var socket: WebSocket? = null
     private var hostIndex = 0
     private var round = 0
@@ -48,6 +50,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         socket?.close(NORMAL_CLOSE, null)
         socket = null
         round = 0
+        notifier.found()
         PartyState.disconnected()
         PartyState.setStatus(Status.Off)
     }
@@ -72,9 +75,10 @@ class Connection(private val context: Context, private val settings: AppSettings
         socket = client.newWebSocket(Request.Builder().url(url).build(), Listener(settings.phoneId, secret))
     }
 
-    private fun retry(ws: WebSocket, status: Status, opened: Boolean) {
+    private fun retry(ws: WebSocket, status: Status, opened: Boolean, farewell: Boolean) {
         if (ws !== socket || !running) return
         socket = null
+        if (opened && !farewell) handler.postDelayed(lost, LOST_DELAY_MS)
         PartyState.disconnected()
         PartyState.setStatus(status)
         if (!opened) {
@@ -91,6 +95,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         private var sealer: Sealer? = null
         private var closeStatus: Status? = null
         private var opened = false
+        @Volatile private var farewell = false
 
         override fun onMessage(webSocket: WebSocket, text: String) {
             val challenge = Protocol.challenge(text)
@@ -123,10 +128,13 @@ class Connection(private val context: Context, private val settings: AppSettings
                 JobIcons.save(context, message.text)
                 return
             }
+            if (message == Bye) farewell = true
             handler.post {
                 if (webSocket !== socket) return@post
                 if (PartyState.status.value != Status.Connected) {
                     round = 0
+                    handler.removeCallbacks(lost)
+                    notifier.found()
                     PartyState.sender = { json ->
                         webSocket === socket && webSocket.send(sealer.seal(json.encodeToByteArray()).toByteString())
                     }
@@ -157,7 +165,8 @@ class Connection(private val context: Context, private val settings: AppSettings
         private fun done(webSocket: WebSocket) {
             val status = closeStatus ?: Status.Connecting
             val opened = opened
-            handler.post { retry(webSocket, status, opened) }
+            val farewell = farewell
+            handler.post { retry(webSocket, status, opened, farewell) }
         }
     }
 }

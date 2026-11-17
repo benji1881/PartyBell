@@ -41,6 +41,7 @@ object PartyState {
 
     fun problem(text: String, channel: String, to: String = ""): String? = when {
         text.startsWith("/") -> "Commands can't be sent from the phone"
+        GameText.hasEmoji(text) -> "Emoji can't be sent to the game chat"
         text.encodeToByteArray().size > MAX_BYTES - prefixBytes(channel, to) -> "Too long for the game chat"
         else -> null
     }
@@ -74,7 +75,7 @@ object PartyState {
             is Invited -> invites.remove(incoming.id)?.let { friend ->
                 noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else inviteReason(incoming.reason))
             }
-            is IconsUpdate, is Answered, is Dismiss -> Unit
+            is IconsUpdate, is Answered, is Dismiss, Bye -> Unit
         }
     }
 
@@ -164,6 +165,7 @@ object PartyState {
         "no fc" -> "You're not in a Free Company"
         "not ready" -> "The game isn't ready"
         "invalid" -> "Not a valid name"
+        "unsupported" -> "The game can't show some of these characters"
         else -> "The game refused it"
     }
 

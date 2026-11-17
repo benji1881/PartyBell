@@ -26,6 +26,8 @@ data class CompanyUpdate(val member: Boolean) : Incoming
 
 data class Invited(val id: Long, val ok: Boolean, val reason: String) : Incoming
 
+data object Bye : Incoming
+
 data class Challenge(val version: Int, val nonce: ByteArray)
 
 object Protocol {
@@ -43,6 +45,7 @@ object Protocol {
             "friends" -> FriendsUpdate(friends(json))
             "company" -> CompanyUpdate(json.optBoolean("member"))
             "invited" -> Invited(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
+            "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
     } catch (_: JSONException) {
@@ -132,7 +135,7 @@ object Protocol {
             json.optString("name"),
             json.optString("job"),
             json.optInt("role"),
-            json.optString("text"),
+            GameText.clean(json.optString("text")),
             json.optString("channel"),
             json.optBoolean("self"),
             json.optLong("time"),
