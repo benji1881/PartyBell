@@ -31,7 +31,8 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val FIRST_EVENT_ID = 10
         private const val MAX_LINES = 8
         private const val CHANNEL_PARTY = "party"
-        private const val CHANNEL_SERVICE = "service"
+        private const val CHANNEL_SERVICE = "connection"
+        private const val OLD_CHANNEL_SERVICE = "service"
         private const val CHANNEL_ALERTS = "alerts"
         private const val CHANNEL_MESSAGES = "messages"
         private val conversations = mutableMapOf<String, MutableList<NotificationCompat.MessagingStyle.Message>>()
@@ -59,10 +60,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
                 .build()
         )
         manager.createNotificationChannel(
-            NotificationChannelCompat.Builder(CHANNEL_SERVICE, NotificationManagerCompat.IMPORTANCE_LOW)
+            NotificationChannelCompat.Builder(CHANNEL_SERVICE, NotificationManagerCompat.IMPORTANCE_MIN)
                 .setName("Connection")
+                .setShowBadge(false)
                 .build()
         )
+        manager.deleteNotificationChannel(OLD_CHANNEL_SERVICE)
     }
 
     fun serviceNotification(): Notification =
@@ -72,6 +75,9 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             .setContentText("Listening for party updates")
             .setContentIntent(openApp())
             .setOngoing(true)
+            .setSilent(true)
+            .setShowWhen(false)
+            .setPriority(NotificationCompat.PRIORITY_MIN)
             .build()
 
     fun notify(item: FeedItem) {
