@@ -20,7 +20,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private readonly Feed feed;
     private readonly object gate = new();
     private readonly Dictionary<string, Listing> listings = [];
-    private int batch = -1;
+    private int segment = -1;
     private int category;
     private bool dirty;
     private DateTime changedAt;
@@ -59,7 +59,7 @@ internal sealed unsafe class PartyFinder : IDisposable
         lock (gate)
         {
             listings.Clear();
-            batch = -1;
+            segment = -1;
             dirty = false;
             requestedAt = null;
         }
@@ -90,17 +90,16 @@ internal sealed unsafe class PartyFinder : IDisposable
     private void OnListing(IPartyFinderListing listing, IPartyFinderListingEventArgs args)
     {
         var item = Map(listing);
+        var now = DateTime.UtcNow;
         lock (gate)
         {
-            if (args.BatchNumber != batch)
-            {
+            if (args.BatchNumber < segment || now - changedAt >= Quiet)
                 listings.Clear();
-                batch = args.BatchNumber;
-            }
+            segment = args.BatchNumber;
             listings[item.Id] = item;
             category = item.Category;
             dirty = true;
-            changedAt = DateTime.UtcNow;
+            changedAt = now;
         }
     }
 
