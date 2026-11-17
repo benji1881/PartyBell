@@ -6,5 +6,6 @@
   "InternalName": "PartyBell",
   "ApplicableVersion": "any",
   "Tags": ["party", "phone", "notifications"],
-  "RepoUrl": "https://github.com/benji1881/PartyBell"
+  "RepoUrl": "https://github.com/benji1881/PartyBell",
+  "IconUrl": "https://raw.githubusercontent.com/benji1881/PartyBell/main/plugin/images/icon.png"
 }

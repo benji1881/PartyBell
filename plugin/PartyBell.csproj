@@ -13,4 +13,8 @@
     <PackageReference Include="Microsoft.Win32.SystemEvents" Version="6.0.0" ExcludeAssets="all" PrivateAssets="all" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="images\icon.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
