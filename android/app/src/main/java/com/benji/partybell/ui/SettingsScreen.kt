@@ -23,7 +23,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -82,24 +81,7 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
                     Text("${available.version} is available.", color = AppColors.text)
                     Text("You have ${Updater.current(context)}", color = AppColors.muted, fontSize = 13.sp)
                 }
-                Button(onClick = { Updater.install(context) }) {
-                    Text(
-                        when (available.progress) {
-                            null -> "Install update"
-                            100 -> "Opening installer"
-                            else -> "Downloading"
-                        }
-                    )
-                }
-                available.progress?.let { percent ->
-                    LinearProgressIndicator(
-                        progress = { percent / 100f },
-                        color = AppColors.sage,
-                        trackColor = AppColors.line,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (available.failed) Text("Couldn't download the update.", color = AppColors.red)
+                Button(onClick = { Updater.download(context) }) { Text("Download update") }
             }
         }
 

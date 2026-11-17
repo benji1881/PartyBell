@@ -1,12 +1,10 @@
 package com.benji.partybell
 
-import android.app.PendingIntent
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
-import android.content.pm.PackageInstaller
 import android.os.SystemClock
-import android.provider.Settings
 import androidx.core.net.toUri
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,14 +17,12 @@ import okhttp3.Response
 import org.json.JSONObject
 import java.io.IOException
 import java.util.concurrent.TimeUnit
-import kotlin.concurrent.thread
 
-data class AppUpdate(val version: String, val url: String, val progress: Int? = null, val failed: Boolean = false)
+data class AppUpdate(val version: String, val url: String)
 
 object Updater {
     private const val LATEST = "https://api.github.com/repos/benji1881/PartyBell/releases/latest"
     private const val CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
-    private const val APK_NAME = "PartyBell.apk"
     private val versionPattern = Regex("\\d+(\\.\\d+)*")
     private val client = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
@@ -65,33 +61,13 @@ object Updater {
         })
     }
 
-    fun install(context: Context) {
+    fun download(context: Context) {
         val update = updateFlow.value ?: return
-        if (update.progress != null) return
-        val app = context.applicationContext
-        if (!app.packageManager.canRequestPackageInstalls()) {
-            context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${app.packageName}".toUri()))
-            return
+        Notifier(context, AppSettings(context)).updated()
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, update.url.toUri()))
+        } catch (_: ActivityNotFoundException) {
         }
-        Notifier(app, AppSettings(app)).updated()
-        updateFlow.value = update.copy(progress = 0, failed = false)
-        thread {
-            try {
-                download(app, update.url)
-            } catch (_: IOException) {
-                failed()
-            } catch (_: SecurityException) {
-                failed()
-            }
-        }
-    }
-
-    fun cancelled() {
-        updateFlow.value = updateFlow.value?.copy(progress = null)
-    }
-
-    fun failed() {
-        updateFlow.value = updateFlow.value?.copy(progress = null, failed = true)
     }
 
     private fun found(app: Context, release: JSONObject) {
@@ -113,46 +89,6 @@ object Updater {
             settings.notifiedUpdate = version
             Notifier(app, settings).update(version)
         }
-    }
-
-    private fun download(app: Context, url: String) {
-        val installer = app.packageManager.packageInstaller
-        val params = PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL)
-        params.setAppPackageName(app.packageName)
-        val id = installer.createSession(params)
-        installer.openSession(id).use { session ->
-            try {
-                client.newCall(Request.Builder().url(url).build()).execute().use { response ->
-                    val body = response.body?.takeIf { response.isSuccessful } ?: throw IOException("download failed")
-                    val total = body.contentLength()
-                    session.openWrite(APK_NAME, 0, total).use { out ->
-                        body.byteStream().use { input ->
-                            val buffer = ByteArray(64 * 1024)
-                            var done = 0L
-                            while (true) {
-                                val read = input.read(buffer)
-                                if (read < 0) break
-                                out.write(buffer, 0, read)
-                                done += read
-                                if (total > 0) progress((done * 100 / total).toInt())
-                            }
-                            session.fsync(out)
-                        }
-                    }
-                }
-                progress(100)
-                val intent = Intent(app, InstallReceiver::class.java)
-                session.commit(PendingIntent.getBroadcast(app, id, intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE).intentSender)
-            } catch (e: IOException) {
-                session.abandon()
-                throw e
-            }
-        }
-    }
-
-    private fun progress(percent: Int) {
-        val update = updateFlow.value ?: return
-        if (update.progress != percent) updateFlow.value = update.copy(progress = percent)
     }
 
     private fun newer(latest: String, current: String): Boolean {

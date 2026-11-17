@@ -28,7 +28,7 @@ The plugin and the app pair with a QR code. Everything between them is encrypted
 6. In the app, press Scan pairing code
 7. When Windows asks, allow PartyBell on private networks only
 
-The plugin updates through Dalamud. The app checks GitHub for a new release and shows a silent notification and an Updates card in Settings. Press Install update and allow PartyBell to install apps the first time.
+The plugin updates through Dalamud. The app checks GitHub for a new release and shows a silent notification and an Updates card in Settings. Press Download update and open the downloaded APK to install it.
 
 ## Away from home
 
