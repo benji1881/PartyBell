@@ -49,7 +49,7 @@ private val MaxTile = 32.dp
 fun PartyStrip(party: Party, modifier: Modifier = Modifier) {
     var open by rememberSaveable { mutableStateOf(false) }
     val inParty = party.members.size > 1
-    val groups = party.members.groupBy { it.group }.values.toList()
+    val groups = party.members.groupBy { it.group }.values.map { members -> members.sortedBy { roleRank(it.role) } }
     val own = groups.firstOrNull().orEmpty()
     val slots = minOf(party.capacity, Party.GROUP_SIZE)
     val arrow by animateFloatAsState(if (open) 180f else 0f, label = "arrow")

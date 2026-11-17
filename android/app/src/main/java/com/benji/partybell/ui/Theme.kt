@@ -76,6 +76,10 @@ fun roleColor(role: Int): Color = when (role) {
     else -> Color(0xFF8A857C)
 }
 
+private val RoleOrder = listOf(ROLE_TANK, ROLE_HEALER, ROLE_MELEE, ROLE_RANGED)
+
+fun roleRank(role: Int): Int = RoleOrder.indexOf(role).let { if (it < 0) RoleOrder.size else it }
+
 @OptIn(ExperimentalTextApi::class)
 private fun variable(resource: Int, weight: Int) =
     Font(resource, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))
