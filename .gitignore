@@ -1,0 +1,12 @@
+bin/
+obj/
+.vs/
+*.user
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
+*.keystore
+*.jks
+Note.md

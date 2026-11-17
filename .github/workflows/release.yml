@@ -1,0 +1,80 @@
+name: release
+
+on:
+  push:
+    branches: [main]
+    paths: [plugin/**, android/**, .github/workflows/release.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          gradle-version: 8.14.3
+
+      - name: Version
+        run: |
+          count="$(git rev-list --count HEAD)"
+          echo "VERSION=0.1.$count" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$count" >> "$GITHUB_ENV"
+
+      - name: Plugin
+        run: |
+          mkdir -p "$RUNNER_TEMP/dalamud"
+          curl -sfL -o "$RUNNER_TEMP/dalamud.zip" https://goatcorp.github.io/dalamud-distrib/latest.zip
+          unzip -q "$RUNNER_TEMP/dalamud.zip" -d "$RUNNER_TEMP/dalamud"
+          DALAMUD_HOME="$RUNNER_TEMP/dalamud/" dotnet build plugin/PartyBell.csproj -c Release --nologo -p:EnableWindowsTargeting=true -p:Version="$VERSION"
+          cp plugin/bin/Release/PartyBell/latest.zip PartyBell.zip
+
+      - name: App
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PARTYBELL_KEYSTORE_BASE64 }}
+          PARTYBELL_KEYSTORE_PASSWORD: ${{ secrets.PARTYBELL_KEYSTORE_PASSWORD }}
+        run: |
+          export PARTYBELL_KEYSTORE="$RUNNER_TEMP/partybell.keystore"
+          echo "$KEYSTORE_BASE64" | base64 -d > "$PARTYBELL_KEYSTORE"
+          PARTYBELL_VERSION="$VERSION" PARTYBELL_VERSION_CODE="$VERSION_CODE" gradle -p android assembleRelease --no-daemon
+          cp android/app/build/outputs/apk/release/app-release.apk PartyBell.apk
+
+      - name: Repo
+        run: |
+          python3 -I - plugin/bin/Release/PartyBell/PartyBell.json "https://github.com/${{ github.repository }}/releases/download/v$VERSION/PartyBell.zip" <<'PY'
+          import json, sys, time
+          manifest = json.load(open(sys.argv[1]))
+          manifest.update(
+              DownloadLinkInstall=sys.argv[2],
+              DownloadLinkUpdate=sys.argv[2],
+              DownloadLinkTesting=sys.argv[2],
+              AcceptsFeedback=False,
+              IsHide=False,
+              IsTestingExclusive=False,
+              DownloadCount=0,
+              LastUpdate=int(time.time()),
+          )
+          json.dump([manifest], open("repo.json", "w"), indent=2)
+          PY
+
+      - name: Release
+        run: gh release create "v$VERSION" PartyBell.zip PartyBell.apk repo.json --title "PartyBell $VERSION" --notes ""
