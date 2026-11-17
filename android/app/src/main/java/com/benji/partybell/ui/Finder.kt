@@ -59,6 +59,9 @@ import kotlinx.coroutines.delay
 private const val FRESH_MS = 60_000L
 private const val CLOCK_MS = 30_000L
 private val OpenSlot = Color(0xFFB9B4A8)
+private val PracticeColor = Color(0xFF5E9A4E)
+private val CompletionColor = Color(0xFF4E82C4)
+private val LootColor = Color(0xFFD9853B)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -216,33 +219,45 @@ private fun Chip(label: String, active: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
+    val objective = objective(listing)
+    val border = when {
+        listing.own -> AppColors.sage
+        objective != null -> objective.copy(alpha = 0.5f)
+        else -> AppColors.line
+    }
     Column(
         Modifier
             .fillMaxWidth()
             .background(AppColors.card, shape)
-            .border(1.dp, if (listing.own) AppColors.sage else AppColors.line, shape)
+            .background(objective?.copy(alpha = 0.12f) ?: Color.Transparent, shape)
+            .border(1.dp, border, shape)
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         if (listing.own) {
             Text("YOUR LISTING", color = AppColors.sage, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(Modifier.height(4.dp))
         }
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row {
             Text(
                 listing.title,
                 color = AppColors.text,
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 1,
+                lineHeight = 20.sp,
+                maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f),
             )
+            Spacer(Modifier.width(8.dp))
             if (listing.locked) {
-                Spacer(Modifier.width(4.dp))
-                Icon(Icons.Filled.Lock, contentDescription = "Password", tint = AppColors.muted, modifier = Modifier.size(14.dp))
+                Icon(
+                    Icons.Filled.Lock,
+                    contentDescription = "Password",
+                    tint = AppColors.muted,
+                    modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(14.dp),
+                )
             }
-            Spacer(Modifier.weight(1f))
-            Text(remaining(seconds), color = AppColors.muted, fontSize = 12.sp)
+            Text(remaining(seconds), color = AppColors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
         }
         Spacer(Modifier.height(8.dp))
         SlotBars(listing.slots.map { if (it.filled) it.role else null }, open = listing.slots.map { it.role })
@@ -254,7 +269,7 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit) {
         if (tags.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                tags.forEach { (label, strong) -> Tag(label, strong) }
+                tags.forEach { (label, color) -> Tag(label, color) }
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -271,26 +286,34 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit) {
     }
 }
 
-private fun tags(listing: Listing) = listOfNotNull(
-    ("Fits your job" to true).takeIf { listing.fits && !listing.own },
-    ("Practice" to false).takeIf { listing.practice },
-    ("Duty completion" to false).takeIf { listing.completion },
-    ("Loot" to false).takeIf { listing.loot },
-    ("Duty complete" to false).takeIf { listing.cleared },
-    ("Beginners welcome" to false).takeIf { listing.beginners },
-    ("Min ilvl ${listing.ilvl}" to false).takeIf { listing.ilvl > 0 },
-    ("Cross-world" to false).takeIf { listing.crossWorld },
+private fun objective(listing: Listing): Color? = when {
+    listing.practice -> PracticeColor
+    listing.completion -> CompletionColor
+    listing.loot -> LootColor
+    else -> null
+}
+
+@Composable
+private fun tags(listing: Listing): List<Pair<String, Color?>> = listOfNotNull(
+    ("Fits your job" to AppColors.sage).takeIf { listing.fits && !listing.own },
+    ("Practice" to PracticeColor).takeIf { listing.practice },
+    ("Duty completion" to CompletionColor).takeIf { listing.completion },
+    ("Loot" to LootColor).takeIf { listing.loot },
+    ("Duty complete" to null).takeIf { listing.cleared },
+    ("Beginners welcome" to null).takeIf { listing.beginners },
+    ("Min ilvl ${listing.ilvl}" to null).takeIf { listing.ilvl > 0 },
+    ("Cross-world" to null).takeIf { listing.crossWorld },
 )
 
 @Composable
-private fun Tag(label: String, strong: Boolean) {
+private fun Tag(label: String, color: Color?) {
     Text(
         label,
-        color = if (strong) AppColors.onSage else AppColors.muted,
+        color = if (color != null) Color.White else AppColors.muted,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
-            .background(if (strong) AppColors.sage else AppColors.line, RoundedCornerShape(50))
+            .background(color ?: AppColors.line, RoundedCornerShape(50))
             .padding(horizontal = 8.dp, vertical = 3.dp),
     )
 }
