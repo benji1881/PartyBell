@@ -27,7 +27,7 @@ internal sealed class PartyTracker
         seen[member.Name] = member;
     }
 
-    public bool Update(PartySnapshot snapshot, string selfKey, DateTime now, List<PartyEvent> events)
+    public bool Update(PartySnapshot snapshot, string selfKey, DateTime now, bool hold, List<PartyEvent> events)
     {
         foreach (var member in snapshot.Members)
             Remember(member);
@@ -45,7 +45,7 @@ internal sealed class PartyTracker
             return false;
         }
 
-        if (now - pendingSince < SettleTime)
+        if (hold || now - pendingSince < SettleTime)
             return false;
 
         if (Current != null)

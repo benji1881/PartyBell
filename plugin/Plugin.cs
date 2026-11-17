@@ -12,6 +12,7 @@ public sealed class Plugin : IDalamudPlugin
 {
     private const string Command = "/partybell";
     private static readonly TimeSpan ReadInterval = TimeSpan.FromMilliseconds(250);
+    private static readonly TimeSpan ZoneGrace = TimeSpan.FromSeconds(8);
 
     private readonly Feed feed = new();
     private readonly PartyTracker tracker = new();
@@ -23,6 +24,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly DutyQueue queue;
     private readonly MainWindow window;
     private DateTime nextRead;
+    private DateTime zonedAt;
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -68,18 +70,22 @@ public sealed class Plugin : IDalamudPlugin
 
         if (!Services.PlayerState.IsLoaded)
         {
+            zonedAt = now;
             if (tracker.Reset())
                 feed.SetParty(Messages.Party(PartySnapshot.Empty));
             return;
         }
         if (Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
+        {
+            zonedAt = now;
             return;
+        }
 
         queue.Update();
         events.Clear();
         var selfKey = $"{Services.PlayerState.CharacterName}@{Services.PlayerState.HomeWorld.Value.Name.ExtractText()}";
         var before = tracker.Current;
-        if (!tracker.Update(PartyReader.Read(), selfKey, now, events))
+        if (!tracker.Update(PartyReader.Read(), selfKey, now, now - zonedAt < ZoneGrace, events))
             return;
 
         if (before is not { Members.Count: > 1 } && tracker.Current!.Members.Count > 1)
