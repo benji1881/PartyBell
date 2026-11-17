@@ -46,7 +46,7 @@ jobs:
           curl -sfL -o "$RUNNER_TEMP/dalamud.zip" https://goatcorp.github.io/dalamud-distrib/latest.zip
           unzip -q "$RUNNER_TEMP/dalamud.zip" -d "$RUNNER_TEMP/dalamud"
           DALAMUD_HOME="$RUNNER_TEMP/dalamud/" dotnet build plugin/PartyBell.csproj -c Release --nologo -p:EnableWindowsTargeting=true -p:Version="$VERSION"
-          cp plugin/bin/Release/PartyBell/latest.zip PartyBell.zip
+          cp plugin/bin/Release/PartyBell/latest.zip "PartyBell-$VERSION.zip"
 
       - name: App
         env:
@@ -56,11 +56,11 @@ jobs:
           export PARTYBELL_KEYSTORE="$RUNNER_TEMP/partybell.keystore"
           echo "$KEYSTORE_BASE64" | base64 -d > "$PARTYBELL_KEYSTORE"
           PARTYBELL_VERSION="$VERSION" PARTYBELL_VERSION_CODE="$VERSION_CODE" gradle -p android assembleRelease --no-daemon
-          cp android/app/build/outputs/apk/release/app-release.apk PartyBell.apk
+          cp android/app/build/outputs/apk/release/app-release.apk "PartyBell-$VERSION.apk"
 
       - name: Repo
         run: |
-          python3 -I - plugin/bin/Release/PartyBell/PartyBell.json "https://github.com/${{ github.repository }}/releases/download/v$VERSION/PartyBell.zip" <<'PY'
+          python3 -I - plugin/bin/Release/PartyBell/PartyBell.json "https://github.com/${{ github.repository }}/releases/download/v$VERSION/PartyBell-$VERSION.zip" <<'PY'
           import json, sys, time
           manifest = json.load(open(sys.argv[1]))
           manifest.update(
@@ -77,4 +77,4 @@ jobs:
           PY
 
       - name: Release
-        run: gh release create "v$VERSION" PartyBell.zip PartyBell.apk repo.json --title "PartyBell $VERSION" --notes ""
+        run: gh release create "v$VERSION" "PartyBell-$VERSION.zip" "PartyBell-$VERSION.apk" repo.json --title "PartyBell $VERSION" --notes ""
