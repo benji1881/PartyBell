@@ -14,7 +14,7 @@ internal sealed record Session(byte[] SendKey, byte[] ReceiveKey, string Icons);
 
 internal static class SecureChannel
 {
-    public const int Version = 4;
+    public const int Version = 5;
     public const WebSocketCloseStatus NotPaired = (WebSocketCloseStatus)4001;
     public const WebSocketCloseStatus UpdateNeeded = (WebSocketCloseStatus)4002;
     private const int NonceSize = 16;

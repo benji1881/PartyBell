@@ -22,9 +22,10 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -61,7 +63,7 @@ import com.benji.partybell.PartyState
 import com.benji.partybell.Status
 
 private enum class Tab(val label: String, val icon: ImageVector) {
-    Party("Party", Icons.Filled.Home),
+    Finder("Finder", Icons.Filled.Search),
     Chats("Chats", Icons.Filled.Email),
     Friends("Friends", Icons.Filled.Person),
 }
@@ -69,7 +71,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
 @Composable
 fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
     var showSettings by rememberSaveable { mutableStateOf(!settings.isPaired) }
-    var tab by rememberSaveable { mutableStateOf(Tab.Party) }
+    var tab by rememberSaveable { mutableStateOf(Tab.Finder) }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
 
@@ -77,9 +79,6 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
         val conversation = request ?: return@LaunchedEffect
         showSettings = conversation == Notifier.OPEN_SETTINGS
         if (showSettings) {
-            open = null
-        } else if (ChatChannel.isParty(conversation)) {
-            tab = Tab.Party
             open = null
         } else {
             tab = Tab.Chats
@@ -89,10 +88,6 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
     }
     LaunchedEffect(Unit) {
         PartyState.notices.collect { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
-    }
-
-    fun openConversation(conversation: String) {
-        if (ChatChannel.isParty(conversation)) tab = Tab.Party else open = conversation
     }
 
     Surface(color = AppColors.background, modifier = Modifier.fillMaxSize()) {
@@ -106,17 +101,21 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
                 val current = open
                 Box(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                     when {
+                        current != null && ChatChannel.isParty(current) -> {
+                            BackHandler { open = null }
+                            PartyScreen(current, onBack = { open = null })
+                        }
                         current != null -> {
                             BackHandler { open = null }
                             ConversationScreen(current, onBack = { open = null })
                         }
-                        tab == Tab.Party -> PartyScreen(onSettings)
-                        tab == Tab.Chats -> ChatsScreen(onSettings, onOpen = ::openConversation)
+                        tab == Tab.Finder -> FinderScreen(settings, onSettings, onTell = { open = ChatChannel.tell(it) })
+                        tab == Tab.Chats -> ChatsScreen(onSettings, onOpen = { open = it })
                         else -> FriendsScreen(onSettings, onMessage = { open = ChatChannel.tell(it.key) })
                     }
                 }
                 if (current == null) {
-                    if (tab != Tab.Party) BackHandler { tab = Tab.Party }
+                    if (tab != Tab.Finder) BackHandler { tab = Tab.Finder }
                     BottomNav(tab, onSelect = { tab = it })
                 }
             }
@@ -138,10 +137,10 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
             Tab.entries.forEach { tab ->
                 val count = when {
                     tab == selected -> 0
-                    tab == Tab.Party -> feed.count { it is ChatItem && incoming(it, viewed[it.channel] ?: 0L) }
                     tab == Tab.Chats -> messages.map { it.conversation }.distinct()
                         .filter { it !in muted }
-                        .sumOf { unreadIn(messages, it, viewed, cleared) }
+                        .sumOf { unreadIn(messages, it, viewed, cleared) } +
+                        if (ChatChannel.PARTY in muted) 0 else feed.count { it is ChatItem && incoming(it, viewed[it.channel] ?: 0L) }
                     else -> 0
                 }
                 val active = tab == selected
@@ -193,7 +192,7 @@ fun Badge(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PartyScreen(onSettings: () -> Unit) {
+private fun PartyScreen(conversation: String, onBack: () -> Unit) {
     val party by PartyState.party.collectAsStateWithLifecycle()
     val feed by PartyState.feed.collectAsStateWithLifecycle()
     val outbox by PartyState.outbox.collectAsStateWithLifecycle()
@@ -201,7 +200,7 @@ private fun PartyScreen(onSettings: () -> Unit) {
     val viewed by PartyState.viewed.collectAsStateWithLifecycle()
 
     val hasAlliance = party.isAlliance || feed.any { it is ChatItem && it.channel == ChatChannel.ALLIANCE }
-    var tab by rememberSaveable { mutableStateOf(ChatChannel.PARTY) }
+    var tab by rememberSaveable { mutableStateOf(conversation) }
     val channel = if (hasAlliance) tab else ChatChannel.PARTY
     val items = remember(feed, outbox, channel) { feed.filter { shows(it, channel) } + outbox.filter { it.channel == channel } }
 
@@ -218,7 +217,11 @@ private fun PartyScreen(onSettings: () -> Unit) {
     LaunchedEffect(channel, latest) { PartyState.markViewed(channel, latest) }
 
     Column(Modifier.fillMaxSize()) {
-        Header("PartyBell", status, onSettings)
+        TitleBar("Party", onBack) {
+            Dot(statusColor(status))
+            Spacer(Modifier.width(6.dp))
+            Text(status.label, color = AppColors.muted, fontSize = 13.sp)
+        }
         PartyStrip(party)
         if (hasAlliance) {
             Spacer(Modifier.height(10.dp))
@@ -271,6 +274,23 @@ fun Header(title: String, status: Status, onSettings: () -> Unit) {
             }
         }
         CircleButton(Icons.Filled.Settings, "Settings", onSettings)
+    }
+}
+
+@Composable
+fun TitleBar(title: String, onBack: () -> Unit, subtitle: @Composable () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp, bottom = 12.dp),
+    ) {
+        CircleButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontFamily = Fraunces, fontSize = 24.sp, color = AppColors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) { subtitle() }
+        }
     }
 }
 

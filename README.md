@@ -10,7 +10,9 @@ Ready checks show up as a notification with Ready and Not ready buttons that ans
 
 If the app loses the connection to your PC for a minute, it shows a silent notification. Closing the game doesn't trigger it.
 
-Tells and Free Company chat have their own tab. Tells look like direct messages, and you can answer them from the app or from a notification. Conversations can be pinned, muted or deleted on the phone. Tells notify you by default, Free Company chat doesn't.
+The Finder tab shows Party Finder listings for one category at a time, with open roles, description, tags and the leader. Listings load when you open the tab, change category or pull down to refresh. Fits my job shows only listings with a slot for your current job. Tap a leader to send them a tell. Joining, passwords and creating listings stay in game.
+
+Party chat, tells and Free Company chat are in the Chats tab, with the party at the top. Tells look like direct messages, and you can answer them from the app or from a notification. Conversations can be pinned, muted or deleted on the phone. Tells notify you by default, Free Company chat doesn't.
 
 The Friends tab shows who is online, lets you send them a tell and invite them to your party. If it stays empty, open your friend list in game once. Invites can be turned off in `/partybell`.
 

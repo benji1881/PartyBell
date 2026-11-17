@@ -32,6 +32,15 @@ internal static class Messages
     public static string Friends(IReadOnlyList<Friend>? friends) =>
         Json(new { type = "friends", loaded = friends != null, friends = friends ?? [] });
 
+    public static string Listings(int category, IReadOnlyList<Listing> listings) =>
+        Json(new { type = "listings", category, time = Now, listings });
+
+    public static string NoListings() =>
+        Json(new { type = "listings", category = 0, time = 0, listings = Array.Empty<Listing>() });
+
+    public static string Finding(string? reason) =>
+        Json(new { type = "finding", ok = reason == null, reason = reason ?? "" });
+
     public static string Bye() => Json(new { type = "bye" });
 
     public static string Company(bool member) =>

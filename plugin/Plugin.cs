@@ -23,6 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ChatRelay chat;
     private readonly ReadyCheck readyCheck;
     private readonly DutyQueue queue;
+    private readonly PartyFinder finder;
     private readonly MainWindow window;
     private readonly Configuration config;
     private DateTime nextRead;
@@ -38,7 +39,8 @@ public sealed class Plugin : IDalamudPlugin
 
         readyCheck = new ReadyCheck(feed, config, tracker);
         queue = new DutyQueue(feed);
-        server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck, new Inviter(config, tracker));
+        finder = new PartyFinder(feed);
+        server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck, new Inviter(config, tracker), finder);
         chat = new ChatRelay(config, feed, tracker);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
@@ -62,6 +64,7 @@ public sealed class Plugin : IDalamudPlugin
         chat.Dispose();
         server.Dispose();
         readyCheck.Dispose();
+        finder.Dispose();
     }
 
     private void OnUpdate(IFramework framework)
@@ -71,6 +74,7 @@ public sealed class Plugin : IDalamudPlugin
         if (now < nextRead)
             return;
         nextRead = now + ReadInterval;
+        finder.Update(now);
 
         if (!Services.PlayerState.IsLoaded)
         {
@@ -83,6 +87,7 @@ public sealed class Plugin : IDalamudPlugin
             if (loggedIn)
             {
                 loggedIn = false;
+                finder.Reset();
                 feed.ClearAll();
             }
             return;

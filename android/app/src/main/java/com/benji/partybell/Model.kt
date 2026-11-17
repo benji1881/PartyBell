@@ -150,3 +150,64 @@ data class Friend(val name: String, val world: String, val job: String, val role
 }
 
 data class Friends(val loaded: Boolean = false, val list: List<Friend> = emptyList())
+
+data class Slot(val job: String, val role: Int) {
+    val filled: Boolean
+        get() = job.isNotEmpty()
+}
+
+data class Listing(
+    val id: String,
+    val duty: String,
+    val category: Int,
+    val description: String,
+    val leader: String,
+    val world: String,
+    val seconds: Int,
+    val ilvl: Int,
+    val slots: List<Slot>,
+    val fits: Boolean,
+    val own: Boolean,
+    val locked: Boolean,
+    val practice: Boolean,
+    val loot: Boolean,
+    val completion: Boolean,
+    val cleared: Boolean,
+    val beginners: Boolean,
+    val crossWorld: Boolean,
+) {
+    val title: String
+        get() = duty.ifEmpty { FinderCategory.label(category) }
+
+    val peer: String
+        get() = "$leader@$world"
+
+    fun secondsLeft(time: Long, now: Long): Int = (seconds - ((now - time) / 1000).toInt()).coerceAtLeast(0)
+}
+
+data class Listings(val category: Int = 0, val time: Long = 0L, val list: List<Listing> = emptyList())
+
+object FinderCategory {
+    const val DEFAULT = 2
+
+    val all = listOf(
+        1 to "Roulette",
+        2 to "Dungeons",
+        3 to "Guildhests",
+        4 to "Trials",
+        5 to "Raids",
+        6 to "High-end",
+        7 to "PvP",
+        8 to "Gold Saucer",
+        9 to "FATEs",
+        10 to "Treasure hunts",
+        11 to "The Hunt",
+        12 to "Gathering forays",
+        13 to "Deep dungeons",
+        14 to "Field operations",
+        15 to "V&C dungeons",
+        16 to "Other",
+    )
+
+    fun label(category: Int) = all.firstOrNull { it.first == category }?.second.orEmpty()
+}

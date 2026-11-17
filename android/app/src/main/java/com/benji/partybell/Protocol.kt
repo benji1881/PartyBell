@@ -26,12 +26,16 @@ data class CompanyUpdate(val member: Boolean) : Incoming
 
 data class Invited(val id: Long, val ok: Boolean, val reason: String) : Incoming
 
+data class ListingsUpdate(val listings: Listings) : Incoming
+
+data class Finding(val ok: Boolean, val reason: String) : Incoming
+
 data object Bye : Incoming
 
 data class Challenge(val version: Int, val nonce: ByteArray)
 
 object Protocol {
-    const val VERSION = 4
+    const val VERSION = 5
 
     fun parse(text: String): Incoming? = try {
         val json = JSONObject(text)
@@ -45,6 +49,8 @@ object Protocol {
             "friends" -> FriendsUpdate(friends(json))
             "company" -> CompanyUpdate(json.optBoolean("member"))
             "invited" -> Invited(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
+            "listings" -> ListingsUpdate(listings(json))
+            "finding" -> Finding(json.optBoolean("ok"), json.optString("reason"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
@@ -85,6 +91,11 @@ object Protocol {
         .put("world", friend.world)
         .toString()
 
+    fun finder(category: Int): String = JSONObject()
+        .put("type", "finder")
+        .put("category", category)
+        .toString()
+
     fun answer(ready: Boolean): String = JSONObject()
         .put("type", "answer")
         .put("ready", ready)
@@ -114,6 +125,33 @@ object Protocol {
                 job = it.optString("job"),
                 role = it.optInt("role"),
                 status = FriendStatus.of(it.optString("status")),
+            )
+        },
+    )
+
+    private fun listings(json: JSONObject) = Listings(
+        category = json.optInt("category"),
+        time = json.optLong("time"),
+        list = objects(json, "listings").map {
+            Listing(
+                id = it.optString("id"),
+                duty = it.optString("duty"),
+                category = it.optInt("category"),
+                description = GameText.clean(it.optString("description")),
+                leader = it.optString("leader"),
+                world = it.optString("world"),
+                seconds = it.optInt("seconds"),
+                ilvl = it.optInt("ilvl"),
+                slots = objects(it, "slots").map { slot -> Slot(slot.optString("job"), slot.optInt("role")) },
+                fits = it.optBoolean("fits"),
+                own = it.optBoolean("own"),
+                locked = it.optBoolean("locked"),
+                practice = it.optBoolean("practice"),
+                loot = it.optBoolean("loot"),
+                completion = it.optBoolean("completion"),
+                cleared = it.optBoolean("cleared"),
+                beginners = it.optBoolean("beginners"),
+                crossWorld = it.optBoolean("crossWorld"),
             )
         },
     )

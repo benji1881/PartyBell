@@ -40,6 +40,8 @@ internal sealed unsafe class DutyQueue(Feed feed)
             ContentsType.Regular => Services.DataManager.GetExcelSheet<Sheets.ContentFinderCondition>().GetRowOrDefault(duty.Id)?.Name.ExtractText(),
             _ => null,
         };
-        return string.IsNullOrWhiteSpace(name) ? Fallback : char.ToUpperInvariant(name[0]) + name[1..];
+        return Capitalised(name) ?? Fallback;
     }
+
+    public static string? Capitalised(string? name) => string.IsNullOrWhiteSpace(name) ? null : char.ToUpperInvariant(name[0]) + name[1..];
 }

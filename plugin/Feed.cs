@@ -17,6 +17,7 @@ internal sealed class Feed
     private string party = Messages.Party(PartySnapshot.Empty);
     private string friends = Messages.Friends(null);
     private string company = Messages.Company(false);
+    private string listings = Messages.NoListings();
 
     public int Count
     {
@@ -39,6 +40,8 @@ internal sealed class Feed
     public void SetFriends(string json) => Replace(ref friends, json);
 
     public void SetCompany(string json) => Replace(ref company, json);
+
+    public void SetListings(string json) => Replace(ref listings, json);
 
     public void Publish(string json, bool keep = false)
     {
@@ -77,6 +80,8 @@ internal sealed class Feed
             history.Clear();
             kept.Clear();
             Send(Messages.History([], true, true));
+            listings = Messages.NoListings();
+            Send(listings);
         }
     }
 
@@ -87,6 +92,7 @@ internal sealed class Feed
             client.Send(party);
             client.Send(friends);
             client.Send(company);
+            client.Send(listings);
             client.Send(Messages.History(All(), false));
             clients.Add(client);
         }

@@ -18,7 +18,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Star
@@ -55,6 +54,7 @@ import com.benji.partybell.FeedItem
 import com.benji.partybell.Friend
 import com.benji.partybell.Notifier
 import com.benji.partybell.OutgoingItem
+import com.benji.partybell.Party
 import com.benji.partybell.PartyState
 import com.benji.partybell.Status
 import kotlin.math.max
@@ -75,12 +75,14 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
     val status by PartyState.status.collectAsStateWithLifecycle()
     val friends by PartyState.friends.collectAsStateWithLifecycle()
     val company by PartyState.company.collectAsStateWithLifecycle()
+    val party by PartyState.party.collectAsStateWithLifecycle()
     val pinned by ChatPrefs.pinned.collectAsStateWithLifecycle()
     val muted by ChatPrefs.muted.collectAsStateWithLifecycle()
     val cleared by ChatPrefs.cleared.collectAsStateWithLifecycle()
     var deleting by remember { mutableStateOf<String?>(null) }
 
-    val groups = remember(feed, messages, outbox, viewed, cleared, pinned, company) {
+    val partySlots = remember(party) { slotsOf(party) }
+    val groups = remember(feed, messages, outbox, viewed, cleared, company) {
         val partyChat = feed.filterIsInstance<ChatItem>()
         val party = Thread(
             ChatChannel.PARTY,
@@ -89,7 +91,6 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
             null,
         )
         listOfNotNull(party, if (company) thread(ChatChannel.FC, messages, outbox, viewed, cleared) else null)
-            .sortedByDescending { it.conversation in pinned }
     }
     val tells = remember(messages, outbox, viewed, cleared, pinned) {
         (messages.map { it.conversation } + outbox.map { it.conversation })
@@ -105,13 +106,15 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
         LazyColumn(Modifier.weight(1f)) {
             item { Section("Groups") }
             items(groups, key = { it.conversation }) { thread ->
+                val isParty = thread.conversation == ChatChannel.PARTY
                 ThreadRow(
                     thread,
                     friend = null,
-                    pinned = thread.conversation in pinned,
+                    pinned = !isParty && thread.conversation in pinned,
                     muted = thread.conversation in muted,
                     onOpen = { onOpen(thread.conversation) },
-                    onDelete = if (thread.conversation == ChatChannel.PARTY) null else ({ deleting = thread.conversation }),
+                    onDelete = if (isParty) null else ({ deleting = thread.conversation }),
+                    slots = if (isParty) partySlots else null,
                 )
             }
             item { Section("Tells") }
@@ -152,6 +155,13 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
     }
 }
 
+private fun slotsOf(party: Party): List<Int?>? {
+    if (party.members.size <= 1) return null
+    val own = party.members.groupBy { it.group }.values.first().map { it.role }.sortedBy { roleRank(it) }
+    val size = minOf(party.capacity, Party.GROUP_SIZE)
+    return own.take(size) + List(size - own.size.coerceAtMost(size)) { null }
+}
+
 private fun thread(
     conversation: String,
     messages: List<ChatItem>,
@@ -185,6 +195,7 @@ private fun ThreadRow(
     muted: Boolean,
     onOpen: () -> Unit,
     onDelete: (() -> Unit)?,
+    slots: List<Int?>? = null,
 ) {
     var menu by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -265,16 +276,21 @@ private fun ThreadRow(
                         Badge(thread.unread)
                     }
                 }
+                if (slots != null) {
+                    SlotBars(slots, modifier = Modifier.padding(top = 6.dp))
+                }
             }
         }
         DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = AppColors.card) {
-            DropdownMenuItem(
-                text = { Text(if (pinned) "Unpin" else "Pin to top", color = AppColors.text) },
-                onClick = {
-                    ChatPrefs.togglePin(conversation)
-                    menu = false
-                },
-            )
+            if (conversation != ChatChannel.PARTY) {
+                DropdownMenuItem(
+                    text = { Text(if (pinned) "Unpin" else "Pin to top", color = AppColors.text) },
+                    onClick = {
+                        ChatPrefs.togglePin(conversation)
+                        menu = false
+                    },
+                )
+            }
             DropdownMenuItem(
                 text = { Text(if (muted) "Unmute notifications" else "Mute notifications", color = AppColors.text) },
                 onClick = {
@@ -359,27 +375,15 @@ fun ConversationScreen(conversation: String, onBack: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 12.dp),
-        ) {
-            CircleButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack)
-            Spacer(Modifier.width(12.dp))
-            Column(Modifier.weight(1f)) {
-                Text(name, fontFamily = Fraunces, fontSize = 24.sp, color = AppColors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    when {
-                        friend != null -> {
-                            Dot(if (friend.online) AppColors.sage else AppColors.muted)
-                            Spacer(Modifier.width(6.dp))
-                            Text("${friend.world} · ${friend.status.label}", color = AppColors.muted, fontSize = 13.sp)
-                        }
-                        peer.isNotEmpty() -> Text(ChatChannel.worldOf(peer), color = AppColors.muted, fontSize = 13.sp)
-                        else -> Text("Free Company chat", color = AppColors.muted, fontSize = 13.sp)
-                    }
+        TitleBar(name, onBack) {
+            when {
+                friend != null -> {
+                    Dot(if (friend.online) AppColors.sage else AppColors.muted)
+                    Spacer(Modifier.width(6.dp))
+                    Text("${friend.world} · ${friend.status.label}", color = AppColors.muted, fontSize = 13.sp)
                 }
+                peer.isNotEmpty() -> Text(ChatChannel.worldOf(peer), color = AppColors.muted, fontSize = 13.sp)
+                else -> Text("Free Company chat", color = AppColors.muted, fontSize = 13.sp)
             }
         }
         if (items.isEmpty()) {

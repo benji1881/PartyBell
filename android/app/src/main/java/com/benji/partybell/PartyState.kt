@@ -21,6 +21,8 @@ object PartyState {
     private val outboxFlow = MutableStateFlow<List<OutgoingItem>>(emptyList())
     private val statusFlow = MutableStateFlow(Status.Off)
     private val viewedFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
+    private val listingsFlow = MutableStateFlow(Listings())
+    private val findingFlow = MutableStateFlow(false)
     private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val invites = mutableMapOf<Long, Friend>()
     private var nextId = 1L
@@ -33,6 +35,8 @@ object PartyState {
     val outbox: StateFlow<List<OutgoingItem>> = outboxFlow.asStateFlow()
     val status: StateFlow<Status> = statusFlow.asStateFlow()
     val viewed: StateFlow<Map<String, Long>> = viewedFlow.asStateFlow()
+    val listings: StateFlow<Listings> = listingsFlow.asStateFlow()
+    val finding: StateFlow<Boolean> = findingFlow.asStateFlow()
     val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
 
     var sender: ((json: String) -> Boolean)? = null
@@ -78,6 +82,14 @@ object PartyState {
             is Invited -> invites.remove(incoming.id)?.let { friend ->
                 noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else inviteReason(incoming.reason))
             }
+            is ListingsUpdate -> {
+                listingsFlow.value = incoming.listings
+                findingFlow.value = false
+            }
+            is Finding -> if (!incoming.ok) {
+                findingFlow.value = false
+                noticesFlow.tryEmit(findReason(incoming.reason))
+            }
             is IconsUpdate, is Answered, is Dismiss, Bye -> Unit
         }
     }
@@ -109,6 +121,14 @@ object PartyState {
         }
     }
 
+    fun find(category: Int) {
+        if (sender?.invoke(Protocol.finder(category)) == true) {
+            findingFlow.value = true
+        } else {
+            noticesFlow.tryEmit("Not connected")
+        }
+    }
+
     fun answer(ready: Boolean): Boolean = sender?.invoke(Protocol.answer(ready)) == true
 
     fun retry(item: OutgoingItem) {
@@ -123,6 +143,7 @@ object PartyState {
     fun disconnected() {
         sender = null
         invites.clear()
+        findingFlow.value = false
         friendsFlow.value = Friends()
         outboxFlow.value = outboxFlow.value.map {
             if (it.state == SendState.Sending) it.copy(state = SendState.Failed, reason = "Not connected") else it
@@ -170,6 +191,13 @@ object PartyState {
         "invalid" -> "Not a valid name"
         "unsupported" -> "The game can't show some of these characters"
         else -> "The game refused it"
+    }
+
+    private fun findReason(code: String) = when (code) {
+        "not ready" -> "The game isn't ready"
+        "in duty" -> "The Party Finder can't be read in a duty"
+        "window open" -> "The Party Finder is open in the game"
+        else -> "The game refused the request"
     }
 
     private fun inviteReason(code: String) = when (code) {

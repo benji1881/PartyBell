@@ -40,6 +40,14 @@ class AppSettings(context: Context) {
         get() = prefs.getString("notified_update", "").orEmpty()
         set(value) = prefs.edit { putString("notified_update", value) }
 
+    var finderCategory: Int
+        get() = prefs.getInt("finder_category", FinderCategory.DEFAULT)
+        set(value) = prefs.edit { putInt("finder_category", value) }
+
+    var finderFits: Boolean
+        get() = prefs.getBoolean("finder_fits", false)
+        set(value) = prefs.edit { putBoolean("finder_fits", value) }
+
     val isPaired: Boolean
         get() = hosts.isNotEmpty() && phoneId.isNotEmpty() && key.isNotEmpty()
 
