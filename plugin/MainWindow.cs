@@ -72,6 +72,27 @@ internal sealed class MainWindow : Window
             config.Save();
         }
 
+        var sendTells = config.SendTells;
+        if (ImGui.Checkbox("Send tells", ref sendTells))
+        {
+            config.SendTells = sendTells;
+            config.Save();
+        }
+
+        var sendFreeCompanyChat = config.SendFreeCompanyChat;
+        if (ImGui.Checkbox("Send Free Company chat", ref sendFreeCompanyChat))
+        {
+            config.SendFreeCompanyChat = sendFreeCompanyChat;
+            config.Save();
+        }
+
+        var sendFriends = config.SendFriends;
+        if (ImGui.Checkbox("Send friend list", ref sendFriends))
+        {
+            config.SendFriends = sendFriends;
+            config.Save();
+        }
+
         var allowPhoneChat = config.AllowPhoneChat;
         if (ImGui.Checkbox("Allow writing from phones", ref allowPhoneChat))
         {
@@ -83,6 +104,13 @@ internal sealed class MainWindow : Window
         if (ImGui.Checkbox("Allow answering ready checks from phones", ref allowPhoneReadyCheck))
         {
             config.AllowPhoneReadyCheck = allowPhoneReadyCheck;
+            config.Save();
+        }
+
+        var allowPhoneInvite = config.AllowPhoneInvite;
+        if (ImGui.Checkbox("Allow party invites from phones", ref allowPhoneInvite))
+        {
+            config.AllowPhoneInvite = allowPhoneInvite;
             config.Save();
         }
 

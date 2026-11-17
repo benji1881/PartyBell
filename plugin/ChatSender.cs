@@ -1,4 +1,5 @@
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Text;
 using System.Threading.Tasks;
 using FFXIVClientStructs.FFXIV.Client.System.String;
@@ -6,10 +7,12 @@ using FFXIVClientStructs.FFXIV.Client.UI;
 
 namespace PartyBell;
 
-internal sealed class ChatSender(Configuration config, PartyTracker tracker)
+internal sealed partial class ChatSender(Configuration config, PartyTracker tracker)
 {
     public const string Party = "party";
     public const string Alliance = "alliance";
+    public const string FreeCompany = "fc";
+    public const string Tell = "tell";
     private const int MaxBytes = 500;
 
     public async Task<string?> Send(Say say)
@@ -21,6 +24,8 @@ internal sealed class ChatSender(Configuration config, PartyTracker tracker)
         {
             Party => "/p ",
             Alliance => "/a ",
+            FreeCompany => "/fc ",
+            Tell when Recipient().IsMatch(say.To) => $"/tell {say.To} ",
             _ => null,
         };
         var text = say.Text.Trim();
@@ -64,4 +69,7 @@ internal sealed class ChatSender(Configuration config, PartyTracker tracker)
             message->Dtor(true);
         }
     }
+
+    [GeneratedRegex(@"^[A-Za-z][A-Za-z'\-]* [A-Za-z][A-Za-z'\-]*@[A-Za-z]+$")]
+    private static partial Regex Recipient();
 }

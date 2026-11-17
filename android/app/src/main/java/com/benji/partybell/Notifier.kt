@@ -19,10 +19,10 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     companion object {
         const val SERVICE_ID = 1
         const val KEY_REPLY = "reply"
-        const val EXTRA_CHANNEL = "channel"
+        const val EXTRA_CONVERSATION = "conversation"
+        const val EXTRA_OPEN = "open"
         const val EXTRA_READY = "ready"
-        private const val PARTY_ID = 2
-        private const val ALLIANCE_ID = 3
+        private const val CHAT_ID = 2
         private const val READY_ID = 4
         private const val QUEUE_ID = 5
         private const val READY_TIMEOUT_MS = 35_000L
@@ -33,6 +33,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val CHANNEL_PARTY = "party"
         private const val CHANNEL_SERVICE = "service"
         private const val CHANNEL_ALERTS = "alerts"
+        private const val CHANNEL_MESSAGES = "messages"
         private val conversations = mutableMapOf<String, MutableList<NotificationCompat.MessagingStyle.Message>>()
         private var nextId = FIRST_EVENT_ID
     }
@@ -41,6 +42,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     private val you = Person.Builder().setName("You").build()
 
     init {
+        ChatPrefs.load(context)
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL_PARTY, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName("Party updates")
@@ -49,6 +51,11 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL_ALERTS, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName("Ready checks and duty pops")
+                .build()
+        )
+        manager.createNotificationChannel(
+            NotificationChannelCompat.Builder(CHANNEL_MESSAGES, NotificationManagerCompat.IMPORTANCE_HIGH)
+                .setName("Tells and Free Company")
                 .build()
         )
         manager.createNotificationChannel(
@@ -70,13 +77,15 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     fun notify(item: FeedItem) {
         when (item) {
             is PartyEventItem -> event(item)
-            is ChatItem -> if (!item.self && settings.notifies(NotifyKind.Chat)) chat(item.channel, item.name, item.text)
+            is ChatItem -> if (!item.self && settings.notifies(kindOf(item.channel)) && muteKey(item.conversation) !in ChatPrefs.muted.value) {
+                chat(item.conversation, item.name, item.text)
+            }
             is OutgoingItem -> Unit
         }
     }
 
-    fun replied(channel: String, text: String) {
-        if (channel in conversations) chat(channel, null, text)
+    fun replied(conversation: String, text: String) {
+        if (conversation in conversations) chat(conversation, null, text)
     }
 
     fun answering(ready: Boolean) = readyStatus(if (ready) "Sending ready…" else "Sending not ready…")
@@ -100,33 +109,56 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     }
 
     fun clearChat() {
-        conversations.clear()
-        manager.cancel(PARTY_ID)
-        manager.cancel(ALLIANCE_ID)
+        listOf(ChatChannel.PARTY, ChatChannel.ALLIANCE).forEach {
+            conversations.remove(it)
+            manager.cancel(it, CHAT_ID)
+        }
+    }
+
+    fun opened(conversation: String) {
+        conversations.remove(conversation)
+        manager.cancel(conversation, CHAT_ID)
+    }
+
+    private fun muteKey(conversation: String) = if (ChatChannel.isParty(conversation)) ChatChannel.PARTY else conversation
+
+    private fun kindOf(channel: String) = when (channel) {
+        ChatChannel.TELL -> NotifyKind.Tells
+        ChatChannel.FC -> NotifyKind.FreeCompany
+        else -> NotifyKind.Chat
     }
 
     @SuppressLint("MissingPermission")
-    private fun chat(channel: String, name: String?, text: String) {
-        val lines = conversations.getOrPut(channel) { mutableListOf() }
+    private fun chat(conversation: String, name: String?, text: String) {
+        val lines = conversations.getOrPut(conversation) { mutableListOf() }
         val sender = name?.let { Person.Builder().setName(it).build() }
         lines += NotificationCompat.MessagingStyle.Message(text, System.currentTimeMillis(), sender)
         while (lines.size > MAX_LINES) lines.removeAt(0)
         if (!canPost()) return
 
+        val group = ChatChannel.channelOf(conversation) != ChatChannel.TELL
+        val title = ChatChannel.title(conversation)
         val style = NotificationCompat.MessagingStyle(you)
-            .setConversationTitle(if (channel == ChatChannel.ALLIANCE) "Alliance" else "Party")
-            .setGroupConversation(true)
+            .setConversationTitle(if (group) title else null)
+            .setGroupConversation(group)
         lines.forEach(style::addMessage)
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_PARTY)
+        val hidden = NotificationCompat.Builder(context, CHANNEL_MESSAGES)
+            .setSmallIcon(R.drawable.ic_bell)
+            .setContentTitle("PartyBell")
+            .setContentText("New message")
+            .build()
+        val notification = NotificationCompat.Builder(context, if (ChatChannel.isParty(conversation)) CHANNEL_PARTY else CHANNEL_MESSAGES)
             .setSmallIcon(R.drawable.ic_bell)
             .setStyle(style)
-            .setContentIntent(openApp())
-            .addAction(replyAction(channel))
+            .setContentIntent(openApp(conversation))
+            .addAction(replyAction(conversation))
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(hidden)
             .setOnlyAlertOnce(name == null)
             .setAutoCancel(true)
             .build()
-        manager.notify(if (channel == ChatChannel.ALLIANCE) ALLIANCE_ID else PARTY_ID, notification)
+        manager.notify(conversation, CHAT_ID, notification)
     }
 
     @SuppressLint("MissingPermission")
@@ -195,12 +227,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         return NotificationCompat.Action.Builder(R.drawable.ic_bell, label, pending).build()
     }
 
-    private fun replyAction(channel: String): NotificationCompat.Action {
+    private fun replyAction(conversation: String): NotificationCompat.Action {
         val input = RemoteInput.Builder(KEY_REPLY).setLabel("Reply").build()
-        val intent = Intent(context, ReplyReceiver::class.java).putExtra(EXTRA_CHANNEL, channel)
+        val intent = Intent(context, ReplyReceiver::class.java).putExtra(EXTRA_CONVERSATION, conversation)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
-        val pending = PendingIntent.getBroadcast(context, channel.hashCode(), intent, flags)
+        val pending = PendingIntent.getBroadcast(context, conversation.hashCode(), intent, flags)
         return NotificationCompat.Action.Builder(R.drawable.ic_bell, "Reply", pending)
             .addRemoteInput(input)
             .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
@@ -211,10 +243,10 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     private fun canPost() = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
-    private fun openApp(): PendingIntent = PendingIntent.getActivity(
+    private fun openApp(conversation: String? = null): PendingIntent = PendingIntent.getActivity(
         context,
-        0,
-        Intent(context, MainActivity::class.java),
-        PendingIntent.FLAG_IMMUTABLE,
+        conversation?.hashCode() ?: 0,
+        Intent(context, MainActivity::class.java).putExtra(EXTRA_OPEN, conversation),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
 }

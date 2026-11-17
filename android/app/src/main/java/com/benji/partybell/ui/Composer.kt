@@ -32,14 +32,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.benji.partybell.ChatChannel
 import com.benji.partybell.PartyState
 
 @Composable
-fun Composer(channel: String, enabled: Boolean, modifier: Modifier = Modifier) {
-    var text by rememberSaveable { mutableStateOf("") }
+fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: Modifier = Modifier, to: String = "") {
+    var text by rememberSaveable(channel, to) { mutableStateOf("") }
     val message = PartyState.clean(text)
-    val problem = PartyState.problem(message)
+    val problem = PartyState.problem(message, channel, to)
     val canSend = enabled && message.isNotEmpty() && problem == null
     val shape = RoundedCornerShape(22.dp)
 
@@ -71,11 +70,7 @@ fun Composer(channel: String, enabled: Boolean, modifier: Modifier = Modifier) {
                     Box {
                         if (text.isEmpty()) {
                             Text(
-                                when {
-                                    !enabled -> "Not connected"
-                                    channel == ChatChannel.ALLIANCE -> "Message alliance"
-                                    else -> "Message party"
-                                },
+                                if (enabled) placeholder else "Not connected",
                                 color = AppColors.muted,
                                 fontSize = 15.sp,
                             )
@@ -92,7 +87,7 @@ fun Composer(channel: String, enabled: Boolean, modifier: Modifier = Modifier) {
                     .clip(CircleShape)
                     .background(if (canSend) AppColors.sage else AppColors.line)
                     .clickable(enabled = canSend) {
-                        PartyState.send(channel, message)
+                        PartyState.send(channel, message, to)
                         text = ""
                     },
             ) {

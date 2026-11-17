@@ -13,6 +13,7 @@ public sealed class Plugin : IDalamudPlugin
     private const string Command = "/partybell";
     private static readonly TimeSpan ReadInterval = TimeSpan.FromMilliseconds(250);
     private static readonly TimeSpan ZoneGrace = TimeSpan.FromSeconds(8);
+    private static readonly TimeSpan FriendInterval = TimeSpan.FromSeconds(2);
 
     private readonly Feed feed = new();
     private readonly PartyTracker tracker = new();
@@ -23,18 +24,20 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ReadyCheck readyCheck;
     private readonly DutyQueue queue;
     private readonly MainWindow window;
+    private readonly Configuration config;
     private DateTime nextRead;
     private DateTime zonedAt;
+    private DateTime nextFriends;
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
         pluginInterface.Create<Services>();
-        var config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
+        config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         config.Save();
 
         readyCheck = new ReadyCheck(feed, config);
         queue = new DutyQueue(feed);
-        server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck);
+        server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck, new Inviter(config, tracker));
         chat = new ChatRelay(config, feed, tracker);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
@@ -82,6 +85,11 @@ public sealed class Plugin : IDalamudPlugin
         }
 
         queue.Update();
+        if (now >= nextFriends)
+        {
+            nextFriends = now + FriendInterval;
+            feed.SetFriends(Messages.Friends(config.SendFriends && feed.Count > 0 ? FriendList.Read() : null));
+        }
         events.Clear();
         var selfKey = $"{Services.PlayerState.CharacterName}@{Services.PlayerState.HomeWorld.Value.Name.ExtractText()}";
         var before = tracker.Current;

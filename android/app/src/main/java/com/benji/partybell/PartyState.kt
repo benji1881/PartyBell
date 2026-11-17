@@ -1,35 +1,45 @@
 package com.benji.partybell
 
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 object PartyState {
     private const val FEED_SIZE = 200
+    private const val MESSAGES_SIZE = 500
     private const val MAX_BYTES = 500
-    private const val PREFIX_BYTES = 3
     private val whitespace = Regex("\\s+")
 
     private val partyFlow = MutableStateFlow(Party())
     private val feedFlow = MutableStateFlow<List<FeedItem>>(emptyList())
+    private val messagesFlow = MutableStateFlow<List<ChatItem>>(emptyList())
+    private val friendsFlow = MutableStateFlow(Friends())
     private val outboxFlow = MutableStateFlow<List<OutgoingItem>>(emptyList())
     private val statusFlow = MutableStateFlow(Status.Off)
     private val viewedFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
+    private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    private val invites = mutableMapOf<Long, Friend>()
     private var nextId = 1L
 
     val party: StateFlow<Party> = partyFlow.asStateFlow()
     val feed: StateFlow<List<FeedItem>> = feedFlow.asStateFlow()
+    val messages: StateFlow<List<ChatItem>> = messagesFlow.asStateFlow()
+    val friends: StateFlow<Friends> = friendsFlow.asStateFlow()
     val outbox: StateFlow<List<OutgoingItem>> = outboxFlow.asStateFlow()
     val status: StateFlow<Status> = statusFlow.asStateFlow()
     val viewed: StateFlow<Map<String, Long>> = viewedFlow.asStateFlow()
+    val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
 
     var sender: ((json: String) -> Boolean)? = null
 
     fun clean(text: String): String = text.replace(whitespace, " ").trim()
 
-    fun problem(text: String): String? = when {
+    fun problem(text: String, channel: String, to: String = ""): String? = when {
         text.startsWith("/") -> "Commands can't be sent from the phone"
-        text.encodeToByteArray().size > MAX_BYTES - PREFIX_BYTES -> "Too long for the game chat"
+        text.encodeToByteArray().size > MAX_BYTES - prefixBytes(channel, to) -> "Too long for the game chat"
         else -> null
     }
 
@@ -37,29 +47,40 @@ object PartyState {
         when (incoming) {
             is PartyUpdate -> partyFlow.value = incoming.party
             is History -> {
-                feedFlow.value = incoming.items.takeLast(FEED_SIZE)
+                val (kept, party) = incoming.items.partition { it is ChatItem && it.kept }
+                feedFlow.value = party.takeLast(FEED_SIZE)
+                messagesFlow.value = merge(messagesFlow.value, kept.filterIsInstance<ChatItem>())
                 if (incoming.reset) {
-                    outboxFlow.value = emptyList()
-                    viewedFlow.value = emptyMap()
+                    outboxFlow.value = outboxFlow.value.filter { !ChatChannel.isParty(it.channel) }
+                    viewedFlow.value = viewedFlow.value.filterKeys { !ChatChannel.isParty(it) }
                 }
             }
             is Live -> {
-                feedFlow.value = (feedFlow.value + incoming.item).takeLast(FEED_SIZE)
-                (incoming.item as? ChatItem)?.takeIf { it.self }?.let(::echoed)
+                val item = incoming.item
+                if (item is ChatItem && item.kept) {
+                    messagesFlow.value = merge(messagesFlow.value, listOf(item))
+                } else {
+                    feedFlow.value = (feedFlow.value + item).takeLast(FEED_SIZE)
+                }
+                (item as? ChatItem)?.takeIf { it.self }?.let(::echoed)
             }
             is Said -> update(incoming.id) {
                 if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = reason(incoming.reason))
+            }
+            is FriendsUpdate -> friendsFlow.value = incoming.friends
+            is Invited -> invites.remove(incoming.id)?.let { friend ->
+                noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else inviteReason(incoming.reason))
             }
             is IconsUpdate, is Answered, is Dismiss -> Unit
         }
     }
 
-    fun send(channel: String, text: String) {
+    fun send(channel: String, text: String, to: String = "") {
         val message = clean(text)
         if (message.isEmpty()) return
         val id = nextId++
-        val problem = problem(message)
-        val sent = problem == null && sender?.invoke(Protocol.say(id, channel, message)) == true
+        val problem = problem(message, channel, to)
+        val sent = problem == null && sender?.invoke(Protocol.say(id, channel, message, to)) == true
         val item = OutgoingItem(
             id = id,
             channel = channel,
@@ -67,19 +88,35 @@ object PartyState {
             state = if (sent) SendState.Sending else SendState.Failed,
             reason = problem ?: if (sent) "" else "Not connected",
             time = System.currentTimeMillis(),
+            to = to,
         )
         outboxFlow.value += item
+    }
+
+    fun invite(friend: Friend) {
+        val id = nextId++
+        if (sender?.invoke(Protocol.invite(id, friend)) == true) {
+            invites[id] = friend
+        } else {
+            noticesFlow.tryEmit("Not connected")
+        }
     }
 
     fun answer(ready: Boolean): Boolean = sender?.invoke(Protocol.answer(ready)) == true
 
     fun retry(item: OutgoingItem) {
         outboxFlow.value = outboxFlow.value.filter { it.id != item.id }
-        send(item.channel, item.text)
+        send(item.channel, item.text, item.to)
+    }
+
+    fun forget(conversation: String) {
+        outboxFlow.value = outboxFlow.value.filter { it.conversation != conversation }
     }
 
     fun disconnected() {
         sender = null
+        invites.clear()
+        friendsFlow.value = Friends()
         outboxFlow.value = outboxFlow.value.map {
             if (it.state == SendState.Sending) it.copy(state = SendState.Failed, reason = "Not connected") else it
         }
@@ -89,15 +126,25 @@ object PartyState {
         statusFlow.value = status
     }
 
-    fun viewedUpTo(channel: String): Long = viewedFlow.value[channel] ?: 0L
+    fun viewedUpTo(conversation: String): Long = viewedFlow.value[conversation] ?: 0L
 
-    fun markViewed(channel: String, time: Long) {
-        if (time > viewedUpTo(channel)) viewedFlow.value += channel to time
+    fun markViewed(conversation: String, time: Long) {
+        if (time > viewedUpTo(conversation)) viewedFlow.value += conversation to time
+    }
+
+    private fun merge(current: List<ChatItem>, added: List<ChatItem>) =
+        (current + added).distinct().sortedBy { it.time }.takeLast(MESSAGES_SIZE)
+
+    private fun prefixBytes(channel: String, to: String) = when (channel) {
+        ChatChannel.TELL -> "/tell  ".length + to.encodeToByteArray().size
+        ChatChannel.FC -> "/fc ".length
+        else -> "/p ".length
     }
 
     private fun echoed(chat: ChatItem) {
-        val match = outboxFlow.value.firstOrNull { it.channel == chat.channel && it.text == chat.text && it.state != SendState.Failed }
-            ?: return
+        val match = outboxFlow.value.firstOrNull {
+            it.conversation.equals(chat.conversation, ignoreCase = true) && it.text == chat.text && it.state != SendState.Failed
+        } ?: return
         outboxFlow.value = outboxFlow.value.filter { it.id != match.id }
     }
 
@@ -112,6 +159,17 @@ object PartyState {
         "no party" -> "You're not in a party"
         "no alliance" -> "You're not in an alliance"
         "not ready" -> "The game isn't ready"
+        "invalid" -> "Not a valid name"
         else -> "The game refused it"
+    }
+
+    private fun inviteReason(code: String) = when (code) {
+        "disabled" -> "Party invites from phones are off in the plugin"
+        "party full" -> "Your party is full"
+        "not leader" -> "Only the party leader can invite"
+        "not found" -> "Not on your friend list"
+        "offline" -> "They're offline"
+        "not ready" -> "The game isn't ready"
+        else -> "The game refused the invite"
     }
 }

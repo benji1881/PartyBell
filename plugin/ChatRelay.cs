@@ -25,23 +25,51 @@ internal sealed class ChatRelay : IDisposable
 
     private void OnChatMessage(IHandleableChatMessage message)
     {
-        if (!config.SendChat || Channel(message.LogKind) is not { } channel)
+        if (Channel(message.LogKind) is not { } channel || !Enabled(channel))
             return;
 
-        var name = SenderName(message.Sender);
-        var self = name == Services.PlayerState.CharacterName;
-        var member = tracker.Find(name) ?? (self ? PartyReader.Self() : null);
-        feed.Publish(Messages.Chat(name, member, message.Message.TextValue, channel, self));
+        var text = message.Message.TextValue;
+        var sender = Sender(message.Sender);
+        if (channel == ChatSender.Tell)
+        {
+            var outgoing = message.LogKind == XivChatType.TellOutgoing;
+            var name = outgoing ? Services.PlayerState.CharacterName : sender.Name;
+            var member = outgoing ? PartyReader.Self() : tracker.Find(name);
+            feed.Publish(Messages.Chat(name, member, text, channel, outgoing, sender.Key), true);
+            return;
+        }
+
+        var self = sender.Name == Services.PlayerState.CharacterName;
+        var known = tracker.Find(sender.Name) ?? (self ? PartyReader.Self() : null);
+        feed.Publish(Messages.Chat(sender.Name, known, text, channel, self, ""), channel == ChatSender.FreeCompany);
     }
+
+    private bool Enabled(string channel) => channel switch
+    {
+        ChatSender.Tell => config.SendTells,
+        ChatSender.FreeCompany => config.SendFreeCompanyChat,
+        _ => config.SendChat,
+    };
 
     private static string? Channel(XivChatType type) => type switch
     {
         XivChatType.Party or XivChatType.CrossParty => ChatSender.Party,
         XivChatType.Alliance => ChatSender.Alliance,
+        XivChatType.FreeCompany => ChatSender.FreeCompany,
+        XivChatType.TellIncoming or XivChatType.TellOutgoing => ChatSender.Tell,
         _ => null,
     };
 
-    private static string SenderName(SeString sender) =>
-        sender.Payloads.OfType<PlayerPayload>().FirstOrDefault()?.PlayerName
-        ?? new string(sender.TextValue.Where(c => char.IsLetter(c) || c is ' ' or '\'' or '-').ToArray()).Trim();
+    private static (string Name, string Key) Sender(SeString sender)
+    {
+        if (sender.Payloads.OfType<PlayerPayload>().FirstOrDefault() is { } player)
+        {
+            var world = player.World.RowId != 0 ? player.World.Value.Name.ExtractText() : CurrentWorld;
+            return (player.PlayerName, $"{player.PlayerName}@{world}");
+        }
+        var name = new string(sender.TextValue.Where(c => char.IsLetter(c) || c is ' ' or '\'' or '-').ToArray()).Trim();
+        return (name, $"{name}@{CurrentWorld}");
+    }
+
+    private static string CurrentWorld => Services.PlayerState.CurrentWorld.Value.Name.ExtractText();
 }

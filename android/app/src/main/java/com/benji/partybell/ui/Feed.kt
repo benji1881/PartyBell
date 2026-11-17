@@ -91,7 +91,13 @@ private data class BubbleLine(
 ) : Line
 
 @Composable
-fun ChatFeed(items: List<FeedItem>, newAfter: Long, onRetry: (OutgoingItem) -> Unit, modifier: Modifier = Modifier) {
+fun ChatFeed(
+    items: List<FeedItem>,
+    newAfter: Long,
+    onRetry: (OutgoingItem) -> Unit,
+    modifier: Modifier = Modifier,
+    showNames: Boolean = true,
+) {
     val lines = remember(items, newAfter) { lines(items, newAfter).asReversed() }
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -132,7 +138,7 @@ fun ChatFeed(items: List<FeedItem>, newAfter: Long, onRetry: (OutgoingItem) -> U
                         is ChatItem -> if (item.self) {
                             Mine(item.text, item.time, SendState.Sent, "", line, null)
                         } else {
-                            Theirs(item, line)
+                            Theirs(item, line, showNames)
                         }
                         is OutgoingItem -> Mine(item.text, item.time, item.state, item.reason, line) { onRetry(item) }
                         is PartyEventItem -> Unit
@@ -275,7 +281,7 @@ private fun EventPill(item: PartyEventItem) {
 }
 
 @Composable
-private fun Theirs(item: ChatItem, line: BubbleLine) {
+private fun Theirs(item: ChatItem, line: BubbleLine, showName: Boolean) {
     val shape = RoundedCornerShape(
         topStart = if (line.first) Big else Small,
         topEnd = Big,
@@ -299,7 +305,7 @@ private fun Theirs(item: ChatItem, line: BubbleLine) {
                 .border(1.dp, AppColors.line, shape)
                 .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp)
         ) {
-            if (line.first) {
+            if (line.first && showName) {
                 Text(item.name, color = roleColor(item.role), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(1.dp))
             }

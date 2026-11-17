@@ -73,7 +73,7 @@ internal static class PartyReader
     private static Member FromPartyMember(IPartyMember member, bool leader, int group) =>
         Create(member.Name.TextValue, member.World.RowId, member.ClassJob.RowId, member.Level, leader, group);
 
-    private static Member Create(string name, uint worldId, uint jobId, int level, bool leader, int group)
+    public static Member Create(string name, uint worldId, uint jobId, int level, bool leader, int group)
     {
         var job = Services.DataManager.GetExcelSheet<ClassJob>().GetRowOrDefault(jobId);
         var world = Services.DataManager.GetExcelSheet<World>().GetRowOrDefault(worldId);

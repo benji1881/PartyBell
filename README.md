@@ -8,7 +8,11 @@ You can write in party and alliance chat from the app or straight from a notific
 
 Ready checks show up as a notification with Ready and Not ready buttons that answer in game. You can turn this off in `/partybell` too. When a duty pops, you get a notification, but you accept it in game.
 
-The chat clears when you join a new party. Job icons are read from your own game install.
+Tells and Free Company chat have their own tab. Tells look like direct messages, and you can answer them from the app or from a notification. Conversations can be pinned, muted or deleted on the phone. Tells notify you by default, Free Company chat doesn't.
+
+The Friends tab shows who is online, lets you send them a tell and invite them to your party. If it stays empty, open your friend list in game once. Invites can be turned off in `/partybell`.
+
+The party chat clears when you join a new party. Job icons are read from your own game install.
 
 The plugin and the app pair with a QR code. Everything between them is encrypted and only works on your own network.
 

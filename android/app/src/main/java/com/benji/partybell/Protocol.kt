@@ -20,10 +20,14 @@ data class Answered(val ready: Boolean, val ok: Boolean, val reason: String) : I
 
 data class Dismiss(val kind: String) : Incoming
 
+data class FriendsUpdate(val friends: Friends) : Incoming
+
+data class Invited(val id: Long, val ok: Boolean, val reason: String) : Incoming
+
 data class Challenge(val version: Int, val nonce: ByteArray)
 
 object Protocol {
-    const val VERSION = 2
+    const val VERSION = 3
 
     fun parse(text: String): Incoming? = try {
         val json = JSONObject(text)
@@ -34,6 +38,8 @@ object Protocol {
             "icons" -> IconsUpdate(text)
             "answered" -> Answered(json.optBoolean("ready"), json.optBoolean("ok"), json.optString("reason"))
             "dismiss" -> Dismiss(json.optString("kind"))
+            "friends" -> FriendsUpdate(friends(json))
+            "invited" -> Invited(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
             else -> item(json)?.let(::Live)
         }
     } catch (_: JSONException) {
@@ -58,11 +64,19 @@ object Protocol {
         .put("icons", icons)
         .toString()
 
-    fun say(id: Long, channel: String, text: String): String = JSONObject()
+    fun say(id: Long, channel: String, text: String, to: String): String = JSONObject()
         .put("type", "say")
         .put("id", id)
         .put("channel", channel)
         .put("text", text)
+        .put("to", to)
+        .toString()
+
+    fun invite(id: Long, friend: Friend): String = JSONObject()
+        .put("type", "invite")
+        .put("id", id)
+        .put("name", friend.name)
+        .put("world", friend.world)
         .toString()
 
     fun answer(ready: Boolean): String = JSONObject()
@@ -83,6 +97,19 @@ object Protocol {
             )
         },
         capacity = json.optInt("capacity", Party.GROUP_SIZE),
+    )
+
+    private fun friends(json: JSONObject) = Friends(
+        loaded = json.optBoolean("loaded"),
+        list = objects(json, "friends").map {
+            Friend(
+                name = it.optString("name"),
+                world = it.optString("world"),
+                job = it.optString("job"),
+                role = it.optInt("role"),
+                status = FriendStatus.of(it.optString("status")),
+            )
+        },
     )
 
     private fun item(json: JSONObject): FeedItem? = when (json.optString("type")) {
@@ -106,6 +133,7 @@ object Protocol {
             json.optString("channel"),
             json.optBoolean("self"),
             json.optLong("time"),
+            json.optString("peer"),
         )
         else -> null
     }

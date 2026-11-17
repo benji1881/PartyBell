@@ -7,11 +7,14 @@ namespace PartyBell;
 internal sealed class Feed
 {
     private const int HistorySize = 50;
+    private const int KeptSize = 200;
 
     private readonly object gate = new();
     private readonly Queue<(DateTime Time, string Json)> history = new();
+    private readonly Queue<(DateTime Time, string Json)> kept = new();
     private readonly List<PhoneClient> clients = [];
     private string party = Messages.Party(PartySnapshot.Empty);
+    private string friends = Messages.Friends(null);
 
     public int Count
     {
@@ -31,13 +34,25 @@ internal sealed class Feed
         }
     }
 
-    public void Publish(string json)
+    public void SetFriends(string json)
     {
         lock (gate)
         {
-            history.Enqueue((DateTime.UtcNow, json));
-            if (history.Count > HistorySize)
-                history.Dequeue();
+            if (json == friends)
+                return;
+            friends = json;
+            Send(json);
+        }
+    }
+
+    public void Publish(string json, bool keep = false)
+    {
+        lock (gate)
+        {
+            var queue = keep ? kept : history;
+            queue.Enqueue((DateTime.UtcNow, json));
+            if (queue.Count > (keep ? KeptSize : HistorySize))
+                queue.Dequeue();
             Send(json);
         }
     }
@@ -52,11 +67,11 @@ internal sealed class Feed
     {
         lock (gate)
         {
-            var kept = history.Where(h => h.Time >= time).ToList();
+            var recent = history.Where(h => h.Time >= time).ToList();
             history.Clear();
-            foreach (var item in kept)
+            foreach (var item in recent)
                 history.Enqueue(item);
-            Send(Messages.History(kept.Select(h => h.Json), true));
+            Send(Messages.History(All(), true));
         }
     }
 
@@ -65,7 +80,8 @@ internal sealed class Feed
         lock (gate)
         {
             client.Send(party);
-            client.Send(Messages.History(history.Select(h => h.Json), false));
+            client.Send(friends);
+            client.Send(Messages.History(All(), false));
             clients.Add(client);
         }
     }
@@ -75,6 +91,8 @@ internal sealed class Feed
         lock (gate)
             clients.Remove(client);
     }
+
+    private IEnumerable<string> All() => history.Concat(kept).OrderBy(h => h.Time).Select(h => h.Json);
 
     private void Send(string json)
     {

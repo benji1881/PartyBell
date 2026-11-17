@@ -14,8 +14,8 @@ internal static class Messages
     public static string Event(PartyEvent e) =>
         Json(new { type = "event", kind = e.Kind, name = e.Member?.Name ?? "", job = e.Member?.Job ?? "", role = e.Member?.Role ?? 0, time = Now });
 
-    public static string Chat(string name, Member? member, string text, string channel, bool self) =>
-        Json(new { type = "chat", name, job = member?.Job ?? "", role = member?.Role ?? 0, text, channel, self, time = Now });
+    public static string Chat(string name, Member? member, string text, string channel, bool self, string peer) =>
+        Json(new { type = "chat", name, job = member?.Job ?? "", role = member?.Role ?? 0, text, channel, self, peer, time = Now });
 
     public static string Said(long id, string? reason) =>
         Json(new { type = "said", id, ok = reason == null, reason = reason ?? "" });
@@ -28,6 +28,12 @@ internal static class Messages
 
     public static string Queue(string duty) =>
         Json(new { type = "event", kind = "queue", name = "", job = "", role = 0, detail = duty, time = Now });
+
+    public static string Friends(IReadOnlyList<Friend>? friends) =>
+        Json(new { type = "friends", loaded = friends != null, friends = friends ?? [] });
+
+    public static string Invited(long id, string? reason) =>
+        Json(new { type = "invited", id, ok = reason == null, reason = reason ?? "" });
 
     public static string Answered(bool ready, string? reason) =>
         Json(new { type = "answered", ready, ok = reason == null, reason = reason ?? "" });

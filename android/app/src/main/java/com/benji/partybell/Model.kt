@@ -22,6 +22,30 @@ data class Party(val members: List<Member> = emptyList(), val capacity: Int = GR
 object ChatChannel {
     const val PARTY = "party"
     const val ALLIANCE = "alliance"
+    const val FC = "fc"
+    const val TELL = "tell"
+    private const val TELL_PREFIX = "tell:"
+
+    fun conversation(channel: String, peer: String) = if (channel == TELL) TELL_PREFIX + peer else channel
+
+    fun tell(peer: String) = TELL_PREFIX + peer
+
+    fun channelOf(conversation: String) = if (conversation.startsWith(TELL_PREFIX)) TELL else conversation
+
+    fun peerOf(conversation: String) = if (conversation.startsWith(TELL_PREFIX)) conversation.removePrefix(TELL_PREFIX) else ""
+
+    fun isParty(conversation: String) = conversation == PARTY || conversation == ALLIANCE
+
+    fun nameOf(peer: String) = peer.substringBefore('@')
+
+    fun worldOf(peer: String) = peer.substringAfter('@', "")
+
+    fun title(conversation: String) = when (conversation) {
+        PARTY -> "Party"
+        ALLIANCE -> "Alliance"
+        FC -> "Free Company"
+        else -> nameOf(peerOf(conversation))
+    }
 }
 
 enum class Status(val label: String) {
@@ -81,7 +105,14 @@ data class ChatItem(
     val channel: String,
     val self: Boolean,
     override val time: Long,
-) : FeedItem
+    val peer: String = "",
+) : FeedItem {
+    val conversation: String
+        get() = ChatChannel.conversation(channel, peer)
+
+    val kept: Boolean
+        get() = !ChatChannel.isParty(channel)
+}
 
 enum class SendState { Sending, Sent, Failed }
 
@@ -92,4 +123,30 @@ data class OutgoingItem(
     val state: SendState,
     val reason: String,
     override val time: Long,
-) : FeedItem
+    val to: String = "",
+) : FeedItem {
+    val conversation: String
+        get() = ChatChannel.conversation(channel, to)
+}
+
+enum class FriendStatus(val key: String, val label: String) {
+    Online("online", "Online"),
+    Duty("duty", "In a duty"),
+    Away("away", "Away"),
+    Busy("busy", "Busy"),
+    Offline("offline", "Offline");
+
+    companion object {
+        fun of(key: String) = entries.firstOrNull { it.key == key } ?: Online
+    }
+}
+
+data class Friend(val name: String, val world: String, val job: String, val role: Int, val status: FriendStatus) {
+    val key: String
+        get() = "$name@$world"
+
+    val online: Boolean
+        get() = status != FriendStatus.Offline
+}
+
+data class Friends(val loaded: Boolean = false, val list: List<Friend> = emptyList())
