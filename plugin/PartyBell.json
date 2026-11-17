@@ -1,0 +1,10 @@
+{
+  "Author": "Benji",
+  "Name": "PartyBell",
+  "Punchline": "Your party on your phone.",
+  "Description": "Sends your party list, party changes and party chat to the PartyBell phone app.",
+  "InternalName": "PartyBell",
+  "ApplicableVersion": "any",
+  "Tags": ["party", "phone", "notifications"],
+  "RepoUrl": "https://github.com/benji1881/PartyBell"
+}
