@@ -20,12 +20,19 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         const val SERVICE_ID = 1
         const val KEY_REPLY = "reply"
         const val EXTRA_CHANNEL = "channel"
+        const val EXTRA_READY = "ready"
         private const val PARTY_ID = 2
         private const val ALLIANCE_ID = 3
+        private const val READY_ID = 4
+        private const val QUEUE_ID = 5
+        private const val READY_TIMEOUT_MS = 35_000L
+        private const val QUEUE_TIMEOUT_MS = 45_000L
+        private const val RESULT_TIMEOUT_MS = 60_000L
         private const val FIRST_EVENT_ID = 10
         private const val MAX_LINES = 8
         private const val CHANNEL_PARTY = "party"
         private const val CHANNEL_SERVICE = "service"
+        private const val CHANNEL_ALERTS = "alerts"
         private val conversations = mutableMapOf<String, MutableList<NotificationCompat.MessagingStyle.Message>>()
         private var nextId = FIRST_EVENT_ID
     }
@@ -37,6 +44,11 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL_PARTY, NotificationManagerCompat.IMPORTANCE_HIGH)
                 .setName("Party updates")
+                .build()
+        )
+        manager.createNotificationChannel(
+            NotificationChannelCompat.Builder(CHANNEL_ALERTS, NotificationManagerCompat.IMPORTANCE_HIGH)
+                .setName("Ready checks and duty pops")
                 .build()
         )
         manager.createNotificationChannel(
@@ -65,6 +77,26 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
 
     fun replied(channel: String, text: String) {
         if (channel in conversations) chat(channel, null, text)
+    }
+
+    fun answering(ready: Boolean) = readyStatus(if (ready) "Sending ready…" else "Sending not ready…")
+
+    fun answered(answer: Answered) = readyStatus(
+        when {
+            answer.ok -> if (answer.ready) "You're ready" else "You're not ready"
+            else -> "Couldn't answer: " + when (answer.reason) {
+                "disabled" -> "answering from phones is off in the plugin"
+                "no ready check" -> "the ready check is over"
+                "answered" -> "already answered in game"
+                "no prompt" -> "the ready check window isn't open"
+                "offline" -> "not connected"
+                else -> "the game refused it"
+            }
+        }
+    )
+
+    fun dismiss(kind: String) {
+        if (kind == EventKind.Queue.key) manager.cancel(QUEUE_ID)
     }
 
     fun clearChat() {
@@ -99,11 +131,18 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
 
     @SuppressLint("MissingPermission")
     private fun event(item: PartyEventItem) {
+        if (item.kind == EventKind.ReadyCheckDone) manager.cancel(READY_ID)
         if (!settings.notifies(item.kind.notify) || !canPost()) return
+        when (item.kind) {
+            EventKind.ReadyCheck -> return readyCheck(item.answerable)
+            EventKind.ReadyCheckDone -> return alert(READY_ID, "Ready check", item.text, RESULT_TIMEOUT_MS)
+            EventKind.Queue -> return alert(QUEUE_ID, "Duty ready", item.detail, QUEUE_TIMEOUT_MS)
+            else -> Unit
+        }
         val (title, text) = when (item.kind) {
-            EventKind.Joined, EventKind.Left -> item.name to item.text
             EventKind.Full -> item.text to PartyState.party.value.let { "${it.members.size}/${it.capacity}" }
             EventKind.Disbanded -> item.text to ""
+            else -> item.name to item.text
         }
         val notification = NotificationCompat.Builder(context, CHANNEL_PARTY)
             .setSmallIcon(R.drawable.ic_bell)
@@ -113,6 +152,47 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             .setAutoCancel(true)
             .build()
         manager.notify(nextId++, notification)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun readyCheck(answerable: Boolean) {
+        val builder = alertBuilder("Ready check", if (answerable) "Are you ready?" else "Waiting for the party", READY_TIMEOUT_MS)
+        if (answerable) {
+            builder.addAction(answerAction(true, "Ready"))
+            builder.addAction(answerAction(false, "Not ready"))
+        }
+        manager.notify(READY_ID, builder.build())
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun readyStatus(text: String) {
+        if (!settings.notifies(NotifyKind.ReadyCheck) || !canPost()) return
+        manager.notify(READY_ID, alertBuilder("Ready check", text, READY_TIMEOUT_MS).setOnlyAlertOnce(true).setSilent(true).build())
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun alert(id: Int, title: String, text: String, timeout: Long) =
+        manager.notify(id, alertBuilder(title, text, timeout).build())
+
+    private fun alertBuilder(title: String, text: String, timeout: Long) =
+        NotificationCompat.Builder(context, CHANNEL_ALERTS)
+            .setSmallIcon(R.drawable.ic_bell)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setContentIntent(openApp())
+            .setCategory(NotificationCompat.CATEGORY_EVENT)
+            .setTimeoutAfter(timeout)
+            .setAutoCancel(true)
+
+    private fun answerAction(ready: Boolean, label: String): NotificationCompat.Action {
+        val intent = Intent(context, AnswerReceiver::class.java).putExtra(EXTRA_READY, ready)
+        val pending = PendingIntent.getBroadcast(
+            context,
+            if (ready) 1 else 0,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        return NotificationCompat.Action.Builder(R.drawable.ic_bell, label, pending).build()
     }
 
     private fun replyAction(channel: String): NotificationCompat.Action {

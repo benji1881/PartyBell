@@ -79,6 +79,13 @@ internal sealed class MainWindow : Window
             config.Save();
         }
 
+        var allowPhoneReadyCheck = config.AllowPhoneReadyCheck;
+        if (ImGui.Checkbox("Allow answering ready checks from phones", ref allowPhoneReadyCheck))
+        {
+            config.AllowPhoneReadyCheck = allowPhoneReadyCheck;
+            config.Save();
+        }
+
         ImGui.Separator();
         DrawPhones();
 

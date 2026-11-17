@@ -37,7 +37,10 @@ enum class EventKind(val key: String, val notify: NotifyKind) {
     Joined("joined", NotifyKind.Joined),
     Left("left", NotifyKind.Left),
     Full("full", NotifyKind.Full),
-    Disbanded("disbanded", NotifyKind.Disbanded);
+    Disbanded("disbanded", NotifyKind.Disbanded),
+    ReadyCheck("readycheck", NotifyKind.ReadyCheck),
+    ReadyCheckDone("readycheckdone", NotifyKind.ReadyCheck),
+    Queue("queue", NotifyKind.Queue);
 
     companion object {
         fun of(key: String) = entries.firstOrNull { it.key == key }
@@ -54,6 +57,9 @@ data class PartyEventItem(
     val job: String,
     val role: Int,
     override val time: Long,
+    val count: Int = 0,
+    val detail: String = "",
+    val answerable: Boolean = false,
 ) : FeedItem {
     val text: String
         get() = when (kind) {
@@ -61,6 +67,9 @@ data class PartyEventItem(
             EventKind.Left -> "$name left"
             EventKind.Full -> "Party full"
             EventKind.Disbanded -> "Party disbanded"
+            EventKind.ReadyCheck -> "Ready check"
+            EventKind.ReadyCheckDone -> if (count == 0) "Everyone is ready" else "$count not ready"
+            EventKind.Queue -> "$detail is ready"
         }
 }
 

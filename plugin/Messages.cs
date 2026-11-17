@@ -20,6 +20,21 @@ internal static class Messages
     public static string Said(long id, string? reason) =>
         Json(new { type = "said", id, ok = reason == null, reason = reason ?? "" });
 
+    public static string ReadyCheck(bool answerable) =>
+        Json(new { type = "event", kind = "readycheck", name = "", job = "", role = 0, answerable, time = Now });
+
+    public static string ReadyCheckDone(int notReady) =>
+        Json(new { type = "event", kind = "readycheckdone", name = "", job = "", role = 0, count = notReady, time = Now });
+
+    public static string Queue(string duty) =>
+        Json(new { type = "event", kind = "queue", name = "", job = "", role = 0, detail = duty, time = Now });
+
+    public static string Answered(bool ready, string? reason) =>
+        Json(new { type = "answered", ready, ok = reason == null, reason = reason ?? "" });
+
+    public static string Dismiss(string kind) =>
+        Json(new { type = "dismiss", kind });
+
     public static string Icons(string version, int size, IReadOnlyDictionary<string, string> icons) =>
         Json(new { type = "icons", version, size, icons });
 

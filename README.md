@@ -4,7 +4,9 @@ Your FFXIV party on your phone.
 
 A Dalamud plugin sends your party list, party changes and party chat to the PartyBell Android app. The app shows your party and a chat feed, and notifies you when the party is full.
 
-You can write in party and alliance chat from the app or straight from a notification. Turn on Allow writing from phones in `/partybell` first. Commands can't be sent from the phone.
+You can write in party and alliance chat from the app or straight from a notification. Commands can't be sent from the phone. You can turn this off in `/partybell`.
+
+Ready checks show up as a notification with Ready and Not ready buttons that answer in game. You can turn this off in `/partybell` too. When a duty pops, you get a notification, but you accept it in game.
 
 The chat clears when you join a new party. Job icons are read from your own game install.
 

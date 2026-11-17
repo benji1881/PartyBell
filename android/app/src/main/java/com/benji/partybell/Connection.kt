@@ -127,8 +127,8 @@ class Connection(private val context: Context, private val settings: AppSettings
                 if (webSocket !== socket) return@post
                 if (PartyState.status.value != Status.Connected) {
                     round = 0
-                    PartyState.sender = { id, channel, say ->
-                        webSocket === socket && webSocket.send(sealer.seal(Protocol.say(id, channel, say).encodeToByteArray()).toByteString())
+                    PartyState.sender = { json ->
+                        webSocket === socket && webSocket.send(sealer.seal(json.encodeToByteArray()).toByteString())
                     }
                     PartyState.setStatus(Status.Connected)
                 }
@@ -136,6 +136,8 @@ class Connection(private val context: Context, private val settings: AppSettings
                     PartyState.apply(message)
                     if (message is Live) notifier.notify(message.item)
                     if (message is History && message.reset) notifier.clearChat()
+                    if (message is Answered) notifier.answered(message)
+                    if (message is Dismiss) notifier.dismiss(message.kind)
                 }
             }
         }

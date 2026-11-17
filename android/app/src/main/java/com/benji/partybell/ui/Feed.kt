@@ -251,7 +251,9 @@ private fun EventPill(item: PartyEventItem) {
     val tint = when (item.kind) {
         EventKind.Full -> AppColors.yellow
         EventKind.Disbanded -> AppColors.red
-        EventKind.Joined, EventKind.Left -> null
+        EventKind.ReadyCheckDone -> if (item.count == 0) AppColors.sage else AppColors.red
+        EventKind.Queue -> AppColors.yellow
+        EventKind.Joined, EventKind.Left, EventKind.ReadyCheck -> null
     }
     val shape = RoundedCornerShape(50)
     Box(Modifier.fillMaxWidth().padding(vertical = 5.dp), contentAlignment = Alignment.Center) {

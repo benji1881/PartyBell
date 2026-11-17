@@ -42,6 +42,12 @@ internal sealed class Feed
         }
     }
 
+    public void Broadcast(string json)
+    {
+        lock (gate)
+            Send(json);
+    }
+
     public void ClearBefore(DateTime time)
     {
         lock (gate)

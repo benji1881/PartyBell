@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender chat) : IDisposable
+internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender chat, ReadyCheck readyCheck) : IDisposable
 {
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan KeepAlive = TimeSpan.FromSeconds(20);
@@ -84,7 +84,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
                 return;
 
             using var sealer = new Sealer(session);
-            var client = new PhoneClient(socket, sealer, chat);
+            var client = new PhoneClient(socket, sealer, chat, readyCheck);
             feed.Join(client);
             if (session.Icons != JobIcons.Version)
                 client.Send(JobIcons.Message);

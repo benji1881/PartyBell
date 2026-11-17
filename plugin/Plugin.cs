@@ -19,6 +19,8 @@ public sealed class Plugin : IDalamudPlugin
     private readonly WindowSystem windows = new("PartyBell");
     private readonly PhoneServer server;
     private readonly ChatRelay chat;
+    private readonly ReadyCheck readyCheck;
+    private readonly DutyQueue queue;
     private readonly MainWindow window;
     private DateTime nextRead;
 
@@ -28,7 +30,9 @@ public sealed class Plugin : IDalamudPlugin
         var config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         config.Save();
 
-        server = new PhoneServer(feed, config, new ChatSender(config, tracker));
+        readyCheck = new ReadyCheck(feed, config);
+        queue = new DutyQueue(feed);
+        server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck);
         chat = new ChatRelay(config, feed, tracker);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
@@ -51,10 +55,12 @@ public sealed class Plugin : IDalamudPlugin
         windows.RemoveAllWindows();
         chat.Dispose();
         server.Dispose();
+        readyCheck.Dispose();
     }
 
     private void OnUpdate(IFramework framework)
     {
+        readyCheck.Update();
         var now = DateTime.UtcNow;
         if (now < nextRead)
             return;
@@ -69,6 +75,7 @@ public sealed class Plugin : IDalamudPlugin
         if (Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
             return;
 
+        queue.Update();
         events.Clear();
         var selfKey = $"{Services.PlayerState.CharacterName}@{Services.PlayerState.HomeWorld.Value.Name.ExtractText()}";
         var before = tracker.Current;

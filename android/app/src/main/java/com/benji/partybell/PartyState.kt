@@ -23,7 +23,7 @@ object PartyState {
     val status: StateFlow<Status> = statusFlow.asStateFlow()
     val viewed: StateFlow<Map<String, Long>> = viewedFlow.asStateFlow()
 
-    var sender: ((id: Long, channel: String, text: String) -> Boolean)? = null
+    var sender: ((json: String) -> Boolean)? = null
 
     fun clean(text: String): String = text.replace(whitespace, " ").trim()
 
@@ -50,7 +50,7 @@ object PartyState {
             is Said -> update(incoming.id) {
                 if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = reason(incoming.reason))
             }
-            is IconsUpdate -> Unit
+            is IconsUpdate, is Answered, is Dismiss -> Unit
         }
     }
 
@@ -59,7 +59,7 @@ object PartyState {
         if (message.isEmpty()) return
         val id = nextId++
         val problem = problem(message)
-        val sent = problem == null && sender?.invoke(id, channel, message) == true
+        val sent = problem == null && sender?.invoke(Protocol.say(id, channel, message)) == true
         val item = OutgoingItem(
             id = id,
             channel = channel,
@@ -70,6 +70,8 @@ object PartyState {
         )
         outboxFlow.value += item
     }
+
+    fun answer(ready: Boolean): Boolean = sender?.invoke(Protocol.answer(ready)) == true
 
     fun retry(item: OutgoingItem) {
         outboxFlow.value = outboxFlow.value.filter { it.id != item.id }

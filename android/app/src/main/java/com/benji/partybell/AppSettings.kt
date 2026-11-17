@@ -9,6 +9,8 @@ enum class NotifyKind(val key: String, val label: String, val default: Boolean) 
     Left("notify_left", "Someone left", false),
     Disbanded("notify_disbanded", "Party disbanded", false),
     Chat("notify_chat", "Party chat", false),
+    ReadyCheck("notify_readycheck", "Ready checks", true),
+    Queue("notify_queue", "Duty pops", true),
 }
 
 class AppSettings(context: Context) {

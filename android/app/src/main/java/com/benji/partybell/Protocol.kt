@@ -16,6 +16,10 @@ data class Said(val id: Long, val ok: Boolean, val reason: String) : Incoming
 
 data class IconsUpdate(val text: String) : Incoming
 
+data class Answered(val ready: Boolean, val ok: Boolean, val reason: String) : Incoming
+
+data class Dismiss(val kind: String) : Incoming
+
 data class Challenge(val version: Int, val nonce: ByteArray)
 
 object Protocol {
@@ -28,6 +32,8 @@ object Protocol {
             "history" -> History(objects(json, "items").mapNotNull(::item), json.optBoolean("reset"))
             "said" -> Said(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
             "icons" -> IconsUpdate(text)
+            "answered" -> Answered(json.optBoolean("ready"), json.optBoolean("ok"), json.optString("reason"))
+            "dismiss" -> Dismiss(json.optString("kind"))
             else -> item(json)?.let(::Live)
         }
     } catch (_: JSONException) {
@@ -59,6 +65,11 @@ object Protocol {
         .put("text", text)
         .toString()
 
+    fun answer(ready: Boolean): String = JSONObject()
+        .put("type", "answer")
+        .put("ready", ready)
+        .toString()
+
     private fun party(json: JSONObject) = Party(
         members = objects(json, "members").map {
             Member(
@@ -76,7 +87,16 @@ object Protocol {
 
     private fun item(json: JSONObject): FeedItem? = when (json.optString("type")) {
         "event" -> EventKind.of(json.optString("kind"))?.let {
-            PartyEventItem(it, json.optString("name"), json.optString("job"), json.optInt("role"), json.optLong("time"))
+            PartyEventItem(
+                it,
+                json.optString("name"),
+                json.optString("job"),
+                json.optInt("role"),
+                json.optLong("time"),
+                json.optInt("count"),
+                json.optString("detail"),
+                json.optBoolean("answerable"),
+            )
         }
         "chat" -> ChatItem(
             json.optString("name"),

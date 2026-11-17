@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender chat)
+internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender chat, ReadyCheck readyCheck)
 {
     private const int MaxMessageSize = 8192;
 
@@ -77,6 +77,8 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
                 }
                 if (Say.Parse(plain) is { } say)
                     Send(Messages.Said(say.Id, await chat.Send(say)));
+                else if (Answer.Parse(plain) is { } answer)
+                    Send(Messages.Answered(answer.Ready, await readyCheck.Answer(answer.Ready)));
             }
         }
         catch (Exception e) when (IsDisconnect(e))
