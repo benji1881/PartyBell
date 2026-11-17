@@ -77,6 +77,8 @@ public sealed class Plugin : IDalamudPlugin
             if (tracker.Reset())
                 feed.SetParty(Messages.Party(PartySnapshot.Empty));
             feed.SetCompany(Messages.Company(false));
+            readyCheck.Reset();
+            queue.Reset();
             return;
         }
         if (Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])

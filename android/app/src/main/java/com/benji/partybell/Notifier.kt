@@ -126,8 +126,10 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         }
     )
 
-    fun dismiss(kind: String) {
-        if (kind == EventKind.Queue.key) manager.cancel(QUEUE_ID)
+    fun dismiss(kind: String) = when (kind) {
+        EventKind.Queue.key -> manager.cancel(QUEUE_ID)
+        EventKind.ReadyCheck.key -> manager.cancel(READY_ID)
+        else -> Unit
     }
 
     @SuppressLint("MissingPermission")

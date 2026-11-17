@@ -24,6 +24,14 @@ internal sealed unsafe class DutyQueue(Feed feed)
             feed.Broadcast(Messages.Dismiss("queue"));
     }
 
+    public void Reset()
+    {
+        if (!popped)
+            return;
+        popped = false;
+        feed.Broadcast(Messages.Dismiss("queue"));
+    }
+
     private static string Name(ContentsId duty)
     {
         var name = duty.ContentType switch

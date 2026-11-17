@@ -70,6 +70,15 @@ internal sealed unsafe class ReadyCheck : IDisposable
         own = status;
     }
 
+    public void Reset()
+    {
+        if (!started && !running)
+            return;
+        started = false;
+        running = false;
+        feed.Broadcast(Messages.Dismiss("readycheck"));
+    }
+
     public Task<string?> Answer(bool ready) => config.AllowPhoneReadyCheck
         ? Services.Framework.RunOnFrameworkThread(() => Click(ready))
         : Task.FromResult<string?>("disabled");
