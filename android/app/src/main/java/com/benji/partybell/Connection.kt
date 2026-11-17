@@ -143,7 +143,7 @@ class Connection(private val context: Context, private val settings: AppSettings
                 if (message != null) {
                     PartyState.apply(message)
                     if (message is Live) notifier.notify(message.item)
-                    if (message is History && message.reset) notifier.clearChat()
+                    if (message is History && message.reset) notifier.clearChat(message.all)
                     if (message is Answered) notifier.answered(message)
                     if (message is Dismiss) notifier.dismiss(message.kind)
                 }

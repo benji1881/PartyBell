@@ -49,8 +49,8 @@ internal static class Messages
     public static string Icons(string version, int size, IReadOnlyDictionary<string, string> icons) =>
         Json(new { type = "icons", version, size, icons });
 
-    public static string History(IEnumerable<string> items, bool reset) =>
-        $"{{\"type\":\"history\",\"reset\":{(reset ? "true" : "false")},\"items\":[{string.Join(',', items)}]}}";
+    public static string History(IEnumerable<string> items, bool reset, bool all = false) =>
+        $"{{\"type\":\"history\",\"reset\":{(reset ? "true" : "false")},\"all\":{(all ? "true" : "false")},\"items\":[{string.Join(',', items)}]}}";
 
     private static long Now => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 

@@ -28,6 +28,7 @@ public sealed class Plugin : IDalamudPlugin
     private DateTime nextRead;
     private DateTime zonedAt;
     private DateTime nextFriends;
+    private bool loggedIn;
 
     public Plugin(IDalamudPluginInterface pluginInterface)
     {
@@ -79,8 +80,14 @@ public sealed class Plugin : IDalamudPlugin
             feed.SetCompany(Messages.Company(false));
             readyCheck.Reset();
             queue.Reset();
+            if (loggedIn)
+            {
+                loggedIn = false;
+                feed.ClearAll();
+            }
             return;
         }
+        loggedIn = true;
         if (Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
         {
             zonedAt = now;

@@ -70,6 +70,16 @@ internal sealed class Feed
         }
     }
 
+    public void ClearAll()
+    {
+        lock (gate)
+        {
+            history.Clear();
+            kept.Clear();
+            Send(Messages.History([], true, true));
+        }
+    }
+
     public void Join(PhoneClient client)
     {
         lock (gate)

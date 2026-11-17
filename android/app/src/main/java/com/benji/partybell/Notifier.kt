@@ -147,8 +147,9 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
 
     fun found() = manager.cancel(LOST_ID)
 
-    fun clearChat() {
-        listOf(ChatChannel.PARTY, ChatChannel.ALLIANCE).forEach {
+    fun clearChat(all: Boolean) {
+        val party = listOf(ChatChannel.PARTY, ChatChannel.ALLIANCE)
+        (if (all) (conversations.keys + party).toList() else party).forEach {
             conversations.remove(it)
             manager.cancel(it, CHAT_ID)
         }

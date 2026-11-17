@@ -8,7 +8,7 @@ sealed interface Incoming
 
 data class PartyUpdate(val party: Party) : Incoming
 
-data class History(val items: List<FeedItem>, val reset: Boolean) : Incoming
+data class History(val items: List<FeedItem>, val reset: Boolean, val all: Boolean) : Incoming
 
 data class Live(val item: FeedItem) : Incoming
 
@@ -37,7 +37,7 @@ object Protocol {
         val json = JSONObject(text)
         when (json.optString("type")) {
             "party" -> PartyUpdate(party(json))
-            "history" -> History(objects(json, "items").mapNotNull(::item), json.optBoolean("reset"))
+            "history" -> History(objects(json, "items").mapNotNull(::item), json.optBoolean("reset"), json.optBoolean("all"))
             "said" -> Said(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
             "icons" -> IconsUpdate(text)
             "answered" -> Answered(json.optBoolean("ready"), json.optBoolean("ok"), json.optString("reason"))
