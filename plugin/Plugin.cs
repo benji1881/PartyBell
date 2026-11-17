@@ -35,7 +35,7 @@ public sealed class Plugin : IDalamudPlugin
         config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         config.Save();
 
-        readyCheck = new ReadyCheck(feed, config);
+        readyCheck = new ReadyCheck(feed, config, tracker);
         queue = new DutyQueue(feed);
         server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck, new Inviter(config, tracker));
         chat = new ChatRelay(config, feed, tracker);

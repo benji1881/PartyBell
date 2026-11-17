@@ -12,9 +12,12 @@ internal sealed unsafe class ReadyCheck : IDisposable
     private const string Prompt = "SelectYesno";
     private const int PromptSlots = 4;
     private static readonly TimeSpan MaxDuration = TimeSpan.FromSeconds(35);
+    private static readonly TimeSpan StartDelay = TimeSpan.FromMilliseconds(500);
+    private const int MinMembers = 2;
 
     private readonly Feed feed;
     private readonly Configuration config;
+    private readonly PartyTracker tracker;
     private readonly Hook<AgentReadyCheck.Delegates.InitiateReadyCheck>? startHook;
     private readonly Hook<AgentReadyCheck.Delegates.EndReadyCheck>? endHook;
     private bool started;
@@ -22,10 +25,11 @@ internal sealed unsafe class ReadyCheck : IDisposable
     private DateTime startedAt;
     private ReadyCheckStatus own;
 
-    public ReadyCheck(Feed feed, Configuration config)
+    public ReadyCheck(Feed feed, Configuration config, PartyTracker tracker)
     {
         this.feed = feed;
         this.config = config;
+        this.tracker = tracker;
         try
         {
             startHook = Services.GameInteropProvider.HookFromAddress<AgentReadyCheck.Delegates.InitiateReadyCheck>(AgentReadyCheck.MemberFunctionPointers.InitiateReadyCheck, OnStart);
@@ -49,15 +53,23 @@ internal sealed unsafe class ReadyCheck : IDisposable
     {
         if (started)
         {
+            if (DateTime.UtcNow - startedAt < StartDelay)
+                return;
             started = false;
+            if (!InParty || Members() < MinMembers)
+                return;
             running = true;
-            startedAt = DateTime.UtcNow;
             own = OwnStatus();
             feed.Publish(Messages.ReadyCheck(own == ReadyCheckStatus.AwaitingResponse));
             return;
         }
         if (!running)
             return;
+        if (!InParty)
+        {
+            Reset();
+            return;
+        }
         if (DateTime.UtcNow - startedAt > MaxDuration)
         {
             Finish();
@@ -87,6 +99,7 @@ internal sealed unsafe class ReadyCheck : IDisposable
     {
         startHook!.Original(agent);
         started = true;
+        startedAt = DateTime.UtcNow;
     }
 
     private void OnEnd(AgentReadyCheck* agent)
@@ -97,9 +110,16 @@ internal sealed unsafe class ReadyCheck : IDisposable
             Finish();
     }
 
+    private bool InParty => tracker.Current is { Members.Count: >= MinMembers };
+
     private void Finish()
     {
         running = false;
+        if (!InParty || Members() < MinMembers)
+        {
+            feed.Broadcast(Messages.Dismiss("readycheck"));
+            return;
+        }
         var notReady = 0;
         foreach (var entry in AgentReadyCheck.Instance()->ReadyCheckEntries)
         {
@@ -122,6 +142,17 @@ internal sealed unsafe class ReadyCheck : IDisposable
         var value = new AtkValue { Type = AtkValueType.Int, Int = ready ? 0 : 1 };
         prompt->FireCallback(1, &value, true);
         return null;
+    }
+
+    private static int Members()
+    {
+        var count = 0;
+        foreach (var entry in AgentReadyCheck.Instance()->ReadyCheckEntries)
+        {
+            if (entry.ContentId != 0)
+                count++;
+        }
+        return count;
     }
 
     private static ReadyCheckStatus OwnStatus()
