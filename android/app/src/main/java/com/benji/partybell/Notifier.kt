@@ -7,9 +7,11 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Paint
 import android.os.Build
-import android.text.SpannableStringBuilder
-import android.text.style.ForegroundColorSpan
+import android.widget.RemoteViews
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -17,7 +19,7 @@ import androidx.core.app.Person
 import androidx.core.app.RemoteInput
 import androidx.compose.ui.graphics.toArgb
 import androidx.core.content.ContextCompat
-import androidx.core.text.inSpans
+import androidx.core.graphics.createBitmap
 import com.benji.partybell.ui.roleColor
 import com.benji.partybell.ui.roleRank
 
@@ -46,7 +48,9 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val CHANNEL_MESSAGES = "messages"
         private const val CHANNEL_LOST = "lost"
         private const val CHANNEL_UPDATES = "updates"
-        private const val ROLE_BAR = "▎"
+        private const val BAR_WIDTH_DP = 4
+        private const val BAR_GAP_DP = 3
+        private const val BAR_HEIGHT_DP = 14
         private const val OPEN_SLOT = 0xFFB9B4A8.toInt()
         private val conversations = mutableMapOf<String, MutableList<NotificationCompat.MessagingStyle.Message>>()
         private var nextId = FIRST_EVENT_ID
@@ -237,27 +241,42 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             else -> Unit
         }
         val (title, text) = when (item.kind) {
-            EventKind.Full -> item.text to roleBars(PartyState.party.value)
-            EventKind.Disbanded -> item.text to ""
+            EventKind.Full, EventKind.Disbanded -> item.text to ""
             else -> item.name to item.text
         }
-        val notification = NotificationCompat.Builder(context, CHANNEL_PARTY)
+        val builder = NotificationCompat.Builder(context, CHANNEL_PARTY)
             .setSmallIcon(R.drawable.ic_bell)
             .setContentTitle(title)
             .setContentText(text)
             .setContentIntent(openApp())
             .setAutoCancel(true)
-            .build()
-        manager.notify(nextId++, notification)
+        if (item.kind == EventKind.Full) {
+            val view = RemoteViews(context.packageName, R.layout.notification_party_full)
+            view.setTextViewText(R.id.title, title)
+            view.setImageViewBitmap(R.id.bars, roleBars(PartyState.party.value))
+            builder.setCustomContentView(view).setStyle(NotificationCompat.DecoratedCustomViewStyle())
+        }
+        manager.notify(nextId++, builder.build())
     }
 
-    private fun roleBars(party: Party): CharSequence {
+    private fun roleBars(party: Party): Bitmap {
         val own = party.members.groupBy { it.group }.values.firstOrNull().orEmpty().sortedBy { roleRank(it.role) }
         val slots = minOf(party.capacity, Party.GROUP_SIZE)
         val colors = own.take(slots).map { roleColor(it.role).toArgb() } + List(slots - own.size.coerceAtMost(slots)) { OPEN_SLOT }
-        val bars = SpannableStringBuilder()
-        colors.forEach { bars.inSpans(ForegroundColorSpan(it)) { append(ROLE_BAR) } }
-        return bars
+        val density = context.resources.displayMetrics.density
+        val width = BAR_WIDTH_DP * density
+        val gap = BAR_GAP_DP * density
+        val height = BAR_HEIGHT_DP * density
+        val radius = width / 2
+        val bitmap = createBitmap((colors.size * (width + gap) - gap).toInt().coerceAtLeast(1), height.toInt())
+        val canvas = Canvas(bitmap)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        colors.forEachIndexed { index, color ->
+            val left = index * (width + gap)
+            paint.color = color
+            canvas.drawRoundRect(left, 0f, left + width, height, radius, radius, paint)
+        }
+        return bitmap
     }
 
     @SuppressLint("MissingPermission")
