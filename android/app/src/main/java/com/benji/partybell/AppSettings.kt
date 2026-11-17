@@ -1,0 +1,47 @@
+package com.benji.partybell
+
+import android.content.Context
+import androidx.core.content.edit
+
+enum class NotifyKind(val key: String, val label: String, val default: Boolean) {
+    Full("notify_full", "Party full", true),
+    Joined("notify_joined", "Someone joined", false),
+    Left("notify_left", "Someone left", false),
+    Disbanded("notify_disbanded", "Party disbanded", false),
+    Chat("notify_chat", "Party chat", false),
+}
+
+class AppSettings(context: Context) {
+    private val prefs = context.getSharedPreferences("partybell", Context.MODE_PRIVATE)
+
+    val hosts: List<String>
+        get() = prefs.getString("hosts", "").orEmpty().split(',').filter(String::isNotEmpty)
+
+    val port: Int
+        get() = prefs.getInt("port", 4747)
+
+    val phoneId: String
+        get() = prefs.getString("phone_id", "").orEmpty()
+
+    val key: String
+        get() = prefs.getString("key", "").orEmpty()
+
+    var enabled: Boolean
+        get() = prefs.getBoolean("enabled", false)
+        set(value) = prefs.edit { putBoolean("enabled", value) }
+
+    val isPaired: Boolean
+        get() = hosts.isNotEmpty() && phoneId.isNotEmpty() && key.isNotEmpty()
+
+    fun pair(pairing: Pairing) = prefs.edit {
+        putString("hosts", pairing.hosts.joinToString(","))
+        putInt("port", pairing.port)
+        putString("phone_id", pairing.id)
+        putString("key", pairing.key)
+        putBoolean("enabled", true)
+    }
+
+    fun notifies(kind: NotifyKind) = prefs.getBoolean(kind.key, kind.default)
+
+    fun setNotifies(kind: NotifyKind, on: Boolean) = prefs.edit { putBoolean(kind.key, on) }
+}
