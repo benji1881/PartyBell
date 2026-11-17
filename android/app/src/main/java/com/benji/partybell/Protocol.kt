@@ -22,12 +22,14 @@ data class Dismiss(val kind: String) : Incoming
 
 data class FriendsUpdate(val friends: Friends) : Incoming
 
+data class CompanyUpdate(val member: Boolean) : Incoming
+
 data class Invited(val id: Long, val ok: Boolean, val reason: String) : Incoming
 
 data class Challenge(val version: Int, val nonce: ByteArray)
 
 object Protocol {
-    const val VERSION = 3
+    const val VERSION = 4
 
     fun parse(text: String): Incoming? = try {
         val json = JSONObject(text)
@@ -39,6 +41,7 @@ object Protocol {
             "answered" -> Answered(json.optBoolean("ready"), json.optBoolean("ok"), json.optString("reason"))
             "dismiss" -> Dismiss(json.optString("kind"))
             "friends" -> FriendsUpdate(friends(json))
+            "company" -> CompanyUpdate(json.optBoolean("member"))
             "invited" -> Invited(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
             else -> item(json)?.let(::Live)
         }

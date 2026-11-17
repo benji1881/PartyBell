@@ -15,6 +15,7 @@ internal sealed class Feed
     private readonly List<PhoneClient> clients = [];
     private string party = Messages.Party(PartySnapshot.Empty);
     private string friends = Messages.Friends(null);
+    private string company = Messages.Company(false);
 
     public int Count
     {
@@ -34,16 +35,9 @@ internal sealed class Feed
         }
     }
 
-    public void SetFriends(string json)
-    {
-        lock (gate)
-        {
-            if (json == friends)
-                return;
-            friends = json;
-            Send(json);
-        }
-    }
+    public void SetFriends(string json) => Replace(ref friends, json);
+
+    public void SetCompany(string json) => Replace(ref company, json);
 
     public void Publish(string json, bool keep = false)
     {
@@ -81,6 +75,7 @@ internal sealed class Feed
         {
             client.Send(party);
             client.Send(friends);
+            client.Send(company);
             client.Send(Messages.History(All(), false));
             clients.Add(client);
         }
@@ -90,6 +85,17 @@ internal sealed class Feed
     {
         lock (gate)
             clients.Remove(client);
+    }
+
+    private void Replace(ref string current, string json)
+    {
+        lock (gate)
+        {
+            if (json == current)
+                return;
+            current = json;
+            Send(json);
+        }
     }
 
     private IEnumerable<string> All() => history.Concat(kept).OrderBy(h => h.Time).Select(h => h.Json);

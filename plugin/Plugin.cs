@@ -76,6 +76,7 @@ public sealed class Plugin : IDalamudPlugin
             zonedAt = now;
             if (tracker.Reset())
                 feed.SetParty(Messages.Party(PartySnapshot.Empty));
+            feed.SetCompany(Messages.Company(false));
             return;
         }
         if (Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
@@ -89,6 +90,7 @@ public sealed class Plugin : IDalamudPlugin
         {
             nextFriends = now + FriendInterval;
             feed.SetFriends(Messages.Friends(config.SendFriends && feed.Count > 0 ? FriendList.Read() : null));
+            feed.SetCompany(Messages.Company(Company.IsMember));
         }
         events.Clear();
         var selfKey = $"{Services.PlayerState.CharacterName}@{Services.PlayerState.HomeWorld.Value.Name.ExtractText()}";

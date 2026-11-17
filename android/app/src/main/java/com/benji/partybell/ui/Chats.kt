@@ -74,12 +74,13 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
     val viewed by PartyState.viewed.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
     val friends by PartyState.friends.collectAsStateWithLifecycle()
+    val company by PartyState.company.collectAsStateWithLifecycle()
     val pinned by ChatPrefs.pinned.collectAsStateWithLifecycle()
     val muted by ChatPrefs.muted.collectAsStateWithLifecycle()
     val cleared by ChatPrefs.cleared.collectAsStateWithLifecycle()
     var deleting by remember { mutableStateOf<String?>(null) }
 
-    val groups = remember(feed, messages, outbox, viewed, cleared, pinned) {
+    val groups = remember(feed, messages, outbox, viewed, cleared, pinned, company) {
         val partyChat = feed.filterIsInstance<ChatItem>()
         val party = Thread(
             ChatChannel.PARTY,
@@ -87,7 +88,7 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
             partyChat.count { incoming(it, viewed[it.channel] ?: 0L) },
             null,
         )
-        listOf(party, thread(ChatChannel.FC, messages, outbox, viewed, cleared))
+        listOfNotNull(party, if (company) thread(ChatChannel.FC, messages, outbox, viewed, cleared) else null)
             .sortedByDescending { it.conversation in pinned }
     }
     val tells = remember(messages, outbox, viewed, cleared, pinned) {

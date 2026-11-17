@@ -51,6 +51,8 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
             return "no alliance";
         if (channel == Party && party is not { Members.Count: > 1 })
             return "no party";
+        if (channel == FreeCompany && !Company.IsMember)
+            return "no fc";
 
         var message = Utf8String.FromString(line);
         try

@@ -17,6 +17,7 @@ object PartyState {
     private val feedFlow = MutableStateFlow<List<FeedItem>>(emptyList())
     private val messagesFlow = MutableStateFlow<List<ChatItem>>(emptyList())
     private val friendsFlow = MutableStateFlow(Friends())
+    private val companyFlow = MutableStateFlow(false)
     private val outboxFlow = MutableStateFlow<List<OutgoingItem>>(emptyList())
     private val statusFlow = MutableStateFlow(Status.Off)
     private val viewedFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
@@ -28,6 +29,7 @@ object PartyState {
     val feed: StateFlow<List<FeedItem>> = feedFlow.asStateFlow()
     val messages: StateFlow<List<ChatItem>> = messagesFlow.asStateFlow()
     val friends: StateFlow<Friends> = friendsFlow.asStateFlow()
+    val company: StateFlow<Boolean> = companyFlow.asStateFlow()
     val outbox: StateFlow<List<OutgoingItem>> = outboxFlow.asStateFlow()
     val status: StateFlow<Status> = statusFlow.asStateFlow()
     val viewed: StateFlow<Map<String, Long>> = viewedFlow.asStateFlow()
@@ -68,6 +70,7 @@ object PartyState {
                 if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = reason(incoming.reason))
             }
             is FriendsUpdate -> friendsFlow.value = incoming.friends
+            is CompanyUpdate -> companyFlow.value = incoming.member
             is Invited -> invites.remove(incoming.id)?.let { friend ->
                 noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else inviteReason(incoming.reason))
             }
@@ -158,6 +161,7 @@ object PartyState {
         "command" -> "Commands can't be sent from the phone"
         "no party" -> "You're not in a party"
         "no alliance" -> "You're not in an alliance"
+        "no fc" -> "You're not in a Free Company"
         "not ready" -> "The game isn't ready"
         "invalid" -> "Not a valid name"
         else -> "The game refused it"
