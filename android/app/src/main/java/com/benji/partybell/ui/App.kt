@@ -55,6 +55,7 @@ import com.benji.partybell.ChatChannel
 import com.benji.partybell.ChatItem
 import com.benji.partybell.ChatPrefs
 import com.benji.partybell.FeedItem
+import com.benji.partybell.Notifier
 import com.benji.partybell.PartyEventItem
 import com.benji.partybell.PartyState
 import com.benji.partybell.Status
@@ -74,8 +75,10 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
 
     LaunchedEffect(request) {
         val conversation = request ?: return@LaunchedEffect
-        showSettings = false
-        if (ChatChannel.isParty(conversation)) {
+        showSettings = conversation == Notifier.OPEN_SETTINGS
+        if (showSettings) {
+            open = null
+        } else if (ChatChannel.isParty(conversation)) {
             tab = Tab.Party
             open = null
         } else {

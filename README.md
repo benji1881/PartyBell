@@ -14,7 +14,7 @@ Tells and Free Company chat have their own tab. Tells look like direct messages,
 
 The Friends tab shows who is online, lets you send them a tell and invite them to your party. If it stays empty, open your friend list in game once. Invites can be turned off in `/partybell`.
 
-The party chat clears when you join a new party. Job icons are read from your own game install.
+The party chat clears when you join a new party, and all chats clear when you log out or change character. Job icons are read from your own game install.
 
 The plugin and the app pair with a QR code. Everything between them is encrypted and only works on your own network.
 
@@ -27,6 +27,8 @@ The plugin and the app pair with a QR code. Everything between them is encrypted
 5. Type `/partybell` in game and press Pair a phone
 6. In the app, press Scan pairing code
 7. When Windows asks, allow PartyBell on private networks only
+
+The plugin updates through Dalamud. The app checks GitHub for a new release and shows a silent notification and an Updates card in Settings. Press Install update and allow PartyBell to install apps the first time.
 
 ## Away from home
 

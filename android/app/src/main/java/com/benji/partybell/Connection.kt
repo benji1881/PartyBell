@@ -139,6 +139,7 @@ class Connection(private val context: Context, private val settings: AppSettings
                         webSocket === socket && webSocket.send(sealer.seal(json.encodeToByteArray()).toByteString())
                     }
                     PartyState.setStatus(Status.Connected)
+                    Updater.check(context)
                 }
                 if (message != null) {
                     PartyState.apply(message)

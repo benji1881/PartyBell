@@ -28,10 +28,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         const val EXTRA_CONVERSATION = "conversation"
         const val EXTRA_OPEN = "open"
         const val EXTRA_READY = "ready"
+        const val OPEN_SETTINGS = "settings"
         private const val CHAT_ID = 2
         private const val READY_ID = 4
         private const val QUEUE_ID = 5
         private const val LOST_ID = 6
+        private const val UPDATE_ID = 7
         private const val READY_TIMEOUT_MS = 35_000L
         private const val QUEUE_TIMEOUT_MS = 45_000L
         private const val RESULT_TIMEOUT_MS = 60_000L
@@ -43,6 +45,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val CHANNEL_ALERTS = "alerts"
         private const val CHANNEL_MESSAGES = "messages"
         private const val CHANNEL_LOST = "lost"
+        private const val CHANNEL_UPDATES = "updates"
         private const val ROLE_BAR = "▎"
         private const val OPEN_SLOT = 0xFFB9B4A8.toInt()
         private val conversations = mutableMapOf<String, MutableList<NotificationCompat.MessagingStyle.Message>>()
@@ -78,6 +81,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         manager.createNotificationChannel(
             NotificationChannelCompat.Builder(CHANNEL_LOST, NotificationManagerCompat.IMPORTANCE_LOW)
                 .setName("Lost connection")
+                .setShowBadge(false)
+                .build()
+        )
+        manager.createNotificationChannel(
+            NotificationChannelCompat.Builder(CHANNEL_UPDATES, NotificationManagerCompat.IMPORTANCE_LOW)
+                .setName("App updates")
                 .setShowBadge(false)
                 .build()
         )
@@ -146,6 +155,22 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     }
 
     fun found() = manager.cancel(LOST_ID)
+
+    @SuppressLint("MissingPermission")
+    fun update(version: String) {
+        if (!settings.notifies(NotifyKind.Update) || !canPost()) return
+        val notification = NotificationCompat.Builder(context, CHANNEL_UPDATES)
+            .setSmallIcon(R.drawable.ic_bell)
+            .setContentTitle("PartyBell $version is available")
+            .setContentIntent(openApp(OPEN_SETTINGS))
+            .setAutoCancel(true)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        manager.notify(UPDATE_ID, notification)
+    }
+
+    fun updated() = manager.cancel(UPDATE_ID)
 
     fun clearChat(all: Boolean) {
         val party = listOf(ChatChannel.PARTY, ChatChannel.ALLIANCE)

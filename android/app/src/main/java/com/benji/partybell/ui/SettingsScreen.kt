@@ -23,10 +23,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -43,12 +45,14 @@ import com.benji.partybell.NotifyKind
 import com.benji.partybell.PairingScanner
 import com.benji.partybell.PartyService
 import com.benji.partybell.ScanResult
+import com.benji.partybell.Updater
 
 @Composable
 fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var paired by remember { mutableStateOf(settings.isPaired) }
     var scanError by remember { mutableStateOf<String?>(null) }
+    val update by Updater.update.collectAsState()
 
     Column(
         modifier = modifier
@@ -70,6 +74,33 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
             }
             Spacer(Modifier.width(14.dp))
             Text("Settings", fontFamily = Fraunces, fontSize = 26.sp, color = AppColors.text)
+        }
+
+        update?.let { available ->
+            Card("Updates") {
+                Column {
+                    Text("${available.version} is available.", color = AppColors.text)
+                    Text("You have ${Updater.current(context)}", color = AppColors.muted, fontSize = 13.sp)
+                }
+                Button(onClick = { Updater.install(context) }) {
+                    Text(
+                        when (available.progress) {
+                            null -> "Install update"
+                            100 -> "Opening installer"
+                            else -> "Downloading"
+                        }
+                    )
+                }
+                available.progress?.let { percent ->
+                    LinearProgressIndicator(
+                        progress = { percent / 100f },
+                        color = AppColors.sage,
+                        trackColor = AppColors.line,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (available.failed) Text("Couldn't download the update.", color = AppColors.red)
+            }
         }
 
         Card("Pairing") {

@@ -14,6 +14,7 @@ enum class NotifyKind(val key: String, val label: String, val default: Boolean) 
     ReadyCheck("notify_readycheck", "Ready checks", true),
     Queue("notify_queue", "Duty pops", true),
     Disconnected("notify_disconnected", "Lost connection", true),
+    Update("notify_update", "App updates", true),
 }
 
 class AppSettings(context: Context) {
@@ -34,6 +35,10 @@ class AppSettings(context: Context) {
     var enabled: Boolean
         get() = prefs.getBoolean("enabled", false)
         set(value) = prefs.edit { putBoolean("enabled", value) }
+
+    var notifiedUpdate: String
+        get() = prefs.getString("notified_update", "").orEmpty()
+        set(value) = prefs.edit { putString("notified_update", value) }
 
     val isPaired: Boolean
         get() = hosts.isNotEmpty() && phoneId.isNotEmpty() && key.isNotEmpty()
