@@ -10,29 +10,40 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
+internal sealed record Session(byte[] SendKey, byte[] ReceiveKey, string Icons);
+
 internal static class SecureChannel
 {
+    public const int Version = 2;
     public const WebSocketCloseStatus NotPaired = (WebSocketCloseStatus)4001;
+    public const WebSocketCloseStatus UpdateNeeded = (WebSocketCloseStatus)4002;
     private const int NonceSize = 16;
     private const int KeySize = 32;
     private const int MaxHelloSize = 1024;
     private static readonly byte[] ProofLabel = "partybell phone"u8.ToArray();
-    private static readonly byte[] KeyLabel = "partybell key"u8.ToArray();
+    private static readonly byte[] ToPhoneLabel = "partybell to phone"u8.ToArray();
+    private static readonly byte[] ToPcLabel = "partybell to pc"u8.ToArray();
 
-    public static async Task<byte[]?> Authenticate(WebSocket socket, IReadOnlyList<PairedPhone> phones, CancellationToken token)
+    public static async Task<Session?> Authenticate(WebSocket socket, IReadOnlyList<PairedPhone> phones, CancellationToken token)
     {
         var serverNonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var challenge = JsonSerializer.SerializeToUtf8Bytes(new { nonce = Convert.ToBase64String(serverNonce) });
+        var challenge = JsonSerializer.SerializeToUtf8Bytes(new { v = Version, nonce = Convert.ToBase64String(serverNonce) });
         await socket.SendAsync(challenge, WebSocketMessageType.Text, true, token);
 
         var hello = await ReceiveHello(socket, token);
-        var key = hello == null ? null : Verify(hello, serverNonce, phones);
-        if (key == null)
+        if (hello != null && hello.Version != Version)
+        {
+            await socket.CloseOutputAsync(UpdateNeeded, $"v{Version}", token);
+            return null;
+        }
+
+        var session = hello == null ? null : Verify(hello, serverNonce, phones);
+        if (session == null)
             await socket.CloseOutputAsync(NotPaired, "not paired", token);
-        return key;
+        return session;
     }
 
-    private static byte[]? Verify(Hello hello, byte[] serverNonce, IReadOnlyList<PairedPhone> phones)
+    private static Session? Verify(Hello hello, byte[] serverNonce, IReadOnlyList<PairedPhone> phones)
     {
         var phone = phones.FirstOrDefault(p => p.Id == hello.Id);
         if (phone == null || hello.Nonce.Length != NonceSize)
@@ -45,7 +56,10 @@ internal static class SecureChannel
         if (!CryptographicOperations.FixedTimeEquals(expected, hello.Proof))
             return null;
 
-        return HKDF.DeriveKey(HashAlgorithmName.SHA256, secret, KeySize, salt, KeyLabel);
+        return new Session(
+            HKDF.DeriveKey(HashAlgorithmName.SHA256, secret, KeySize, salt, ToPhoneLabel),
+            HKDF.DeriveKey(HashAlgorithmName.SHA256, secret, KeySize, salt, ToPcLabel),
+            hello.Icons);
     }
 
     private static async Task<Hello?> ReceiveHello(WebSocket socket, CancellationToken token)
@@ -60,9 +74,11 @@ internal static class SecureChannel
             using var json = JsonDocument.Parse(buffer.AsMemory(0, result.Count));
             var root = json.RootElement;
             return new Hello(
+                root.TryGetProperty("v", out var version) ? version.GetInt32() : 1,
                 root.GetProperty("id").GetString() ?? "",
                 Convert.FromBase64String(root.GetProperty("nonce").GetString() ?? ""),
-                Convert.FromBase64String(root.GetProperty("proof").GetString() ?? ""));
+                Convert.FromBase64String(root.GetProperty("proof").GetString() ?? ""),
+                root.TryGetProperty("icons", out var icons) ? icons.GetString() ?? "" : "");
         }
         catch (Exception e) when (e is JsonException or FormatException or KeyNotFoundException or InvalidOperationException)
         {
@@ -70,5 +86,5 @@ internal static class SecureChannel
         }
     }
 
-    private sealed record Hello(string Id, byte[] Nonce, byte[] Proof);
+    private sealed record Hello(int Version, string Id, byte[] Nonce, byte[] Proof, string Icons);
 }

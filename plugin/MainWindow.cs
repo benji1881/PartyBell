@@ -72,6 +72,13 @@ internal sealed class MainWindow : Window
             config.Save();
         }
 
+        var allowPhoneChat = config.AllowPhoneChat;
+        if (ImGui.Checkbox("Allow writing from phones", ref allowPhoneChat))
+        {
+            config.AllowPhoneChat = allowPhoneChat;
+            config.Save();
+        }
+
         ImGui.Separator();
         DrawPhones();
 

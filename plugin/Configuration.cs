@@ -9,6 +9,7 @@ public sealed class Configuration : IPluginConfiguration
     public int Version { get; set; }
     public int Port { get; set; } = 4747;
     public bool SendChat { get; set; } = true;
+    public bool AllowPhoneChat { get; set; } = true;
     public List<PairedPhone> Phones { get; set; } = [];
 
     public PairedPhone AddPhone()

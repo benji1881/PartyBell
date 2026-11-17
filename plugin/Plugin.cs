@@ -28,7 +28,7 @@ public sealed class Plugin : IDalamudPlugin
         var config = pluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         config.Save();
 
-        server = new PhoneServer(feed, config);
+        server = new PhoneServer(feed, config, new ChatSender(config, tracker));
         chat = new ChatRelay(config, feed, tracker);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
@@ -71,8 +71,12 @@ public sealed class Plugin : IDalamudPlugin
 
         events.Clear();
         var selfKey = $"{Services.PlayerState.CharacterName}@{Services.PlayerState.HomeWorld.Value.Name.ExtractText()}";
+        var before = tracker.Current;
         if (!tracker.Update(PartyReader.Read(), selfKey, now, events))
             return;
+
+        if (before is not { Members.Count: > 1 } && tracker.Current!.Members.Count > 1)
+            feed.ClearBefore(tracker.ChangedAt);
 
         feed.SetParty(Messages.Party(tracker.Current!));
         foreach (var e in events)

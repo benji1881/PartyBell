@@ -8,8 +8,10 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneClient(WebSocket socket, Sealer sealer)
+internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender chat)
 {
+    private const int MaxMessageSize = 8192;
+
     private readonly Channel<string> outbox = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
 
     public void Send(string json) => outbox.Writer.TryWrite(json);
@@ -46,14 +48,35 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer)
 
     private async Task ReceiveLoop(CancellationToken token)
     {
-        var buffer = new byte[1024];
+        var buffer = new byte[MaxMessageSize];
         try
         {
             while (socket.State == WebSocketState.Open)
             {
-                var result = await socket.ReceiveAsync(buffer.AsMemory(), token);
-                if (result.MessageType == WebSocketMessageType.Close)
+                var count = 0;
+                ValueWebSocketReceiveResult result;
+                do
+                {
+                    if (count == buffer.Length)
+                    {
+                        await socket.CloseOutputAsync(WebSocketCloseStatus.MessageTooBig, null, token);
+                        return;
+                    }
+                    result = await socket.ReceiveAsync(buffer.AsMemory(count), token);
+                    if (result.MessageType == WebSocketMessageType.Close)
+                        return;
+                    count += result.Count;
+                }
+                while (!result.EndOfMessage);
+
+                var plain = result.MessageType == WebSocketMessageType.Binary ? sealer.Open(buffer.AsSpan(0, count)) : null;
+                if (plain == null)
+                {
+                    await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, null, token);
                     return;
+                }
+                if (Say.Parse(plain) is { } say)
+                    Send(Messages.Said(say.Id, await chat.Send(say)));
             }
         }
         catch (Exception e) when (IsDisconnect(e))

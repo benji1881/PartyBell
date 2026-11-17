@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneServer(Feed feed, Configuration config) : IDisposable
+internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender chat) : IDisposable
 {
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan KeepAlive = TimeSpan.FromSeconds(20);
@@ -72,20 +72,22 @@ internal sealed class PhoneServer(Feed feed, Configuration config) : IDisposable
         {
             var stream = tcp.GetStream();
             using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true, KeepAliveInterval = KeepAlive });
-            byte[]? key;
+            Session? session;
             using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
             {
                 timeout.CancelAfter(HandshakeTimeout);
                 if (!await WebSocketUpgrade.Accept(stream, timeout.Token))
                     return;
-                key = await SecureChannel.Authenticate(socket, config.Phones, timeout.Token);
+                session = await SecureChannel.Authenticate(socket, config.Phones, timeout.Token);
             }
-            if (key == null)
+            if (session == null)
                 return;
 
-            using var sealer = new Sealer(key);
-            var client = new PhoneClient(socket, sealer);
+            using var sealer = new Sealer(session);
+            var client = new PhoneClient(socket, sealer, chat);
             feed.Join(client);
+            if (session.Icons != JobIcons.Version)
+                client.Send(JobIcons.Message);
             try
             {
                 await client.Run(token);

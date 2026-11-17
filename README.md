@@ -4,6 +4,10 @@ Your FFXIV party on your phone.
 
 A Dalamud plugin sends your party list, party changes and party chat to the PartyBell Android app. The app shows your party and a chat feed, and notifies you when the party is full.
 
+You can write in party and alliance chat from the app or straight from a notification. Turn on Allow writing from phones in `/partybell` first. Commands can't be sent from the phone.
+
+The chat clears when you join a new party. Job icons are read from your own game install.
+
 The plugin and the app pair with a QR code. Everything between them is encrypted and only works on your own network.
 
 ## Install
@@ -22,6 +26,6 @@ Install [Tailscale](https://tailscale.com) on your PC and phone, sign in with th
 
 ## License
 
-Apache-2.0. The Itim font is OFL-1.1.
+Apache-2.0. The Plus Jakarta Sans and Fraunces fonts are OFL-1.1.
 
 AI-assisted.

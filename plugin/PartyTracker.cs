@@ -6,15 +6,32 @@ namespace PartyBell;
 
 internal sealed class PartyTracker
 {
+    private const int MaxRemembered = 200;
     private static readonly TimeSpan SettleTime = TimeSpan.FromSeconds(1);
 
+    private readonly Dictionary<string, Member> seen = [];
     private PartySnapshot? pending;
     private DateTime pendingSince;
 
     public PartySnapshot? Current { get; private set; }
 
+    public DateTime ChangedAt { get; private set; }
+
+    public Member? Find(string name) =>
+        Current?.Members.FirstOrDefault(m => m.Name == name) ?? seen.GetValueOrDefault(name);
+
+    private void Remember(Member member)
+    {
+        if (seen.Count >= MaxRemembered && !seen.ContainsKey(member.Name))
+            seen.Clear();
+        seen[member.Name] = member;
+    }
+
     public bool Update(PartySnapshot snapshot, string selfKey, DateTime now, List<PartyEvent> events)
     {
+        foreach (var member in snapshot.Members)
+            Remember(member);
+
         if (Current != null && snapshot.SameAs(Current))
         {
             pending = null;
@@ -34,6 +51,7 @@ internal sealed class PartyTracker
         if (Current != null)
             Compare(Current, snapshot, selfKey, events);
         Current = snapshot;
+        ChangedAt = pendingSince;
         pending = null;
         return true;
     }

@@ -46,7 +46,9 @@ internal static class PartyReader
     private static unsafe PartySnapshot ReadCrossRealm()
     {
         var members = new List<Member>();
-        var groups = Math.Max(1, (int)InfoProxyCrossRealm.Instance()->GroupCount);
+        var proxy = InfoProxyCrossRealm.Instance();
+        var groups = Math.Max(1, (int)proxy->GroupCount);
+        var own = proxy->LocalPlayerGroupIndex;
         for (var group = 0; group < groups; group++)
         {
             var count = InfoProxyCrossRealm.GetGroupMemberCount(group);
@@ -54,11 +56,19 @@ internal static class PartyReader
             {
                 var member = InfoProxyCrossRealm.GetGroupMember(i, group);
                 if (member != null && member->ContentId != 0)
-                    members.Add(Create(member->NameString, (uint)member->HomeWorld, member->ClassJobId, member->Level, member->IsPartyLeader, member->GroupIndex));
+                    members.Add(Create(member->NameString, (uint)member->HomeWorld, member->ClassJobId, member->Level, member->IsPartyLeader, OwnFirst(member->GroupIndex, own)));
             }
         }
         return new PartySnapshot(members, InfoProxyCrossRealm.IsAllianceRaid() ? AllianceSize : GroupSize);
     }
+
+    public static Member Self()
+    {
+        var player = Services.PlayerState;
+        return Create(player.CharacterName, player.HomeWorld.RowId, player.ClassJob.RowId, player.Level, false, 0);
+    }
+
+    private static int OwnFirst(int group, int own) => group == own ? 0 : group < own ? group + 1 : group;
 
     private static Member FromPartyMember(IPartyMember member, bool leader, int group) =>
         Create(member.Name.TextValue, member.World.RowId, member.ClassJob.RowId, member.Level, leader, group);

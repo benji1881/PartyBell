@@ -20,6 +20,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         askForNotifications()
 
+        JobIcons.load(this)
         val settings = AppSettings(this)
         if (settings.enabled && settings.isPaired) PartyService.start(this)
 

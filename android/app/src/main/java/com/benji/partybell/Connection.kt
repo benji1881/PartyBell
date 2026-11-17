@@ -1,5 +1,6 @@
 package com.benji.partybell
 
+import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import okhttp3.HttpUrl
@@ -9,10 +10,11 @@ import okhttp3.Response
 import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import okio.ByteString
+import okio.ByteString.Companion.toByteString
 import java.util.concurrent.TimeUnit
 import kotlin.math.min
 
-class Connection(private val settings: AppSettings, private val notifier: Notifier) {
+class Connection(private val context: Context, private val settings: AppSettings, private val notifier: Notifier) {
     private companion object {
         const val BASE_DELAY_MS = 1_000L
         const val MAX_DELAY_MS = 30_000L
@@ -20,6 +22,8 @@ class Connection(private val settings: AppSettings, private val notifier: Notifi
         const val NORMAL_CLOSE = 1000
         const val POLICY_CLOSE = 1008
         const val NOT_PAIRED = 4001
+        const val UPDATE_NEEDED = 4002
+        val waiting = setOf(Status.NotPaired, Status.UpdatePlugin, Status.UpdateApp)
     }
 
     private val client = OkHttpClient.Builder()
@@ -44,6 +48,7 @@ class Connection(private val settings: AppSettings, private val notifier: Notifi
         socket?.close(NORMAL_CLOSE, null)
         socket = null
         round = 0
+        PartyState.disconnected()
         PartyState.setStatus(Status.Off)
     }
 
@@ -63,13 +68,14 @@ class Connection(private val settings: AppSettings, private val notifier: Notifi
             return
         }
 
-        if (PartyState.status.value != Status.NotPaired) PartyState.setStatus(Status.Connecting)
+        if (PartyState.status.value !in waiting) PartyState.setStatus(Status.Connecting)
         socket = client.newWebSocket(Request.Builder().url(url).build(), Listener(settings.phoneId, secret))
     }
 
     private fun retry(ws: WebSocket, status: Status, opened: Boolean) {
         if (ws !== socket || !running) return
         socket = null
+        PartyState.disconnected()
         PartyState.setStatus(status)
         if (!opened) {
             hostIndex++
@@ -79,46 +85,66 @@ class Connection(private val settings: AppSettings, private val notifier: Notifi
         handler.postDelayed(::connect, delay)
     }
 
+    private fun versionStatus(theirs: Int) = if (theirs < Protocol.VERSION) Status.UpdatePlugin else Status.UpdateApp
+
     private inner class Listener(private val phoneId: String, private val secret: ByteArray) : WebSocketListener() {
-        private var opener: Opener? = null
-        private var notPaired = false
+        private var sealer: Sealer? = null
+        private var closeStatus: Status? = null
         private var opened = false
 
         override fun onMessage(webSocket: WebSocket, text: String) {
-            val serverNonce = Protocol.challenge(text)
-            if (opener != null || serverNonce == null) {
+            val challenge = Protocol.challenge(text)
+            if (sealer != null || challenge == null) {
                 webSocket.close(POLICY_CLOSE, null)
                 return
             }
+            if (challenge.version != Protocol.VERSION) {
+                closeStatus = versionStatus(challenge.version)
+                webSocket.close(NORMAL_CLOSE, null)
+                return
+            }
             val phoneNonce = Crypto.nonce()
-            opener = Opener(Crypto.sessionKey(secret, serverNonce, phoneNonce))
-            webSocket.send(Protocol.hello(phoneId, phoneNonce, Crypto.proof(secret, serverNonce, phoneNonce)))
+            sealer = Sealer(Crypto.sessionKeys(secret, challenge.nonce, phoneNonce))
+            webSocket.send(Protocol.hello(phoneId, phoneNonce, Crypto.proof(secret, challenge.nonce, phoneNonce), JobIcons.version))
         }
 
         override fun onMessage(webSocket: WebSocket, bytes: ByteString) {
-            val plain = opener?.open(bytes.toByteArray())
+            val sealer = sealer
+            val plain = sealer?.open(bytes.toByteArray())
             if (plain == null) {
-                notPaired = true
+                closeStatus = Status.NotPaired
                 webSocket.close(POLICY_CLOSE, null)
                 return
             }
             opened = true
-            val message = Protocol.parse(plain.decodeToString())
+            val text = plain.decodeToString()
+            val message = Protocol.parse(text)
+            if (message is IconsUpdate) {
+                JobIcons.save(context, message.text)
+                return
+            }
             handler.post {
                 if (webSocket !== socket) return@post
                 if (PartyState.status.value != Status.Connected) {
                     round = 0
+                    PartyState.sender = { id, channel, say ->
+                        webSocket === socket && webSocket.send(sealer.seal(Protocol.say(id, channel, say).encodeToByteArray()).toByteString())
+                    }
                     PartyState.setStatus(Status.Connected)
                 }
                 if (message != null) {
                     PartyState.apply(message)
                     if (message is Live) notifier.notify(message.item)
+                    if (message is History && message.reset) notifier.clearChat()
                 }
             }
         }
 
         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-            if (code == NOT_PAIRED) notPaired = true
+            when (code) {
+                NOT_PAIRED -> closeStatus = Status.NotPaired
+                UPDATE_NEEDED -> closeStatus = versionStatus(reason.removePrefix("v").toIntOrNull() ?: 0)
+            }
             webSocket.close(NORMAL_CLOSE, null)
         }
 
@@ -127,7 +153,7 @@ class Connection(private val settings: AppSettings, private val notifier: Notifi
         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = done(webSocket)
 
         private fun done(webSocket: WebSocket) {
-            val status = if (notPaired) Status.NotPaired else Status.Connecting
+            val status = closeStatus ?: Status.Connecting
             val opened = opened
             handler.post { retry(webSocket, status, opened) }
         }

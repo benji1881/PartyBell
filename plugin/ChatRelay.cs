@@ -29,14 +29,15 @@ internal sealed class ChatRelay : IDisposable
             return;
 
         var name = SenderName(message.Sender);
-        var member = tracker.Current?.Members.FirstOrDefault(m => m.Name == name);
-        feed.Publish(Messages.Chat(name, member, message.Message.TextValue, channel));
+        var self = name == Services.PlayerState.CharacterName;
+        var member = tracker.Find(name) ?? (self ? PartyReader.Self() : null);
+        feed.Publish(Messages.Chat(name, member, message.Message.TextValue, channel, self));
     }
 
     private static string? Channel(XivChatType type) => type switch
     {
-        XivChatType.Party or XivChatType.CrossParty => "party",
-        XivChatType.Alliance => "alliance",
+        XivChatType.Party or XivChatType.CrossParty => ChatSender.Party,
+        XivChatType.Alliance => ChatSender.Alliance,
         _ => null,
     };
 

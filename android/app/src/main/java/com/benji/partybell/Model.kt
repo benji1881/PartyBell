@@ -10,13 +10,27 @@ data class Member(
     val group: Int,
 )
 
-data class Party(val members: List<Member> = emptyList(), val capacity: Int = 8)
+data class Party(val members: List<Member> = emptyList(), val capacity: Int = GROUP_SIZE) {
+    companion object {
+        const val GROUP_SIZE = 8
+    }
+
+    val isAlliance: Boolean
+        get() = capacity > GROUP_SIZE
+}
+
+object ChatChannel {
+    const val PARTY = "party"
+    const val ALLIANCE = "alliance"
+}
 
 enum class Status(val label: String) {
-    Off("Not connected"),
-    Connecting("Connecting"),
+    Off("Offline"),
+    Connecting("Connecting…"),
     Connected("Connected"),
     NotPaired("Not paired"),
+    UpdatePlugin("Update the plugin"),
+    UpdateApp("Update the app"),
 }
 
 enum class EventKind(val key: String, val notify: NotifyKind) {
@@ -43,8 +57,8 @@ data class PartyEventItem(
 ) : FeedItem {
     val text: String
         get() = when (kind) {
-            EventKind.Joined -> "Joined the party"
-            EventKind.Left -> "Left the party"
+            EventKind.Joined -> "$name joined"
+            EventKind.Left -> "$name left"
             EventKind.Full -> "Party full"
             EventKind.Disbanded -> "Party disbanded"
         }
@@ -56,5 +70,17 @@ data class ChatItem(
     val role: Int,
     val text: String,
     val channel: String,
+    val self: Boolean,
+    override val time: Long,
+) : FeedItem
+
+enum class SendState { Sending, Sent, Failed }
+
+data class OutgoingItem(
+    val id: Long,
+    val channel: String,
+    val text: String,
+    val state: SendState,
+    val reason: String,
     override val time: Long,
 ) : FeedItem
