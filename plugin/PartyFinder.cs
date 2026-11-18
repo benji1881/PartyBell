@@ -260,6 +260,8 @@ internal sealed unsafe class PartyFinder : IDisposable
         var present = listing.RawJobsPresent.ToList();
         var jobs = Services.DataManager.GetExcelSheet<Sheets.ClassJob>();
         var slots = new List<Slot>();
+        var open = new SortedSet<string>(StringComparer.Ordinal);
+        var oneEach = listing[SearchAreaFlags.OnePlayerPerJob];
         var fits = false;
         var index = 0;
         foreach (var slot in listing.Slots.Take(listing.SlotsAvailable))
@@ -274,11 +276,16 @@ internal sealed unsafe class PartyFinder : IDisposable
             }
             var accepted = slot.Accepting.Select(f => f.ClassJob(Services.DataManager)).ToList();
             fits |= accepted.Any(j => j?.RowId == job);
+            foreach (var accepting in accepted)
+            {
+                if (accepting is { } row && !(oneEach && present.Contains((byte)row.RowId)))
+                    open.Add(row.Abbreviation.ExtractText());
+            }
             var roles = accepted.Select(j => Role(j?.Role ?? 0)).Distinct().ToList();
             slots.Add(new Slot("", roles.Count == 1 ? roles[0] : 0));
         }
         fits &= itemLevel >= listing.MinimumItemLevel;
-        fits &= !listing[SearchAreaFlags.OnePlayerPerJob] || !present.Contains((byte)job);
+        fits &= !oneEach || !present.Contains((byte)job);
 
         return new Listing(
             listing.Id.ToString(),
@@ -291,6 +298,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             listing.SecondsRemaining,
             listing.MinimumItemLevel,
             slots,
+            open.ToList(),
             fits,
             listing.ContentId == Services.PlayerState.ContentId,
             listing[SearchAreaFlags.Private],
@@ -302,7 +310,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             listing[SearchAreaFlags.DataCenter]);
     }
 
-    private static int Role(byte role) => role == 3 ? 2 : role;
+    internal static int Role(byte role) => role == 3 ? 2 : role;
 
     private static int CategoryOf(DutyCategory category) => category == DutyCategory.None ? Other : BitOperations.Log2((uint)category);
 

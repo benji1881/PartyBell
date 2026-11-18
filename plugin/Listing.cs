@@ -13,6 +13,7 @@ public sealed record Listing(
     int Seconds,
     int Ilvl,
     IReadOnlyList<Slot> Slots,
+    IReadOnlyList<string> Jobs,
     bool Fits,
     bool Own,
     bool Locked,
@@ -24,3 +25,5 @@ public sealed record Listing(
     bool CrossWorld);
 
 public sealed record Slot(string Job, int Role);
+
+public sealed record Job(string Name, int Role);

@@ -170,6 +170,8 @@ data class Slot(val job: String, val role: Int) {
         get() = job.isNotEmpty()
 }
 
+data class Job(val name: String, val role: Int)
+
 data class Listing(
     val id: String,
     val duty: String,
@@ -181,6 +183,7 @@ data class Listing(
     val seconds: Int,
     val ilvl: Int,
     val slots: List<Slot>,
+    val jobs: List<String>,
     val fits: Boolean,
     val own: Boolean,
     val locked: Boolean,

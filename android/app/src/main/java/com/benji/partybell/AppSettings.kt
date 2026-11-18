@@ -56,6 +56,14 @@ class AppSettings(context: Context) {
         get() = prefs.getInt("finder_goal", 0)
         set(value) = prefs.edit { putInt("finder_goal", value) }
 
+    var finderJobs: Set<String>
+        get() = prefs.getStringSet("finder_jobs", emptySet()).orEmpty().toSet()
+        set(value) = prefs.edit { putStringSet("finder_jobs", value) }
+
+    var finderWords: List<String>
+        get() = prefs.getString("finder_words", "").orEmpty().split('\n').filter(String::isNotEmpty)
+        set(value) = prefs.edit { putString("finder_words", value.joinToString("\n")) }
+
     val isPaired: Boolean
         get() = hosts.isNotEmpty() && phoneId.isNotEmpty() && key.isNotEmpty()
 

@@ -5,6 +5,7 @@ import android.content.Intent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,11 +23,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
@@ -53,25 +63,41 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.AppSettings
 import com.benji.partybell.FinderCategory
+import com.benji.partybell.Job
+import com.benji.partybell.JobIcons
 import com.benji.partybell.Listing
 import com.benji.partybell.Listings
 import com.benji.partybell.PartyState
@@ -86,7 +112,21 @@ private val SLOT_SIZE = 26.dp
 private val PracticeColor = Color(0xFF5E9A4E)
 private val CompletionColor = Color(0xFF4E82C4)
 private val LootColor = Color(0xFFD9853B)
-private const val GRID_COLUMNS = 2
+private const val BEGINNERS = "Beginners welcome"
+private const val HIGHLIGHT_ALPHA = 0.4f
+private const val PICK_DIM = 0.35f
+private const val SHOWN_JOBS = 3
+private val SheetPadding = 20.dp
+private val FadeWidth = 32.dp
+private val PICK_SIZE = 38.dp
+private val HighlightIcon = ImageVector.Builder("Highlight", 24.dp, 24.dp, 24f, 24f)
+    .addPath(
+        PathParser().parsePathString(
+            "M6,14l3,3v5h6v-5l3,-3V9H6V14zM11,2h2v3h-2V2zM3.5,5.88l1.41,-1.41l2.12,2.12L5.62,8L3.5,5.88zM16.96,6.59l2.12,-2.12l1.41,1.41L18.38,8L16.96,6.59z",
+        ).toNodes(),
+        fill = SolidColor(Color.Black),
+    )
+    .build()
 private val Sliders = ImageVector.Builder("Sliders", 24.dp, 24.dp, 24f, 24f)
     .addPath(PathParser().parsePathString("M3,5h18v2H3zM3,11h18v2H3zM3,17h18v2H3zM14,3h2v6h-2zM6,9h2v6H6zM16,15h2v6h-2z").toNodes(), fill = SolidColor(Color.Black))
     .build()
@@ -106,6 +146,9 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     val status by PartyState.status.collectAsStateWithLifecycle()
     var category by rememberSaveable { mutableIntStateOf(settings.finderCategory) }
     var fits by rememberSaveable { mutableStateOf(settings.finderFits) }
+    var picks by rememberSaveable { mutableStateOf(settings.finderJobs) }
+    var words by rememberSaveable { mutableStateOf(settings.finderWords) }
+    val jobs by JobIcons.jobs.collectAsStateWithLifecycle()
     var beginners by rememberSaveable { mutableStateOf(settings.finderBeginners) }
     var goal by rememberSaveable { mutableStateOf(Goal.entries.getOrElse(settings.finderGoal) { Goal.Any }) }
     var sheet by rememberSaveable { mutableStateOf(false) }
@@ -126,18 +169,26 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
 
     val listings = all[category] ?: Listings()
     val loaded = listings.time > 0L
-    val shown = remember(listings, fits, beginners, goal, query) {
+    val matcher = remember(words) { WordMatcher(words) }
+    val shown = remember(listings, fits, picks, beginners, goal, query, matcher) {
         listings.list
-            .filter { it.own || ((!fits || it.fits) && (!beginners || it.beginners) && goal.keeps(it)) }
+            .filter { it.own || (keepsJobs(it, fits, picks) && (!beginners || it.beginners) && goal.keeps(it)) }
             .filter { query.isBlank() || matches(it, query.trim()) }
-            .sortedByDescending { it.own }
+            .sortedWith(compareByDescending<Listing> { it.own }.thenByDescending { matcher.matches(it.description) })
     }
 
-    val setFits = { on: Boolean -> fits = on; settings.finderFits = on }
+    val setJobs = { mine: Boolean, picked: Set<String> ->
+        fits = mine
+        picks = picked
+        settings.finderFits = mine
+        settings.finderJobs = picked
+    }
+    val setWords = { list: List<String> -> words = list; settings.finderWords = list }
     val setBeginners = { on: Boolean -> beginners = on; settings.finderBeginners = on }
     val setGoal = { picked: Goal -> goal = picked; settings.finderGoal = picked.ordinal }
-    val clear = { setFits(false); setBeginners(false); setGoal(Goal.Any) }
-    val active = listOf(fits, beginners, goal != Goal.Any).count { it }
+    val clear = { setJobs(false, emptySet()); setBeginners(false); setGoal(Goal.Any) }
+    val jobFilter = fits || picks.isNotEmpty()
+    val active = listOf(jobFilter, beginners, goal != Goal.Any).count { it }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -155,7 +206,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             CircleButton(Icons.Filled.Settings, "Settings", onSettings)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SearchField(query, onChange = { query = it }, modifier = Modifier.weight(1f))
+            PillField(query, "Search duty, leader or description", onChange = { query = it }, modifier = Modifier.weight(1f), icon = Icons.Filled.Search)
             Spacer(Modifier.width(8.dp))
             FilterButton(active) { sheet = true }
         }
@@ -166,8 +217,8 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
             Chip(FinderCategory.label(category), true, trailing = Icons.Filled.ArrowDropDown) { sheet = true }
-            if (fits) Removable("Fits my job") { setFits(false) }
-            if (beginners) Removable("Beginners welcome") { setBeginners(false) }
+            if (jobFilter) Removable(jobSummary(fits, picks, jobs, SHOWN_JOBS)) { setJobs(false, emptySet()) }
+            if (beginners) Removable(BEGINNERS) { setBeginners(false) }
             if (goal != Goal.Any) Removable(goal.label) { setGoal(Goal.Any) }
             if (active > 0) {
                 Text(
@@ -196,6 +247,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                     ListingCard(
                         listing,
                         listing.secondsLeft(listings.time, now),
+                        matcher,
                         onTell = { onTell(listing.peer) },
                         onJoin = { PartyState.join(listing) },
                         onOpen = { PartyState.open(listing) },
@@ -211,15 +263,19 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             category = category,
             goal = goal,
             fits = fits,
+            picks = picks,
+            jobs = jobs,
             beginners = beginners,
+            words = words,
             count = shown.size,
             onCategory = {
                 category = it
                 settings.finderCategory = it
             },
             onGoal = setGoal,
-            onFits = setFits,
+            onJobs = setJobs,
             onBeginners = setBeginners,
+            onWords = setWords,
             onClear = clear,
             onDismiss = { sheet = false },
         )
@@ -232,21 +288,28 @@ private fun FilterSheet(
     category: Int,
     goal: Goal,
     fits: Boolean,
+    picks: Set<String>,
+    jobs: List<Job>,
     beginners: Boolean,
+    words: List<String>,
     count: Int,
     onCategory: (Int) -> Unit,
     onGoal: (Goal) -> Unit,
-    onFits: (Boolean) -> Unit,
+    onJobs: (Boolean, Set<String>) -> Unit,
     onBeginners: (Boolean) -> Unit,
+    onWords: (List<String>) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val sprout by JobIcons.sprout.collectAsStateWithLifecycle()
+    var jobsSheet by rememberSaveable { mutableStateOf(false) }
+    var wordsSheet by rememberSaveable { mutableStateOf(false) }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AppColors.background,
     ) {
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        Column(Modifier.padding(start = SheetPadding, end = SheetPadding, bottom = 24.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Filters", fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text, modifier = Modifier.weight(1f))
                 Text(
@@ -261,15 +324,7 @@ private fun FilterSheet(
                 )
             }
             SheetLabel("Category")
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                FinderCategory.all.chunked(GRID_COLUMNS).forEach { row ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        row.forEach { (id, label) ->
-                            Chip(label, id == category, Modifier.weight(1f)) { onCategory(id) }
-                        }
-                    }
-                }
-            }
+            CategoryRow(category, onCategory)
             SheetLabel("Goal")
             Row(
                 Modifier
@@ -297,9 +352,11 @@ private fun FilterSheet(
                 }
             }
             Spacer(Modifier.height(8.dp))
-            ToggleRow("Fits my job", fits, onFits)
-            Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.line))
-            ToggleRow("Beginners welcome", beginners, onBeginners)
+            NavRow("Jobs", jobSummary(fits, picks, jobs).ifEmpty { "Any job" }) { jobsSheet = true }
+            Divider()
+            ToggleRow(BEGINNERS, beginners, onBeginners, sprout)
+            Divider()
+            NavRow("Highlight words", words.joinToString(", ").ifEmpty { "None" }) { wordsSheet = true }
             Spacer(Modifier.height(12.dp))
             Text(
                 if (count == 1) "Show 1 listing" else "Show $count listings",
@@ -316,6 +373,189 @@ private fun FilterSheet(
             )
         }
     }
+    if (jobsSheet) JobsSheet(fits, picks, jobs, onJobs) { jobsSheet = false }
+    if (wordsSheet) WordsSheet(words, onWords) { wordsSheet = false }
+}
+
+@Composable
+private fun CategoryRow(category: Int, onCategory: (Int) -> Unit) {
+    val index = FinderCategory.all.indexOfFirst { it.first == category }
+    val state = rememberLazyListState(initialFirstVisibleItemIndex = (index - 1).coerceAtLeast(0))
+    LazyRow(
+        state = state,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        contentPadding = PaddingValues(horizontal = SheetPadding),
+        modifier = Modifier
+            .bleed(SheetPadding)
+            .fadeEdges(state, FadeWidth),
+    ) {
+        items(FinderCategory.all, key = { it.first }) { (id, label) ->
+            Chip(label, id == category) { onCategory(id) }
+        }
+    }
+}
+
+private fun Modifier.bleed(horizontal: Dp) = layout { measurable, constraints ->
+    val extra = (horizontal * 2).roundToPx()
+    val placeable = measurable.measure(constraints.offset(horizontal = extra))
+    layout(placeable.width - extra, placeable.height) { placeable.place(-extra / 2, 0) }
+}
+
+private fun Modifier.fadeEdges(state: LazyListState, width: Dp) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = width.toPx()
+        if (state.canScrollBackward) {
+            drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), endX = fade), blendMode = BlendMode.DstIn)
+        }
+        if (state.canScrollForward) {
+            drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width), blendMode = BlendMode.DstIn)
+        }
+    }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SubSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = AppColors.background,
+    ) {
+        Column(Modifier.padding(start = SheetPadding, end = SheetPadding, bottom = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text, modifier = Modifier.weight(1f))
+                Text(
+                    "Done",
+                    color = AppColors.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable(onClick = onDismiss)
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                )
+            }
+            Spacer(Modifier.height(12.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun JobsSheet(fits: Boolean, picks: Set<String>, jobs: List<Job>, onJobs: (Boolean, Set<String>) -> Unit, onDismiss: () -> Unit) {
+    SubSheet("Jobs", onDismiss) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chip("Any job", !fits && picks.isEmpty()) { onJobs(false, emptySet()) }
+            Chip("My current job", fits) { onJobs(!fits, picks) }
+        }
+        if (jobs.isEmpty()) {
+            Text("Jobs show up here after the plugin connects", color = AppColors.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
+        }
+        jobs.groupBy { roleName(it.role) }.toList().sortedBy { (_, group) -> roleRank(group.first().role) }.forEach { (role, group) ->
+            SheetLabel(roleTitle(role))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                group.forEach { job ->
+                    val picked = job.name in picks
+                    JobPick(job, picked) { onJobs(fits, if (picked) picks - job.name else picks + job.name) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun JobPick(job: Job, picked: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(PICK_SIZE * 0.36f)
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .clip(shape)
+            .border(2.dp, if (picked) AppColors.accent else Color.Transparent, shape)
+            .selectable(selected = picked, onClick = onClick)
+            .padding(4.dp),
+    ) {
+        JobTile(job.name, job.role, job.name, PICK_SIZE, Modifier.alpha(if (picked) 1f else PICK_DIM))
+    }
+}
+
+@Composable
+private fun WordsSheet(words: List<String>, onWords: (List<String>) -> Unit, onDismiss: () -> Unit) {
+    var draft by rememberSaveable { mutableStateOf("") }
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    SubSheet("Highlight words", onDismiss) {
+        if (words.isNotEmpty()) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                words.forEach { word -> Removable(word) { onWords(words - word) } }
+            }
+            Spacer(Modifier.height(12.dp))
+        }
+        PillField(
+            value = draft,
+            placeholder = "Add a word or phrase",
+            onChange = { draft = it },
+            modifier = Modifier.fillMaxWidth().focusRequester(focus),
+            onDone = {
+                val word = draft.trim()
+                if (word.isNotEmpty() && words.none { it.equals(word, ignoreCase = true) }) onWords(words + word)
+                draft = ""
+            },
+        )
+    }
+}
+
+@Composable
+private fun NavRow(label: String, value: String, onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 14.dp),
+    ) {
+        Text(label, color = AppColors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(
+            value,
+            color = AppColors.muted,
+            fontSize = 14.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.widthIn(max = 180.dp),
+        )
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun Divider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.line))
+}
+
+private fun roleTitle(role: String) = when (role) {
+    "tank" -> "Tanks"
+    "healer" -> "Healers"
+    "dps" -> "DPS"
+    else -> "Other"
+}
+
+private fun keepsJobs(listing: Listing, fits: Boolean, picks: Set<String>) =
+    (!fits && picks.isEmpty()) || (fits && listing.fits) || listing.jobs.any { it in picks }
+
+private fun jobSummary(fits: Boolean, picks: Set<String>, jobs: List<Job>, shown: Int = Int.MAX_VALUE): String {
+    val order = jobs.map { it.name }
+    val names = listOfNotNull("My job".takeIf { fits }) + picks.sortedBy { order.indexOf(it).let { i -> if (i < 0) order.size else i } }
+    return if (names.size > shown) "${names.take(shown - 1).joinToString(", ")} +${names.size - shown + 1}" else names.joinToString(", ")
+}
+
+private class WordMatcher(words: List<String>) {
+    private val regex = words.takeIf { it.isNotEmpty() }
+        ?.sortedByDescending { it.length }
+        ?.joinToString("|", "(?<![\\p{L}\\p{N}])(?:", ")(?![\\p{L}\\p{N}])") { Regex.escape(it) }
+        ?.toRegex(RegexOption.IGNORE_CASE)
+
+    fun matches(text: String) = regex?.containsMatchIn(text) == true
+
+    fun ranges(text: String): List<IntRange> = regex?.findAll(text)?.map { it.range }?.toList().orEmpty()
 }
 
 @Composable
@@ -330,7 +570,7 @@ private fun SheetLabel(text: String) {
 }
 
 @Composable
-private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
+private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit, icon: ImageBitmap? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -338,6 +578,10 @@ private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
             .clickable { onChange(!on) }
             .padding(vertical = 6.dp),
     ) {
+        if (icon != null) {
+            Image(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+            Spacer(Modifier.width(10.dp))
+        }
         Text(label, color = AppColors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
         Switch(checked = on, onCheckedChange = onChange)
     }
@@ -409,7 +653,14 @@ private fun remaining(seconds: Int): String = when {
 }
 
 @Composable
-private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
+private fun PillField(
+    value: String,
+    placeholder: String,
+    onChange: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    onDone: (() -> Unit)? = null,
+) {
     val shape = RoundedCornerShape(50)
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -419,14 +670,18 @@ private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Mod
             .border(1.dp, AppColors.line, shape)
             .padding(horizontal = 14.dp),
     ) {
-        Icon(Icons.Filled.Search, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(18.dp))
-        Spacer(Modifier.width(8.dp))
+        if (icon != null) {
+            Icon(icon, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+        }
         Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) Text("Search duty, leader or description", color = AppColors.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (value.isEmpty()) Text(placeholder, color = AppColors.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicTextField(
-                value = query,
+                value = value,
                 onValueChange = onChange,
                 singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = if (onDone != null) ImeAction.Done else ImeAction.Default),
+                keyboardActions = KeyboardActions(onDone = onDone?.let { done -> { done() } }),
                 textStyle = TextStyle(color = AppColors.text, fontSize = 14.sp, fontFamily = Jakarta),
                 cursorBrush = SolidColor(AppColors.accent),
                 modifier = Modifier.fillMaxWidth(),
@@ -455,11 +710,13 @@ private fun Chip(label: String, active: Boolean, modifier: Modifier = Modifier, 
 }
 
 @Composable
-private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJoin: () -> Unit, onOpen: () -> Unit) {
+private fun ListingCard(listing: Listing, seconds: Int, matcher: WordMatcher, onTell: () -> Unit, onJoin: () -> Unit, onOpen: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
     val haptics = LocalHapticFeedback.current
     val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
+    val ranges = remember(listing.description, matcher) { matcher.ranges(listing.description) }
+    var hidden by remember(ranges) { mutableStateOf(false) }
     val lift by animateFloatAsState(
         if (menu) LIFT else 1f,
         spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
@@ -509,6 +766,14 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
                     modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(8.dp))
+                if (hidden) {
+                    Icon(
+                        HighlightIcon,
+                        contentDescription = "Highlighted word",
+                        tint = AppColors.yellow,
+                        modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(14.dp),
+                    )
+                }
                 if (listing.locked) {
                     Icon(
                         Icons.Filled.Lock,
@@ -526,13 +791,24 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
             }
             if (listing.description.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
+                val highlight = AppColors.yellow.copy(alpha = HIGHLIGHT_ALPHA)
+                val text = remember(listing.description, ranges, highlight) {
+                    buildAnnotatedString {
+                        append(listing.description)
+                        ranges.forEach { addStyle(SpanStyle(background = highlight), it.first, it.last + 1) }
+                    }
+                }
                 Text(
-                    listing.description,
+                    text,
                     color = AppColors.text,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     maxLines = 4,
                     overflow = TextOverflow.Ellipsis,
+                    onTextLayout = { layout ->
+                        val end = layout.getLineEnd(layout.lineCount - 1, visibleEnd = true)
+                        hidden = ranges.isNotEmpty() && ranges.none { it.last < end }
+                    },
                     modifier = Modifier
                         .fillMaxWidth()
                         .background(AppColors.background.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
@@ -543,7 +819,7 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
             if (tags.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    tags.forEach { (label, color) -> Tag(label, color) }
+                    tags.forEach { Tag(it) }
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -614,29 +890,37 @@ private fun objective(listing: Listing): Color? = when {
     else -> null
 }
 
-@Composable
-private fun tags(listing: Listing): List<Pair<String, Color?>> = listOfNotNull(
-    ("Fits your job" to AppColors.accent).takeIf { listing.fits && !listing.own },
-    ("Practice" to PracticeColor).takeIf { listing.practice },
-    ("Duty completion" to CompletionColor).takeIf { listing.completion },
-    ("Loot" to LootColor).takeIf { listing.loot },
-    ("Duty complete" to null).takeIf { listing.cleared },
-    ("Beginners welcome" to null).takeIf { listing.beginners },
-    ("Min ilvl ${listing.ilvl}" to null).takeIf { listing.ilvl > 0 },
-    ("Cross-world" to null).takeIf { listing.crossWorld },
-)
+private class TagInfo(val label: String, val color: Color? = null, val icon: ImageBitmap? = null)
 
 @Composable
-private fun Tag(label: String, color: Color?) {
-    Text(
-        label,
-        color = if (color != null) Color.White else AppColors.muted,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
-            .background(color ?: AppColors.line, RoundedCornerShape(50))
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+private fun tags(listing: Listing): List<TagInfo> {
+    val sprout by JobIcons.sprout.collectAsStateWithLifecycle()
+    return listOfNotNull(
+        TagInfo("Fits your job", AppColors.accent).takeIf { listing.fits && !listing.own },
+        TagInfo("Practice", PracticeColor).takeIf { listing.practice },
+        TagInfo("Duty completion", CompletionColor).takeIf { listing.completion },
+        TagInfo("Loot", LootColor).takeIf { listing.loot },
+        TagInfo("Duty complete").takeIf { listing.cleared },
+        TagInfo(BEGINNERS, icon = sprout).takeIf { listing.beginners },
+        TagInfo("Min ilvl ${listing.ilvl}").takeIf { listing.ilvl > 0 },
+        TagInfo("Cross-world").takeIf { listing.crossWorld },
     )
+}
+
+@Composable
+private fun Tag(tag: TagInfo) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .background(tag.color ?: AppColors.line, RoundedCornerShape(50))
+            .padding(start = if (tag.icon != null) 5.dp else 8.dp, end = 8.dp, top = 3.dp, bottom = 3.dp),
+    ) {
+        if (tag.icon != null) {
+            Image(tag.icon, contentDescription = null, modifier = Modifier.size(13.dp))
+            Spacer(Modifier.width(3.dp))
+        }
+        Text(tag.label, color = if (tag.color != null) Color.White else AppColors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+    }
 }
 
 @Composable

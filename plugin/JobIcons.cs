@@ -11,6 +11,7 @@ namespace PartyBell;
 internal static class JobIcons
 {
     private const uint IconBase = 62800;
+    private const uint NewAdventurer = 32;
     private const float GlyphBrightness = 130;
     private const float GlyphSoftness = 50;
     private const float RoleThreshold = 120;
@@ -66,8 +67,28 @@ internal static class JobIcons
             roles[role] = Convert.ToBase64String(mask);
         }
 
+        var jobs = Services.DataManager.GetExcelSheet<ClassJob>()
+            .Where(job => job.JobIndex > 0 && job.Role != 0)
+            .OrderBy(job => job.UIPriority)
+            .Select(job => new Job(job.Abbreviation.ExtractText(), PartyFinder.Role(job.Role)))
+            .ToList();
+        foreach (var job in jobs)
+            hash.AppendData(Encoding.UTF8.GetBytes($"{job.Name}:{job.Role}"));
+
+        var sprout = "";
+        var sproutSize = 0;
+        var status = Services.DataManager.GetExcelSheet<OnlineStatus>().GetRowOrDefault(NewAdventurer);
+        var icon = status is { } row ? Texture(row.Icon) : null;
+        if (icon != null && icon.Header.Width == icon.Header.Height)
+        {
+            sproutSize = icon.Header.Width;
+            var rgba = Rgba(icon.ImageData);
+            hash.AppendData(rgba);
+            sprout = Convert.ToBase64String(rgba);
+        }
+
         var version = Convert.ToHexStringLower(hash.GetHashAndReset(), 0, 8);
-        return (version, Messages.Icons(version, size, icons, roleSize, roles));
+        return (version, Messages.Icons(version, size, icons, roleSize, roles, jobs, sproutSize, sprout));
     }
 
     private static TexFile? Texture(uint id) => Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}_hr1.tex");
@@ -120,6 +141,19 @@ internal static class JobIcons
         var low = inside[inside.Length * ShadeLowPercent / 100];
         var range = Math.Max(inside[inside.Length * ShadeHighPercent / 100] - low, 1);
         return filled.Select((value, p) => (byte)(value * (ShadeFloor + (1 - ShadeFloor) * Math.Clamp((brightness[p] - low) / range, 0, 1)))).ToArray();
+    }
+
+    private static byte[] Rgba(byte[] bgra)
+    {
+        var rgba = new byte[bgra.Length];
+        for (var i = 0; i < bgra.Length; i += 4)
+        {
+            rgba[i] = bgra[i + 2];
+            rgba[i + 1] = bgra[i + 1];
+            rgba[i + 2] = bgra[i];
+            rgba[i + 3] = bgra[i + 3];
+        }
+        return rgba;
     }
 
     private static byte[] Mask(byte[] bgra)

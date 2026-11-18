@@ -19,11 +19,17 @@ object JobIcons {
     private const val FILE = "icons.json"
     private val iconsFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     private val rolesFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    private val jobsFlow = MutableStateFlow<List<Job>>(emptyList())
+    private val sproutFlow = MutableStateFlow<ImageBitmap?>(null)
     private var loading = false
 
     val icons: StateFlow<Map<String, ImageBitmap>> = iconsFlow.asStateFlow()
 
     val roles: StateFlow<Map<String, ImageBitmap>> = rolesFlow.asStateFlow()
+
+    val jobs: StateFlow<List<Job>> = jobsFlow.asStateFlow()
+
+    val sprout: StateFlow<ImageBitmap?> = sproutFlow.asStateFlow()
 
     @Volatile
     var version = ""
@@ -56,12 +62,26 @@ object JobIcons {
         val json = JSONObject(text)
         iconsFlow.value = masks(json.getJSONObject("icons"), json.getInt("size"))
         rolesFlow.value = json.optJSONObject("roles")?.let { masks(it, json.optInt("roleSize")) }.orEmpty()
+        jobsFlow.value = json.optJSONArray("jobs")?.let { jobs ->
+            List(jobs.length()) { jobs.getJSONObject(it) }.map { Job(it.getString("name"), it.getInt("role")) }
+        }.orEmpty()
+        sproutFlow.value = picture(json.optString("sprout"), json.optInt("sproutSize"))
         version = json.getString("version")
         true
     } catch (_: JSONException) {
         false
     } catch (_: IllegalArgumentException) {
         false
+    }
+
+    private fun picture(text: String, size: Int): ImageBitmap? {
+        val rgba = Base64.getDecoder().decode(text)
+        if (size <= 0 || rgba.size != size * size * 4) return null
+        val colors = IntArray(size * size) { i ->
+            val p = i * 4
+            (rgba[p + 3].toInt() and 0xFF shl 24) or (rgba[p].toInt() and 0xFF shl 16) or (rgba[p + 1].toInt() and 0xFF shl 8) or (rgba[p + 2].toInt() and 0xFF)
+        }
+        return Bitmap.createBitmap(colors, size, size, Bitmap.Config.ARGB_8888).asImageBitmap()
     }
 
     private fun masks(icons: JSONObject, size: Int): Map<String, ImageBitmap> = icons.keys().asSequence().mapNotNull { key ->

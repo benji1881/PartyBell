@@ -170,6 +170,7 @@ object Protocol {
                 seconds = it.optInt("seconds"),
                 ilvl = it.optInt("ilvl"),
                 slots = objects(it, "slots").map { slot -> Slot(slot.optString("job"), slot.optInt("role")) },
+                jobs = it.optJSONArray("jobs")?.let { jobs -> List(jobs.length()) { index -> jobs.optString(index) } }.orEmpty(),
                 fits = it.optBoolean("fits"),
                 own = it.optBoolean("own"),
                 locked = it.optBoolean("locked"),
