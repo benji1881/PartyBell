@@ -39,6 +39,8 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Updater.check(this)
+        val settings = AppSettings(this)
+        if (settings.enabled && settings.isPaired) PartyService.nudge(this)
     }
 
     override fun onNewIntent(intent: Intent) {

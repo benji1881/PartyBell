@@ -1,8 +1,11 @@
 package com.benji.partybell
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -24,6 +27,8 @@ class Connection(private val context: Context, private val settings: AppSettings
         const val NOT_PAIRED = 4001
         const val UPDATE_NEEDED = 4002
         const val LOST_DELAY_MS = 60_000L
+        const val IDLE_AFTER_MS = 10 * 60_000L
+        const val IDLE_DELAY_MS = 5 * 60_000L
         val waiting = setOf(Status.NotPaired, Status.UpdatePlugin, Status.UpdateApp)
     }
 
@@ -32,24 +37,45 @@ class Connection(private val context: Context, private val settings: AppSettings
         .pingInterval(20, TimeUnit.SECONDS)
         .build()
     private val handler = Handler(Looper.getMainLooper())
+    private val connectivity = context.getSystemService(ConnectivityManager::class.java)
     private val lost = Runnable { notifier.lost() }
+    private val reconnect = Runnable { connect() }
+    private val network = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            handler.post { nudge() }
+        }
+    }
     private var socket: WebSocket? = null
     private var hostIndex = 0
     private var round = 0
+    private var failingSince = 0L
     private var running = false
+    private var listening = false
 
     fun restart() {
         stop()
         running = true
+        listening = runCatching { connectivity.registerDefaultNetworkCallback(network) }.isSuccess
+        connect()
+    }
+
+    fun nudge() {
+        if (!running || socket != null) return
+        handler.removeCallbacks(reconnect)
+        round = 0
+        failingSince = 0L
         connect()
     }
 
     fun stop() {
         running = false
+        if (listening) runCatching { connectivity.unregisterNetworkCallback(network) }
+        listening = false
         handler.removeCallbacksAndMessages(null)
         socket?.close(NORMAL_CLOSE, null)
         socket = null
         round = 0
+        failingSince = 0L
         notifier.found()
         PartyState.disconnected()
         PartyState.setStatus(Status.Off)
@@ -85,8 +111,15 @@ class Connection(private val context: Context, private val settings: AppSettings
             hostIndex++
             if (hostIndex % settings.hosts.size.coerceAtLeast(1) == 0) round++
         }
-        val delay = min(MAX_DELAY_MS, BASE_DELAY_MS shl min(round, MAX_BACKOFF_STEPS))
-        handler.postDelayed(::connect, delay)
+        if (listening && connectivity.activeNetwork == null) return
+        val now = SystemClock.elapsedRealtime()
+        if (failingSince == 0L) failingSince = now
+        val delay = if (now - failingSince >= IDLE_AFTER_MS) {
+            IDLE_DELAY_MS
+        } else {
+            min(MAX_DELAY_MS, BASE_DELAY_MS shl min(round, MAX_BACKOFF_STEPS))
+        }
+        handler.postDelayed(reconnect, delay)
     }
 
     private fun versionStatus(theirs: Int) = if (theirs < Protocol.VERSION) Status.UpdatePlugin else Status.UpdateApp
@@ -133,6 +166,7 @@ class Connection(private val context: Context, private val settings: AppSettings
                 if (webSocket !== socket) return@post
                 if (PartyState.status.value != Status.Connected) {
                     round = 0
+                    failingSince = 0L
                     handler.removeCallbacks(lost)
                     notifier.found()
                     PartyState.sender = { json ->

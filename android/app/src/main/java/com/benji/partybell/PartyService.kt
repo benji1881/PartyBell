@@ -10,14 +10,20 @@ import androidx.core.content.ContextCompat
 
 class PartyService : Service() {
     companion object {
+        private const val ACTION_NUDGE = "com.benji.partybell.NUDGE"
+
         fun start(context: Context) =
             ContextCompat.startForegroundService(context, Intent(context, PartyService::class.java))
+
+        fun nudge(context: Context) =
+            ContextCompat.startForegroundService(context, Intent(context, PartyService::class.java).setAction(ACTION_NUDGE))
 
         fun stop(context: Context) =
             context.stopService(Intent(context, PartyService::class.java))
     }
 
     private lateinit var connection: Connection
+    private var started = false
 
     override fun onCreate() {
         super.onCreate()
@@ -30,7 +36,12 @@ class PartyService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        connection.restart()
+        if (started && intent?.action == ACTION_NUDGE) {
+            connection.nudge()
+        } else {
+            connection.restart()
+            started = true
+        }
         return START_STICKY
     }
 
