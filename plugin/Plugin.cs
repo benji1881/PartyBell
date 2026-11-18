@@ -44,7 +44,8 @@ public sealed class Plugin : IDalamudPlugin
         chat = new ChatRelay(config, feed, tracker);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
-        server.Start();
+        if (config.Phones.Count > 0)
+            server.Start();
 
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.OpenMainUi += window.Toggle;

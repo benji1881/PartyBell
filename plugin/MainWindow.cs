@@ -43,6 +43,9 @@ internal sealed class MainWindow : Window
     private void DrawPairing(QrCode qr)
     {
         ImGui.TextWrapped("Scan this with the PartyBell app. Keep it hidden while streaming.");
+        ImGui.PushStyleColor(ImGuiCol.Text, MutedColor);
+        ImGui.TextWrapped("If Windows asks to let the game use your network, allow it on private networks only.");
+        ImGui.PopStyleColor();
         ImGui.Spacing();
         qr.Draw(QrSize);
         ImGui.Spacing();
@@ -137,7 +140,7 @@ internal sealed class MainWindow : Window
             if (ImGui.SmallButton($"Forget##{phone.Id}"))
             {
                 config.RemovePhone(phone);
-                server.Start();
+                Restart();
                 break;
             }
         }
@@ -153,6 +156,16 @@ internal sealed class MainWindow : Window
             return;
         var phone = config.AddPhone();
         pairing = new QrCode(PairingLink.Create(phone, addresses.Select(a => a.Address), config.Port));
+        if (!server.Running)
+            server.Start();
+    }
+
+    private void Restart()
+    {
+        if (config.Phones.Count > 0)
+            server.Start();
+        else
+            server.Stop();
     }
 
     private void ApplyPort()
@@ -167,6 +180,6 @@ internal sealed class MainWindow : Window
 
         config.Port = port;
         config.Save();
-        server.Start();
+        Restart();
     }
 }

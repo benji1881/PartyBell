@@ -13,8 +13,8 @@ The plugin and the app pair with a QR code. Everything between them is encrypted
 3. Install PartyBell
 4. Install `PartyBell-<version>.apk` from the [latest release](https://github.com/benji1881/PartyBell/releases/latest) on your phone
 5. Type `/partybell` in game and press Pair a phone
-6. In the app, press Scan pairing code
-7. When Windows asks, allow PartyBell on private networks only
+6. When Windows asks, allow the game on private networks only
+7. In the app, press Scan pairing code
 
 The plugin updates through Dalamud. The app checks GitHub for a new release and shows a silent notification and an Updates card in Settings. Press Download update and open the downloaded APK to install it.
 

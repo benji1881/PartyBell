@@ -20,6 +20,8 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
 
     public string? Error { get; private set; }
 
+    public bool Running => listener != null;
+
     public void Start()
     {
         Stop();
@@ -42,7 +44,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
 
     public void Dispose() => Stop();
 
-    private void Stop()
+    public void Stop()
     {
         if (cancel != null)
             Task.WhenAny(feed.Goodbye(), Task.Delay(GoodbyeTimeout)).Wait();
@@ -50,6 +52,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
         cancel = null;
         listener?.Stop();
         listener = null;
+        Error = null;
     }
 
     private async Task AcceptLoop(TcpListener server, CancellationToken token)
