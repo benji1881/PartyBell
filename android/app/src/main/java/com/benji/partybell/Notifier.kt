@@ -41,6 +41,8 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val RESULT_TIMEOUT_MS = 60_000L
         private const val FIRST_EVENT_ID = 10
         private const val MAX_LINES = 8
+        private const val BURST_MS = 10_000L
+        private const val BURST_NAMES = 3
         private const val CHANNEL_PARTY = "party"
         private const val CHANNEL_SERVICE = "connection"
         private const val OLD_CHANNEL_SERVICE = "service"
@@ -54,6 +56,8 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         private const val OPEN_SLOT = 0xFFB9B4A8.toInt()
         private val conversations = mutableMapOf<String, MutableList<NotificationCompat.MessagingStyle.Message>>()
         private var nextId = FIRST_EVENT_ID
+        private var burst: Burst? = null
+        private val GROUPED = setOf(EventKind.Joined, EventKind.Left)
     }
 
     private val manager = NotificationManagerCompat.from(context)
@@ -240,8 +244,14 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             EventKind.Queue -> return queue(item.detail)
             else -> Unit
         }
-        val (title, text) = when (item.kind) {
-            EventKind.Full, EventKind.Disbanded -> item.text to ""
+        val now = System.currentTimeMillis()
+        val group = burst?.takeIf { item.kind in GROUPED && it.kind == item.kind && now - it.time < BURST_MS }
+        val names = group?.names.orEmpty() + item.name
+        val id = group?.id ?: nextId++
+        if (item.kind in GROUPED) burst = Burst(item.kind, id, names, now)
+        val (title, text) = when {
+            item.kind == EventKind.Full || item.kind == EventKind.Disbanded -> item.text to ""
+            names.size > 1 -> "${names.size} ${verb(item.kind)}" to listNames(names, BURST_NAMES)
             else -> item.name to item.text
         }
         val builder = NotificationCompat.Builder(context, CHANNEL_PARTY)
@@ -250,13 +260,14 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             .setContentText(text)
             .setContentIntent(openApp())
             .setAutoCancel(true)
+            .setOnlyAlertOnce(true)
         if (item.kind == EventKind.Full) {
             val view = RemoteViews(context.packageName, R.layout.notification_party_full)
             view.setTextViewText(R.id.title, title)
             view.setImageViewBitmap(R.id.bars, roleBars(PartyState.party.value))
             builder.setCustomContentView(view).setStyle(NotificationCompat.DecoratedCustomViewStyle())
         }
-        manager.notify(nextId++, builder.build())
+        manager.notify(id, builder.build())
     }
 
     private fun roleBars(party: Party): Bitmap {
@@ -353,4 +364,6 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         Intent(context, MainActivity::class.java).putExtra(EXTRA_OPEN, conversation),
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
     )
+
+    private data class Burst(val kind: EventKind, val id: Int, val names: List<String>, val time: Long)
 }

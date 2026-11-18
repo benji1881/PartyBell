@@ -99,6 +99,16 @@ data class PartyEventItem(
         }
 }
 
+fun groupText(kind: EventKind, names: List<String>, shown: Int) = "${listNames(names, shown)} ${verb(kind)}"
+
+fun verb(kind: EventKind) = if (kind == EventKind.Left) "left" else "joined"
+
+fun listNames(names: List<String>, shown: Int): String = when {
+    names.size == 1 -> names[0]
+    names.size <= shown + 1 -> "${names.dropLast(1).joinToString(", ")} and ${names.last()}"
+    else -> "${names.take(shown).joinToString(", ")} and ${names.size - shown} others"
+}
+
 data class ChatItem(
     val name: String,
     val job: String,

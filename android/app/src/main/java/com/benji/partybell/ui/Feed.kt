@@ -35,6 +35,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -46,16 +47,19 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benji.partybell.ChatItem
@@ -64,11 +68,17 @@ import com.benji.partybell.FeedItem
 import com.benji.partybell.OutgoingItem
 import com.benji.partybell.PartyEventItem
 import com.benji.partybell.SendState
+import com.benji.partybell.groupText
 import kotlinx.coroutines.launch
 import java.util.Calendar
 
 private const val RUN_GAP_MS = 5 * 60_000L
 private const val SELF = "\u0000self"
+private const val BURST_MS = 10_000L
+private const val STACK = 4
+private val EventIcon = 20.dp
+private val Ring = 2.dp
+private val Overlap = (-6).dp
 private val Big = 18.dp
 private val Small = 5.dp
 
@@ -81,6 +91,8 @@ private data class DayLine(override val key: String, val time: Long) : Line
 private data class NewLine(override val key: String, val count: Int) : Line
 
 private data class EventLine(override val key: String, val item: PartyEventItem) : Line
+
+private data class GroupLine(override val key: String, val items: List<PartyEventItem>) : Line
 
 private data class BubbleLine(
     override val key: String,
@@ -115,7 +127,7 @@ fun ChatFeed(
         if (inserted < 0 || mine || state.firstVisibleItemIndex <= inserted) {
             state.scrollToItem(0)
         } else {
-            unseen += fresh.count { it is BubbleLine || it is EventLine }
+            unseen += fresh.count { it is BubbleLine || it is EventLine || it is GroupLine }
         }
     }
     LaunchedEffect(state) {
@@ -134,6 +146,7 @@ fun ChatFeed(
                     is DayLine -> DayDivider(line.time)
                     is NewLine -> NewDivider(line.count)
                     is EventLine -> EventPill(line.item)
+                    is GroupLine -> GroupPill(line.items)
                     is BubbleLine -> when (val item = line.item) {
                         is ChatItem -> if (item.self) {
                             Mine(item.text, item.time, SendState.Sent, "", line, null)
@@ -186,6 +199,11 @@ private fun lines(items: List<FeedItem>, newAfter: Long): List<Line> {
             newShown = true
             result += NewLine("new", fresh)
         }
+        val group = grouped(result.lastOrNull(), item)
+        if (group != null) {
+            result[result.lastIndex] = group
+            continue
+        }
         result += when (item) {
             is PartyEventItem -> EventLine(key("e", item, item.time), item)
             is ChatItem -> BubbleLine(key("c", item, item.time), item, if (item.self) SELF else item.name)
@@ -200,6 +218,17 @@ private fun lines(items: List<FeedItem>, newAfter: Long): List<Line> {
         result[i] = line.copy(first = !joins(before, line), last = !joins(line, after))
     }
     return result
+}
+
+private fun grouped(last: Line?, item: FeedItem): GroupLine? {
+    if (item !is PartyEventItem || (item.kind != EventKind.Joined && item.kind != EventKind.Left)) return null
+    val (key, items) = when (last) {
+        is EventLine -> last.key to listOf(last.item)
+        is GroupLine -> last.key to last.items
+        else -> return null
+    }
+    val previous = items.last()
+    return if (previous.kind == item.kind && item.time - previous.time < BURST_MS) GroupLine(key, items + item) else null
 }
 
 private fun joins(a: BubbleLine?, b: BubbleLine?) =
@@ -253,6 +282,72 @@ private fun NewDivider(count: Int) {
 }
 
 @Composable
+private fun GroupPill(items: List<PartyEventItem>) {
+    var open by rememberSaveable { mutableStateOf(false) }
+    val shape = RoundedCornerShape(50)
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 5.dp),
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(shape)
+                .background(AppColors.card)
+                .border(1.dp, AppColors.line, shape)
+                .clickable { open = !open }
+                .padding(start = 2.dp, end = 8.dp, top = 2.dp, bottom = 2.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(Overlap)) {
+                items.take(STACK).forEach {
+                    Box(Modifier.background(AppColors.card, CircleShape).padding(Ring)) {
+                        JobTile(it.job, it.role, it.name, EventIcon, round = true)
+                    }
+                }
+            }
+            Spacer(Modifier.width(5.dp))
+            Text(
+                groupText(items[0].kind, items.map { it.name }, 1),
+                color = AppColors.text,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+            )
+            Text(" · ${clock(LocalContext.current, items.last().time)}", color = AppColors.muted, fontSize = 12.sp)
+            Icon(
+                if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = if (open) "Hide names" else "Show names",
+                tint = AppColors.muted,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+        AnimatedVisibility(open) {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .padding(top = 6.dp)
+                    .widthIn(min = 200.dp)
+                    .background(AppColors.card, RoundedCornerShape(16.dp))
+                    .border(1.dp, AppColors.line, RoundedCornerShape(16.dp))
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            ) {
+                items.sortedBy { roleRank(it.role) }.forEach {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        JobTile(it.job, it.role, it.name, 22.dp, round = true)
+                        Spacer(Modifier.width(8.dp))
+                        Text(it.name, color = AppColors.text, fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
 private fun EventPill(item: PartyEventItem) {
     val tint = when (item.kind) {
         EventKind.Full -> AppColors.yellow
@@ -271,7 +366,7 @@ private fun EventPill(item: PartyEventItem) {
                 .padding(start = if (item.name.isEmpty()) 12.dp else 4.dp, end = 12.dp, top = 4.dp, bottom = 4.dp),
         ) {
             if (item.name.isNotEmpty()) {
-                JobTile(item.job, item.role, item.name, 20.dp)
+                JobTile(item.job, item.role, item.name, EventIcon, round = true)
                 Spacer(Modifier.width(7.dp))
             }
             Text(item.text, color = AppColors.text, fontSize = 13.sp, fontWeight = FontWeight.Medium)

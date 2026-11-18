@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,19 +30,20 @@ import com.benji.partybell.JobIcons
 
 private const val CORNER_RATIO = 0.3f
 private const val GLYPH_RATIO = 0.74f
+private const val ROUND_GLYPH_RATIO = 0.64f
 private const val TEXT_RATIO = 0.3f
 private const val INITIAL_RATIO = 0.42f
 private const val OUTLINE_ALPHA = 0.7f
 
 @Composable
-fun JobTile(job: String, role: Int, name: String, size: Dp, modifier: Modifier = Modifier) {
+fun JobTile(job: String, role: Int, name: String, size: Dp, modifier: Modifier = Modifier, round: Boolean = false) {
     val icons by JobIcons.icons.collectAsStateWithLifecycle()
     val icon = icons[job]
     val density = LocalDensity.current
     Box(
         modifier = modifier
             .size(size)
-            .background(roleColor(if (job.isEmpty()) 0 else role), RoundedCornerShape(size * CORNER_RATIO)),
+            .background(roleColor(if (job.isEmpty()) 0 else role), if (round) CircleShape else RoundedCornerShape(size * CORNER_RATIO)),
         contentAlignment = Alignment.Center,
     ) {
         when {
@@ -50,7 +52,7 @@ fun JobTile(job: String, role: Int, name: String, size: Dp, modifier: Modifier =
                 contentDescription = job,
                 colorFilter = ColorFilter.tint(Cream),
                 filterQuality = FilterQuality.High,
-                modifier = Modifier.size(size * GLYPH_RATIO),
+                modifier = Modifier.size(size * if (round) ROUND_GLYPH_RATIO else GLYPH_RATIO),
             )
             job.isNotEmpty() -> Text(
                 text = job,
