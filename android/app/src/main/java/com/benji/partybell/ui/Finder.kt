@@ -902,7 +902,6 @@ private fun tags(listing: Listing): List<TagInfo> {
         TagInfo("Duty complete").takeIf { listing.cleared },
         TagInfo(BEGINNERS, icon = sprout).takeIf { listing.beginners },
         TagInfo("Min ilvl ${listing.ilvl}").takeIf { listing.ilvl > 0 },
-        TagInfo("Cross-world").takeIf { listing.crossWorld },
     )
 }
 

@@ -21,8 +21,7 @@ public sealed record Listing(
     bool Loot,
     bool Completion,
     bool Cleared,
-    bool Beginners,
-    bool CrossWorld);
+    bool Beginners);
 
 public sealed record Slot(string Job, int Role);
 

@@ -179,7 +179,6 @@ object Protocol {
                 completion = it.optBoolean("completion"),
                 cleared = it.optBoolean("cleared"),
                 beginners = it.optBoolean("beginners"),
-                crossWorld = it.optBoolean("crossWorld"),
             )
         },
     )

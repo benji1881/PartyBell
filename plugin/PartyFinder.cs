@@ -306,8 +306,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             listing[ObjectiveFlags.Loot],
             listing[ObjectiveFlags.DutyCompletion],
             listing[ConditionFlags.DutyComplete],
-            listing.BeginnersWelcome,
-            listing[SearchAreaFlags.DataCenter]);
+            listing.BeginnersWelcome);
     }
 
     internal static int Role(byte role) => role == 3 ? 2 : role;

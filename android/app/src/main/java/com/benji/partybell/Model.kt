@@ -192,7 +192,6 @@ data class Listing(
     val completion: Boolean,
     val cleared: Boolean,
     val beginners: Boolean,
-    val crossWorld: Boolean,
 ) {
     val title: String
         get() = duty.ifEmpty { FinderCategory.label(category) }
