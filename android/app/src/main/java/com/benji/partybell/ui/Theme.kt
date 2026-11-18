@@ -2,6 +2,8 @@ package com.benji.partybell.ui
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -135,4 +137,13 @@ fun PartyBellTheme(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalPalette provides palette) {
         MaterialTheme(colorScheme = scheme, typography = Typography().withFont(Jakarta), content = content)
     }
+}
+
+@Composable
+fun AppSwitch(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Switch(
+        checked = checked,
+        onCheckedChange = onCheckedChange,
+        colors = SwitchDefaults.colors(uncheckedThumbColor = AppColors.muted, uncheckedBorderColor = AppColors.muted),
+    )
 }

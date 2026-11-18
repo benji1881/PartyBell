@@ -48,7 +48,6 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -583,7 +582,7 @@ private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit, i
             Spacer(Modifier.width(10.dp))
         }
         Text(label, color = AppColors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Switch(checked = on, onCheckedChange = onChange)
+        AppSwitch(checked = on, onCheckedChange = onChange)
     }
 }
 

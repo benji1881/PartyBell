@@ -27,7 +27,6 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -128,7 +127,7 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
                         Text(status.label, color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                         Text("${settings.hosts.joinToString(", ")} · port ${settings.port}", color = AppColors.muted, fontSize = 13.sp)
                     }
-                    Switch(checked = enabled, onCheckedChange = {
+                    AppSwitch(checked = enabled, onCheckedChange = {
                         enabled = it
                         settings.enabled = it
                         if (it) PartyService.start(context) else PartyService.stop(context)
@@ -225,7 +224,7 @@ private fun NotifyRow(settings: AppSettings, kind: NotifyKind) {
     var on by remember { mutableStateOf(settings.notifies(kind)) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
         Text(kind.label, color = AppColors.text, modifier = Modifier.weight(1f))
-        Switch(checked = on, onCheckedChange = {
+        AppSwitch(checked = on, onCheckedChange = {
             on = it
             settings.setNotifies(kind, it)
         })
