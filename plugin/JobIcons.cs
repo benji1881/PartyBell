@@ -12,6 +12,7 @@ internal static class JobIcons
     private const uint IconBase = 62800;
     private const float GlyphBrightness = 130;
     private const float GlyphSoftness = 50;
+    private static readonly (string Role, uint Icon)[] RoleIcons = [("tank", 62581), ("healer", 62582), ("dps", 62583), ("any", 62576)];
 
     private static readonly Lazy<(string Version, string Message)> Data = new(Build);
 
@@ -30,8 +31,7 @@ internal static class JobIcons
             if (job.RowId == 0 || abbreviation.Length == 0 || icons.ContainsKey(abbreviation))
                 continue;
 
-            var id = IconBase + job.RowId;
-            var texture = Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}_hr1.tex");
+            var texture = Texture(IconBase + job.RowId);
             if (texture == null || texture.Header.Width != texture.Header.Height || (size != 0 && texture.Header.Width != size))
                 continue;
 
@@ -42,8 +42,33 @@ internal static class JobIcons
             icons[abbreviation] = Convert.ToBase64String(mask);
         }
 
+        var roles = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var roleSize = 0;
+        foreach (var (role, id) in RoleIcons)
+        {
+            var texture = Texture(id);
+            if (texture == null || texture.Header.Width != texture.Header.Height || (roleSize != 0 && texture.Header.Width != roleSize))
+                continue;
+
+            roleSize = texture.Header.Width;
+            var rgba = Rgba(texture.ImageData);
+            hash.AppendData(Encoding.UTF8.GetBytes(role));
+            hash.AppendData(rgba);
+            roles[role] = Convert.ToBase64String(rgba);
+        }
+
         var version = Convert.ToHexStringLower(hash.GetHashAndReset(), 0, 8);
-        return (version, Messages.Icons(version, size, icons));
+        return (version, Messages.Icons(version, size, icons, roleSize, roles));
+    }
+
+    private static TexFile? Texture(uint id) => Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}_hr1.tex");
+
+    private static byte[] Rgba(byte[] bgra)
+    {
+        var rgba = (byte[])bgra.Clone();
+        for (var i = 0; i < rgba.Length; i += 4)
+            (rgba[i], rgba[i + 2]) = (rgba[i + 2], rgba[i]);
+        return rgba;
     }
 
     private static byte[] Mask(byte[] bgra)

@@ -76,6 +76,13 @@ fun roleColor(role: Int): Color = when (role) {
     else -> Color(0xFF8A857C)
 }
 
+fun roleName(role: Int): String = when (role) {
+    ROLE_TANK -> "tank"
+    ROLE_HEALER -> "healer"
+    ROLE_MELEE, ROLE_RANGED -> "dps"
+    else -> "any"
+}
+
 private val RoleOrder = listOf(ROLE_TANK, ROLE_HEALER, ROLE_MELEE, ROLE_RANGED)
 
 fun roleRank(role: Int): Int = RoleOrder.indexOf(role).let { if (it < 0) RoleOrder.size else it }

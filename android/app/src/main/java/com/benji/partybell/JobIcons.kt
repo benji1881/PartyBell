@@ -18,9 +18,12 @@ import kotlin.concurrent.thread
 object JobIcons {
     private const val FILE = "icons.json"
     private val iconsFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    private val rolesFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     private var loading = false
 
     val icons: StateFlow<Map<String, ImageBitmap>> = iconsFlow.asStateFlow()
+
+    val roles: StateFlow<Map<String, ImageBitmap>> = rolesFlow.asStateFlow()
 
     @Volatile
     var version = ""
@@ -62,11 +65,28 @@ object JobIcons {
             job to bitmap.asImageBitmap()
         }.toMap()
         iconsFlow.value = bitmaps
+        rolesFlow.value = roles(json)
         version = json.getString("version")
         true
     } catch (_: JSONException) {
         false
     } catch (_: IllegalArgumentException) {
         false
+    }
+
+    private fun roles(json: JSONObject): Map<String, ImageBitmap> {
+        val size = json.optInt("roleSize")
+        val roles = json.optJSONObject("roles") ?: return emptyMap()
+        if (size <= 0) return emptyMap()
+        return roles.keys().asSequence().mapNotNull { role ->
+            val rgba = Base64.getDecoder().decode(roles.getString(role))
+            if (rgba.size != size * size * 4) return@mapNotNull null
+            val pixels = IntArray(size * size) {
+                val i = it * 4
+                (rgba[i + 3].toInt() and 0xFF shl 24) or (rgba[i].toInt() and 0xFF shl 16) or
+                    (rgba[i + 1].toInt() and 0xFF shl 8) or (rgba[i + 2].toInt() and 0xFF)
+            }
+            role to Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888).asImageBitmap()
+        }.toMap()
     }
 }

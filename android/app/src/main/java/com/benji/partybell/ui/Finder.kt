@@ -71,6 +71,7 @@ private const val FRESH_MS = 60_000L
 private const val CLOCK_MS = 30_000L
 private const val LIFT = 1.03f
 private val OpenSlot = Color(0xFFB9B4A8)
+private val SLOT_SIZE = 26.dp
 private val PracticeColor = Color(0xFF5E9A4E)
 private val CompletionColor = Color(0xFF4E82C4)
 private val LootColor = Color(0xFFD9853B)
@@ -300,7 +301,9 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
             }
             Spacer(Modifier.height(8.dp))
             val slots = listing.slots.sortedWith(compareBy({ roleRank(it.role) }, { !it.filled }))
-            SlotBars(slots.map { if (it.filled) it.role else null }, open = slots.map { it.role })
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                slots.forEach { if (it.filled) JobTile(it.job, it.role, it.job, SLOT_SIZE) else RoleTile(it.role, SLOT_SIZE) }
+            }
             if (listing.description.isNotBlank()) {
                 Spacer(Modifier.height(8.dp))
                 Text(
@@ -380,15 +383,10 @@ private fun Tag(label: String, color: Color?) {
 }
 
 @Composable
-fun SlotBars(filled: List<Int?>, modifier: Modifier = Modifier, open: List<Int> = emptyList()) {
+fun SlotBars(filled: List<Int?>, modifier: Modifier = Modifier) {
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = modifier.fillMaxWidth()) {
-        filled.forEachIndexed { index, role ->
-            val wanted = open.getOrElse(index) { 0 }
-            val color = when {
-                role != null -> roleColor(role)
-                wanted != 0 -> roleColor(wanted).copy(alpha = 0.3f)
-                else -> OpenSlot.copy(alpha = 0.5f)
-            }
+        filled.forEach { role ->
+            val color = if (role != null) roleColor(role) else OpenSlot.copy(alpha = 0.5f)
             Box(
                 Modifier
                     .weight(1f)
