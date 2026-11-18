@@ -1,6 +1,8 @@
 package com.benji.partybell.ui
 
+import android.content.Context
 import android.content.Intent
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,9 +23,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -37,21 +40,56 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.AppSettings
 import com.benji.partybell.NotifyKind
 import com.benji.partybell.PairingScanner
 import com.benji.partybell.PartyService
+import com.benji.partybell.PartyState
 import com.benji.partybell.ScanResult
 import com.benji.partybell.Updater
+
+private val notifyGroups = listOf(
+    "Party" to listOf(NotifyKind.Full, NotifyKind.ReadyCheck, NotifyKind.Queue, NotifyKind.Joined, NotifyKind.Left, NotifyKind.Disbanded),
+    "Chat" to listOf(NotifyKind.Tells, NotifyKind.Chat, NotifyKind.FreeCompany),
+    "App" to listOf(NotifyKind.Disconnected, NotifyKind.Update),
+)
 
 @Composable
 fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var paired by remember { mutableStateOf(settings.isPaired) }
+    var enabled by remember { mutableStateOf(settings.enabled) }
     var scanError by remember { mutableStateOf<String?>(null) }
+    var batteryFree by remember { mutableStateOf(true) }
     val update by Updater.update.collectAsState()
+    val status by PartyState.status.collectAsStateWithLifecycle()
+
+    LifecycleResumeEffect(Unit) {
+        batteryFree = ignoresBattery(context)
+        onPauseOrDispose { }
+    }
+
+    val scan = {
+        scanError = null
+        PairingScanner.scan(context) { result ->
+            when (result) {
+                is ScanResult.Paired -> {
+                    settings.pair(result.pairing)
+                    paired = true
+                    enabled = true
+                    PartyService.start(context)
+                    onBack()
+                }
+                ScanResult.NotPartyBell -> scanError = "That isn't a PartyBell pairing code."
+                ScanResult.Failed -> scanError = "Couldn't open the scanner."
+            }
+        }
+    }
 
     Column(
         modifier = modifier
@@ -75,8 +113,40 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
             Text("Settings", fontFamily = Fraunces, fontSize = 26.sp, color = AppColors.text)
         }
 
+        if (!batteryFree) {
+            BatteryWarning {
+                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            }
+        }
+
+        Card {
+            if (paired) {
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                    Dot(statusColor(status))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(status.label, color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text("${settings.hosts.joinToString(", ")} · port ${settings.port}", color = AppColors.muted, fontSize = 13.sp)
+                    }
+                    Switch(checked = enabled, onCheckedChange = {
+                        enabled = it
+                        settings.enabled = it
+                        if (it) PartyService.start(context) else PartyService.stop(context)
+                    })
+                }
+                Divider()
+                NavRow("Pair a new PC", "", onClick = scan)
+            } else {
+                Text("Not paired", color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Type /partybell in game, press Pair a phone and scan the code.", color = AppColors.muted)
+                Button(onClick = scan) { Text("Scan pairing code") }
+            }
+            scanError?.let { Text(it, color = AppColors.red) }
+        }
+
         update?.let { available ->
-            Card("Updates") {
+            Card {
+                Text("Updates", color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Column {
                     Text("${available.version} is available.", color = AppColors.text)
                     Text("You have ${Updater.current(context)}", color = AppColors.muted, fontSize = 13.sp)
@@ -85,62 +155,60 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
             }
         }
 
-        Card("Pairing") {
-            if (paired) {
-                Text("Paired with your PC.", color = AppColors.text)
-                Text("${settings.hosts.joinToString(", ")} · port ${settings.port}", color = AppColors.muted, fontSize = 13.sp)
-            } else {
-                Text("Type /partybell in game, press Pair a phone and scan the code.", color = AppColors.muted)
-            }
-            Button(onClick = {
-                scanError = null
-                PairingScanner.scan(context) { result ->
-                    when (result) {
-                        is ScanResult.Paired -> {
-                            settings.pair(result.pairing)
-                            paired = true
-                            PartyService.start(context)
-                            onBack()
-                        }
-                        ScanResult.NotPartyBell -> scanError = "That isn't a PartyBell pairing code."
-                        ScanResult.Failed -> scanError = "Couldn't open the scanner."
-                    }
-                }
-            }) { Text(if (paired) "Scan a new pairing code" else "Scan pairing code") }
-            scanError?.let { Text(it, color = AppColors.red) }
-        }
+        Text("Notifications", fontFamily = Fraunces, fontSize = 20.sp, color = AppColors.text, modifier = Modifier.padding(top = 8.dp, start = 2.dp))
 
-        if (paired) {
-            Card("Connection") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        settings.enabled = true
-                        PartyService.start(context)
-                        onBack()
-                    }) { Text("Connect") }
-                    OutlinedButton(onClick = {
-                        settings.enabled = false
-                        PartyService.stop(context)
-                    }) { Text("Disconnect") }
-                }
+        notifyGroups.forEach { (label, kinds) ->
+            Card {
+                Text(label, color = AppColors.muted, fontSize = 13.sp)
+                kinds.forEach { kind -> NotifyRow(settings, kind) }
             }
         }
 
-        Card("Notifications") {
-            NotifyKind.entries.forEach { kind -> NotifyRow(settings, kind) }
+        Card {
+            NavRow("Sound and vibration", "") {
+                context.startActivity(
+                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                )
+            }
         }
 
-        Card("Battery") {
-            Text("Turn off battery optimisation for PartyBell so it stays connected while the screen is off.", color = AppColors.muted)
-            OutlinedButton(onClick = {
-                context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            }) { Text("Battery settings") }
+        Text(
+            "PartyBell ${Updater.current(context)}",
+            color = AppColors.muted,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        )
+    }
+}
+
+private fun ignoresBattery(context: Context): Boolean =
+    context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+
+@Composable
+private fun BatteryWarning(onClick: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .background(AppColors.yellow.copy(alpha = 0.12f))
+            .border(1.dp, AppColors.yellow.copy(alpha = 0.4f), RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(16.dp),
+    ) {
+        Icon(Icons.Filled.Warning, contentDescription = null, tint = AppColors.yellow, modifier = Modifier.size(22.dp))
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text("May disconnect with the screen off", color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+            Text("Turn off battery optimisation", color = AppColors.muted, fontSize = 13.sp)
         }
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(20.dp))
     }
 }
 
 @Composable
-private fun Card(title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun Card(content: @Composable ColumnScope.() -> Unit) {
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
@@ -148,10 +216,8 @@ private fun Card(title: String, content: @Composable ColumnScope.() -> Unit) {
             .background(AppColors.card, RoundedCornerShape(18.dp))
             .border(1.dp, AppColors.line, RoundedCornerShape(18.dp))
             .padding(16.dp),
-    ) {
-        Text(title, color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-        content()
-    }
+        content = content,
+    )
 }
 
 @Composable

@@ -505,7 +505,7 @@ private fun WordsSheet(words: List<String>, onWords: (List<String>) -> Unit, onD
 }
 
 @Composable
-private fun NavRow(label: String, value: String, onClick: () -> Unit) {
+internal fun NavRow(label: String, value: String, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -527,7 +527,7 @@ private fun NavRow(label: String, value: String, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Divider() {
+internal fun Divider() {
     Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.line))
 }
 

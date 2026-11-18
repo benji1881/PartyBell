@@ -365,7 +365,7 @@ fun Dot(color: Color, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun statusColor(status: Status): Color = when (status) {
+internal fun statusColor(status: Status): Color = when (status) {
     Status.Connected -> AppColors.accent
     Status.Connecting -> AppColors.yellow
     Status.Off -> AppColors.muted
