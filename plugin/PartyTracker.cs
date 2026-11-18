@@ -11,6 +11,7 @@ internal sealed class PartyTracker
 
     private readonly Dictionary<string, Member> seen = [];
     private PartySnapshot? pending;
+    private bool matched;
     private DateTime pendingSince;
 
     public PartySnapshot? Current { get; private set; }
@@ -27,7 +28,7 @@ internal sealed class PartyTracker
         seen[member.Name] = member;
     }
 
-    public bool Update(PartySnapshot snapshot, string selfKey, DateTime now, bool hold, List<PartyEvent> events)
+    public bool Update(PartySnapshot snapshot, string selfKey, DateTime now, bool hold, bool duty, List<PartyEvent> events)
     {
         foreach (var member in snapshot.Members)
             Remember(member);
@@ -48,8 +49,9 @@ internal sealed class PartyTracker
         if (hold || now - pendingSince < SettleTime)
             return false;
 
-        if (Current != null)
+        if (Current != null && !duty && !matched)
             Compare(Current, snapshot, selfKey, events);
+        matched = duty;
         Current = snapshot;
         ChangedAt = pendingSince;
         pending = null;
@@ -61,6 +63,7 @@ internal sealed class PartyTracker
         var had = Current != null;
         Current = null;
         pending = null;
+        matched = false;
         return had;
     }
 

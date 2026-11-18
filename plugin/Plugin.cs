@@ -109,7 +109,7 @@ public sealed class Plugin : IDalamudPlugin
         events.Clear();
         var selfKey = $"{Services.PlayerState.CharacterName}@{Services.PlayerState.HomeWorld.Value.Name.ExtractText()}";
         var before = tracker.Current;
-        if (!tracker.Update(PartyReader.Read(), selfKey, now, now - zonedAt < ZoneGrace, events))
+        if (!tracker.Update(PartyReader.Read(), selfKey, now, now - zonedAt < ZoneGrace, DutyQueue.Matched, events))
             return;
 
         if (before is not { Members.Count: > 1 } && tracker.Current!.Members.Count > 1)

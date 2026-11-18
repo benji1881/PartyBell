@@ -11,6 +11,15 @@ internal sealed unsafe class DutyQueue(Feed feed)
 
     private bool popped;
 
+    public static bool Matched
+    {
+        get
+        {
+            var finder = ContentsFinder.Instance();
+            return finder != null && finder->QueueInfo.QueueState is ContentsFinderQueueState.Ready or ContentsFinderQueueState.Accepted or ContentsFinderQueueState.InContent;
+        }
+    }
+
     public void Update()
     {
         var finder = ContentsFinder.Instance();
