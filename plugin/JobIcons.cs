@@ -15,6 +15,10 @@ internal static class JobIcons
     private const float GlyphSoftness = 50;
     private const float RoleThreshold = 120;
     private const float RoleSoftness = 80;
+    private const byte RoleInside = 230;
+    private const int ShadeLowPercent = 10;
+    private const int ShadeHighPercent = 90;
+    private const float ShadeFloor = 0.35f;
     private static readonly (string Role, uint Icon, uint Background)[] RoleIcons = [("tank", 62581, 62571), ("healer", 62582, 62572), ("dps", 62583, 62573)];
 
     private static readonly Lazy<(string Version, string Message)> Data = new(Build);
@@ -103,7 +107,19 @@ internal static class JobIcons
             if (p < soft.Length - size) Visit(p + size);
         }
 
-        return soft.Select((value, p) => (byte)(255 * (outside[p] ? value : 1))).ToArray();
+        var filled = soft.Select((value, p) => (byte)(255 * (outside[p] ? value : 1))).ToArray();
+        return Shade(icon, filled);
+    }
+
+    private static byte[] Shade(byte[] icon, byte[] filled)
+    {
+        var brightness = filled.Select((_, p) => (icon[p * 4] + icon[p * 4 + 1] + icon[p * 4 + 2]) / 3f).ToArray();
+        var inside = brightness.Where((_, p) => filled[p] > RoleInside).Order().ToArray();
+        if (inside.Length == 0)
+            return filled;
+        var low = inside[inside.Length * ShadeLowPercent / 100];
+        var range = Math.Max(inside[inside.Length * ShadeHighPercent / 100] - low, 1);
+        return filled.Select((value, p) => (byte)(value * (ShadeFloor + (1 - ShadeFloor) * Math.Clamp((brightness[p] - low) / range, 0, 1)))).ToArray();
     }
 
     private static byte[] Mask(byte[] bgra)
