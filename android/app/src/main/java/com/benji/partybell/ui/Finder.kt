@@ -1,5 +1,8 @@
 package com.benji.partybell.ui
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,6 +25,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -44,7 +49,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -60,6 +68,7 @@ import kotlinx.coroutines.delay
 
 private const val FRESH_MS = 60_000L
 private const val CLOCK_MS = 30_000L
+private const val LIFT = 1.03f
 private val OpenSlot = Color(0xFFB9B4A8)
 private val PracticeColor = Color(0xFF5E9A4E)
 private val CompletionColor = Color(0xFF4E82C4)
@@ -146,6 +155,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                         listing,
                         listing.secondsLeft(listings.time, now),
                         onTell = { onTell(listing.peer) },
+                        onJoin = { PartyState.join(listing) },
                         onOpen = { PartyState.open(listing) },
                     )
                 }
@@ -224,72 +234,114 @@ private fun Chip(label: String, active: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onOpen: () -> Unit) {
+private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJoin: () -> Unit, onOpen: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
+    val haptics = LocalHapticFeedback.current
+    var menu by remember { mutableStateOf(false) }
+    val lift by animateFloatAsState(
+        if (menu) LIFT else 1f,
+        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        label = "lift",
+    )
     val objective = objective(listing)
     val border = when {
         listing.own -> AppColors.sage
         objective != null -> objective.copy(alpha = 0.5f)
         else -> AppColors.line
     }
-    Column(
-        Modifier
-            .fillMaxWidth()
-            .background(AppColors.card, shape)
-            .background(objective?.copy(alpha = 0.12f) ?: Color.Transparent, shape)
-            .border(1.dp, border, shape)
-            .pointerInput(listing.id) { detectTapGestures(onDoubleTap = { onOpen() }) }
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-    ) {
-        if (listing.own) {
-            Text("YOUR LISTING", color = AppColors.sage, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
-            Spacer(Modifier.height(4.dp))
-        }
-        Row {
-            Text(
-                listing.title,
-                color = AppColors.text,
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold,
-                lineHeight = 20.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(8.dp))
-            if (listing.locked) {
-                Icon(
-                    Icons.Filled.Lock,
-                    contentDescription = "Password",
-                    tint = AppColors.muted,
-                    modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(14.dp),
+    Box {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .graphicsLayer {
+                    scaleX = lift
+                    scaleY = lift
+                }
+                .background(AppColors.card, shape)
+                .background(objective?.copy(alpha = 0.12f) ?: Color.Transparent, shape)
+                .border(1.dp, border, shape)
+                .pointerInput(listing.id) {
+                    detectTapGestures(
+                        onDoubleTap = { onOpen() },
+                        onLongPress = {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            menu = true
+                        },
+                    )
+                }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+        ) {
+            if (listing.own) {
+                Text("YOUR LISTING", color = AppColors.sage, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(Modifier.height(4.dp))
+            }
+            Row {
+                Text(
+                    listing.title,
+                    color = AppColors.text,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    lineHeight = 20.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(Modifier.width(8.dp))
+                if (listing.locked) {
+                    Icon(
+                        Icons.Filled.Lock,
+                        contentDescription = "Password",
+                        tint = AppColors.muted,
+                        modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(14.dp),
+                    )
+                }
+                Text(remaining(seconds), color = AppColors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            val slots = listing.slots.sortedWith(compareBy({ roleRank(it.role) }, { !it.filled }))
+            SlotBars(slots.map { if (it.filled) it.role else null }, open = slots.map { it.role })
+            if (listing.description.isNotBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    listing.description,
+                    color = AppColors.text,
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    maxLines = 4,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(AppColors.background.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
                 )
             }
-            Text(remaining(seconds), color = AppColors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
-        }
-        Spacer(Modifier.height(8.dp))
-        SlotBars(listing.slots.map { if (it.filled) it.role else null }, open = listing.slots.map { it.role })
-        if (listing.description.isNotBlank()) {
-            Spacer(Modifier.height(8.dp))
-            Text(listing.description, color = AppColors.text, fontSize = 13.sp, lineHeight = 18.sp, maxLines = 4, overflow = TextOverflow.Ellipsis)
-        }
-        val tags = tags(listing)
-        if (tags.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                tags.forEach { (label, color) -> Tag(label, color) }
+            val tags = tags(listing)
+            if (tags.isNotEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    tags.forEach { (label, color) -> Tag(label, color) }
+                }
             }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "${listing.leader} · ${listing.world}",
+                color = AppColors.sage,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = !listing.own, onClick = onTell)
+                    .padding(vertical = 2.dp),
+            )
         }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "${listing.leader} · ${listing.world}",
-            color = AppColors.sage,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .clickable(enabled = !listing.own, onClick = onTell)
-                .padding(vertical = 2.dp),
+        SpringMenu(
+            expanded = menu,
+            onDismiss = { menu = false },
+            items = listOfNotNull(
+                MenuItem("Send tell", Icons.AutoMirrored.Filled.Send, onTell).takeIf { !listing.own },
+                MenuItem("Join party", Icons.Filled.Add, onJoin).takeIf { !listing.own && !listing.locked },
+                MenuItem("Open in Party Finder", Icons.Filled.Search, onOpen),
+            ),
         )
     }
 }

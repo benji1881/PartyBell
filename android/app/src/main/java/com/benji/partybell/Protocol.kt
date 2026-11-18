@@ -32,6 +32,8 @@ data class Finding(val ok: Boolean, val reason: String) : Incoming
 
 data class Opened(val ok: Boolean, val reason: String) : Incoming
 
+data class Joining(val ok: Boolean, val reason: String) : Incoming
+
 data object Bye : Incoming
 
 data class Challenge(val version: Int, val nonce: ByteArray)
@@ -54,6 +56,7 @@ object Protocol {
             "listings" -> ListingsUpdate(listings(json))
             "finding" -> Finding(json.optBoolean("ok"), json.optString("reason"))
             "opened" -> Opened(json.optBoolean("ok"), json.optString("reason"))
+            "joining" -> Joining(json.optBoolean("ok"), json.optString("reason"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
@@ -101,6 +104,11 @@ object Protocol {
 
     fun open(id: String): String = JSONObject()
         .put("type", "open")
+        .put("id", id)
+        .toString()
+
+    fun join(id: String): String = JSONObject()
+        .put("type", "join")
         .put("id", id)
         .toString()
 

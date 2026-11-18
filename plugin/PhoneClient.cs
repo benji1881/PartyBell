@@ -96,6 +96,8 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
                     Send(Messages.Finding(await finder.Request(request)));
                 else if (OpenListing.Parse(plain) is { } open)
                     Send(Messages.Opened(await finder.Open(open)));
+                else if (JoinListing.Parse(plain) is { } join)
+                    Send(Messages.Joining(await finder.Join(join)));
             }
         }
         catch (Exception e) when (IsDisconnect(e))

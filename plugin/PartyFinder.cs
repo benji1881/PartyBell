@@ -5,7 +5,9 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Gui.PartyFinder.Types;
+using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using FFXIVClientStructs.FFXIV.Component.GUI;
 using Sheets = Lumina.Excel.Sheets;
 
 namespace PartyBell;
@@ -15,6 +17,13 @@ internal sealed unsafe class PartyFinder : IDisposable
     private const byte Other = 16;
     private const byte DataCenter = 0;
     private const string Window = "LookingForGroup";
+    private const string Detail = "LookingForGroupDetail";
+    private const string Confirm = "SelectYesno";
+    private const uint JoinButton = 109;
+    private const int Yes = 0;
+    private const int EquipSlots = 13;
+    private const int WaistSlot = 5;
+    private const int CountedSlots = 12;
     private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
 
@@ -27,6 +36,9 @@ internal sealed unsafe class PartyFinder : IDisposable
     private bool complete;
     private DateTime changedAt;
     private DateTime? requestedAt;
+    private TaskCompletionSource<string?>? joining;
+    private bool joinPressed;
+    private DateTime joinBy;
 
     public PartyFinder(Feed feed)
     {
@@ -40,8 +52,11 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     public Task<string?> Open(OpenListing open) => Services.Framework.RunOnFrameworkThread(() => Show(open.Id));
 
+    public Task<string?> Join(JoinListing join) => Services.Framework.RunOnFrameworkThread<Task<string?>>(() => StartJoin(join.Id)).Unwrap();
+
     public void Update(DateTime now)
     {
+        StepJoin(now);
         lock (gate)
         {
             if (dirty && (complete || now - changedAt >= Quiet))
@@ -61,6 +76,7 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     public void Reset()
     {
+        FinishJoin("not ready");
         lock (gate)
         {
             listings.Clear();
@@ -102,6 +118,75 @@ internal sealed unsafe class PartyFinder : IDisposable
         return agent != null && agent->OpenListing(id) ? null : "refused";
     }
 
+    private Task<string?> StartJoin(ulong id)
+    {
+        if (joining != null)
+            return Task.FromResult<string?>("busy");
+        if (Show(id) is { } reason)
+            return Task.FromResult<string?>(reason);
+        joining = new TaskCompletionSource<string?>();
+        joinPressed = false;
+        joinBy = DateTime.UtcNow + Timeout;
+        return joining.Task;
+    }
+
+    private void StepJoin(DateTime now)
+    {
+        if (joining == null)
+            return;
+        if (now > joinBy)
+        {
+            FinishJoin("timeout");
+            return;
+        }
+        if (!joinPressed)
+        {
+            var detail = Ready(Detail);
+            var button = detail == null ? null : detail->GetComponentButtonById(JoinButton);
+            if (button == null || !button->IsEnabled)
+                return;
+            detail->FireCallbackInt(Yes);
+            joinPressed = true;
+            return;
+        }
+        var confirm = Ready(Confirm);
+        if (confirm != null)
+        {
+            confirm->FireCallbackInt(Yes);
+            FinishJoin(null);
+        }
+    }
+
+    private void FinishJoin(string? reason)
+    {
+        var task = joining;
+        joining = null;
+        task?.TrySetResult(reason);
+    }
+
+    private static AtkUnitBase* Ready(string name)
+    {
+        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName(name, 1).Address;
+        return addon != null && addon->IsReady && addon->IsVisible ? addon : null;
+    }
+
+    private static int ItemLevel()
+    {
+        var container = InventoryManager.Instance()->GetInventoryContainer(InventoryType.EquippedItems);
+        if (container == null)
+            return 0;
+        var items = Services.DataManager.GetExcelSheet<Sheets.Item>();
+        var total = 0;
+        for (var i = 0; i < EquipSlots; i++)
+        {
+            if (i == WaistSlot || items.GetRowOrDefault(container->GetInventorySlot(i)->GetBaseItemId()) is not { } item)
+                continue;
+            var level = (int)item.LevelItem.RowId;
+            total += i == 0 && item.EquipSlotCategory.ValueNullable?.OffHand == -1 ? level * 2 : level;
+        }
+        return total / CountedSlots;
+    }
+
     private static string? Blocked()
     {
         if (!Services.PlayerState.IsLoaded || Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
@@ -113,7 +198,7 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     private void OnListing(IPartyFinderListing listing, IPartyFinderListingEventArgs args)
     {
-        var item = Map(listing);
+        var item = Map(listing, ItemLevel());
         var now = DateTime.UtcNow;
         lock (gate)
         {
@@ -128,7 +213,7 @@ internal sealed unsafe class PartyFinder : IDisposable
         }
     }
 
-    private static Listing Map(IPartyFinderListing listing)
+    private static Listing Map(IPartyFinderListing listing, int itemLevel)
     {
         var job = Services.PlayerState.ClassJob.RowId;
         var present = listing.RawJobsPresent.ToList();
@@ -151,6 +236,8 @@ internal sealed unsafe class PartyFinder : IDisposable
             var roles = accepted.Select(j => Role(j?.Role ?? 0)).Distinct().ToList();
             slots.Add(new Slot("", roles.Count == 1 ? roles[0] : 0));
         }
+        fits &= itemLevel >= listing.MinimumItemLevel;
+        fits &= !listing[SearchAreaFlags.OnePlayerPerJob] || !present.Contains((byte)job);
 
         return new Listing(
             listing.Id.ToString(),

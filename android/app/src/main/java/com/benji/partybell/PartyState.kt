@@ -93,6 +93,7 @@ object PartyState {
                 noticesFlow.tryEmit(findReason(incoming.reason))
             }
             is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else openReason(incoming.reason))
+            is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else joinReason(incoming.reason))
             is IconsUpdate, is Answered, is Dismiss, Bye -> Unit
         }
     }
@@ -134,6 +135,10 @@ object PartyState {
 
     fun open(listing: Listing) {
         if (sender?.invoke(Protocol.open(listing.id)) != true) noticesFlow.tryEmit("Not connected")
+    }
+
+    fun join(listing: Listing) {
+        if (sender?.invoke(Protocol.join(listing.id)) != true) noticesFlow.tryEmit("Not connected")
     }
 
     fun answer(ready: Boolean): Boolean = sender?.invoke(Protocol.answer(ready)) == true
@@ -215,6 +220,14 @@ object PartyState {
         "not ready" -> "The game isn't ready"
         "in duty" -> "The Party Finder can't be opened in a duty"
         else -> "The game couldn't open the listing"
+    }
+
+    private fun joinReason(code: String) = when (code) {
+        "not ready" -> "The game isn't ready"
+        "in duty" -> "You can't join a party in a duty"
+        "busy" -> "Already joining a party"
+        "timeout" -> "The game didn't let you join"
+        else -> "The game couldn't join the party"
     }
 
     private fun inviteReason(code: String) = when (code) {
