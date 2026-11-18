@@ -13,6 +13,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan KeepAlive = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan GoodbyeTimeout = TimeSpan.FromSeconds(1);
+    private static readonly string Version = typeof(PhoneServer).Assembly.GetName().Version?.ToString(3) ?? "";
 
     private TcpListener? listener;
     private CancellationTokenSource? cancel;
@@ -89,6 +90,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
             using var sealer = new Sealer(session);
             var client = new PhoneClient(socket, sealer, chat, readyCheck, inviter, finder);
             feed.Join(client);
+            client.Send(Messages.Plugin(Version));
             if (session.Icons != JobIcons.Version)
                 client.Send(JobIcons.Message);
             try

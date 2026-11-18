@@ -34,6 +34,8 @@ data class Opened(val ok: Boolean, val reason: String) : Incoming
 
 data class Joining(val ok: Boolean, val reason: String) : Incoming
 
+data class PluginVersion(val version: String) : Incoming
+
 data object Bye : Incoming
 
 data class Challenge(val version: Int, val nonce: ByteArray)
@@ -57,6 +59,7 @@ object Protocol {
             "finding" -> Finding(json.optBoolean("ok"), json.optString("reason"))
             "opened" -> Opened(json.optBoolean("ok"), json.optString("reason"))
             "joining" -> Joining(json.optBoolean("ok"), json.optString("reason"))
+            "plugin" -> PluginVersion(json.optString("version"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }

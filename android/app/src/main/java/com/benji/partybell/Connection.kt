@@ -186,6 +186,7 @@ class Connection(private val context: Context, private val settings: AppSettings
                     if (message is History && message.reset) notifier.clearChat(message.all)
                     if (message is Answered) notifier.answered(message)
                     if (message is Dismiss) notifier.dismiss(message.kind)
+                    if (message is PluginVersion) Updater.released(context, message.version)
                 }
             }
         }

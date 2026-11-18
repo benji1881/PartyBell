@@ -34,14 +34,21 @@ object Updater {
 
     @Volatile private var checking = false
     @Volatile private var checkedAt = 0L
+    @Volatile private var releasedSeen = ""
 
     fun current(context: Context): String =
         context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty()
 
-    fun check(context: Context) {
+    fun released(context: Context, version: String) {
+        if (version == releasedSeen || !versionPattern.matches(version) || !newer(version, current(context))) return
+        releasedSeen = version
+        check(context, force = true)
+    }
+
+    fun check(context: Context, force: Boolean = false) {
         val app = context.applicationContext
         val now = SystemClock.elapsedRealtime()
-        if (debuggable(app) || checking || (checkedAt != 0L && now - checkedAt < CHECK_INTERVAL_MS)) return
+        if (debuggable(app) || checking || (!force && checkedAt != 0L && now - checkedAt < CHECK_INTERVAL_MS)) return
         checking = true
         val request = Request.Builder().url(LATEST).header("Accept", "application/vnd.github+json").build()
         client.newCall(request).enqueue(object : Callback {

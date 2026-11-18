@@ -47,6 +47,8 @@ internal static class Messages
     public static string Joining(string? reason) =>
         Json(new { type = "joining", ok = reason == null, reason = reason ?? "" });
 
+    public static string Plugin(string version) => Json(new { type = "plugin", version });
+
     public static string Bye() => Json(new { type = "bye" });
 
     public static string Company(bool member) =>
