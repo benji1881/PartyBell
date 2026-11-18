@@ -240,15 +240,15 @@ private fun NewDivider(count: Int) {
             .fillMaxWidth()
             .padding(vertical = 8.dp),
     ) {
-        HorizontalDivider(Modifier.weight(1f), color = AppColors.sage.copy(alpha = 0.5f))
+        HorizontalDivider(Modifier.weight(1f), color = AppColors.accent.copy(alpha = 0.5f))
         Text(
             "$count new",
-            color = AppColors.sage,
+            color = AppColors.accent,
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(horizontal = 10.dp),
         )
-        HorizontalDivider(Modifier.weight(1f), color = AppColors.sage.copy(alpha = 0.5f))
+        HorizontalDivider(Modifier.weight(1f), color = AppColors.accent.copy(alpha = 0.5f))
     }
 }
 
@@ -257,7 +257,7 @@ private fun EventPill(item: PartyEventItem) {
     val tint = when (item.kind) {
         EventKind.Full -> AppColors.yellow
         EventKind.Disbanded -> AppColors.red
-        EventKind.ReadyCheckDone -> if (item.count == 0) AppColors.sage else AppColors.red
+        EventKind.ReadyCheckDone -> if (item.count == 0) AppColors.accent else AppColors.red
         EventKind.Queue -> AppColors.yellow
         EventKind.Joined, EventKind.Left, EventKind.ReadyCheck -> null
     }
@@ -329,7 +329,7 @@ private fun Mine(text: String, time: Long, state: SendState, reason: String, lin
         bottomEnd = Small,
         bottomStart = Big,
     )
-    val onBubble = if (failed) AppColors.text else AppColors.onSage
+    val onBubble = if (failed) AppColors.text else AppColors.onAccent
     Column(
         horizontalAlignment = Alignment.End,
         modifier = Modifier
@@ -339,7 +339,7 @@ private fun Mine(text: String, time: Long, state: SendState, reason: String, lin
         Column(
             Modifier
                 .copyable(text)
-                .background(if (failed) AppColors.red.copy(alpha = 0.18f) else AppColors.sage, shape)
+                .background(if (failed) AppColors.red.copy(alpha = 0.18f) else AppColors.accent, shape)
                 .then(if (failed) Modifier.border(1.dp, AppColors.red.copy(alpha = 0.6f), shape) else Modifier)
                 .padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 6.dp)
         ) {
@@ -398,7 +398,7 @@ private fun JumpButton(count: Int, onClick: () -> Unit) {
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .offset(x = 6.dp, y = (-6).dp)
-                    .background(AppColors.sage, RoundedCornerShape(50))
+                    .background(AppColors.accent, RoundedCornerShape(50))
                     .widthIn(min = 18.dp)
                     .padding(horizontal = 5.dp, vertical = 1.dp),
                 textAlign = TextAlign.Center,

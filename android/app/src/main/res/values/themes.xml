@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="background">#FFF3EFE6</color>
-    <color name="icon_background">#FF5E7F63</color>
+    <color name="icon_background">#FF2F4C7A</color>
 
     <style name="Theme.PartyBell" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:windowBackground">@color/background</item>

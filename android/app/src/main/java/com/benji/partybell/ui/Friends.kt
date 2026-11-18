@@ -117,7 +117,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
             onValueChange = onChange,
             singleLine = true,
             textStyle = TextStyle(color = AppColors.text, fontSize = 15.sp, fontFamily = Jakarta),
-            cursorBrush = SolidColor(AppColors.sage),
+            cursorBrush = SolidColor(AppColors.accent),
             modifier = Modifier.weight(1f),
             decorationBox = { field ->
                 Box {
@@ -180,10 +180,10 @@ private fun FriendRow(friend: Friend, onMessage: (Friend) -> Unit) {
                 modifier = Modifier
                     .size(40.dp)
                     .clip(CircleShape)
-                    .background(AppColors.sage.copy(alpha = 0.15f))
+                    .background(AppColors.accent.copy(alpha = 0.15f))
                     .clickable { onMessage(friend) },
             ) {
-                Icon(Icons.Filled.Email, contentDescription = "Message ${friend.name}", tint = AppColors.sage, modifier = Modifier.size(20.dp))
+                Icon(Icons.Filled.Email, contentDescription = "Message ${friend.name}", tint = AppColors.accent, modifier = Modifier.size(20.dp))
             }
             Box {
                 Box(
@@ -218,7 +218,7 @@ private fun FriendRow(friend: Friend, onMessage: (Friend) -> Unit) {
 
 @Composable
 private fun statusTint(status: FriendStatus): Color = when (status) {
-    FriendStatus.Online -> AppColors.sage
+    FriendStatus.Online -> AppColors.accent
     FriendStatus.Duty -> AppColors.yellow
     FriendStatus.Away, FriendStatus.Busy -> AppColors.red
     FriendStatus.Offline -> AppColors.muted

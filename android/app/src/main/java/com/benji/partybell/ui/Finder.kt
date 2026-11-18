@@ -210,7 +210,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
                 onValueChange = onChange,
                 singleLine = true,
                 textStyle = TextStyle(color = AppColors.text, fontSize = 14.sp, fontFamily = Jakarta),
-                cursorBrush = SolidColor(AppColors.sage),
+                cursorBrush = SolidColor(AppColors.accent),
                 modifier = Modifier.fillMaxWidth(),
             )
         }
@@ -222,13 +222,13 @@ private fun Chip(label: String, active: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
     Text(
         label,
-        color = if (active) AppColors.onSage else AppColors.text,
+        color = if (active) AppColors.onAccent else AppColors.text,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
         modifier = Modifier
             .clip(shape)
-            .background(if (active) AppColors.sage else AppColors.card)
-            .border(1.dp, if (active) AppColors.sage else AppColors.line, shape)
+            .background(if (active) AppColors.accent else AppColors.card)
+            .border(1.dp, if (active) AppColors.accent else AppColors.line, shape)
             .clickable(onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 7.dp),
     )
@@ -246,7 +246,7 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
     )
     val objective = objective(listing)
     val border = when {
-        listing.own -> AppColors.sage
+        listing.own -> AppColors.accent
         objective != null -> objective.copy(alpha = 0.5f)
         else -> AppColors.line
     }
@@ -273,7 +273,7 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
                 .padding(horizontal = 14.dp, vertical = 12.dp),
         ) {
             if (listing.own) {
-                Text("YOUR LISTING", color = AppColors.sage, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Text("YOUR LISTING", color = AppColors.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
                 Spacer(Modifier.height(4.dp))
             }
             Row {
@@ -326,7 +326,7 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
             Spacer(Modifier.height(8.dp))
             Text(
                 "${listing.leader} · ${listing.world}",
-                color = AppColors.sage,
+                color = AppColors.accent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
@@ -356,7 +356,7 @@ private fun objective(listing: Listing): Color? = when {
 
 @Composable
 private fun tags(listing: Listing): List<Pair<String, Color?>> = listOfNotNull(
-    ("Fits your job" to AppColors.sage).takeIf { listing.fits && !listing.own },
+    ("Fits your job" to AppColors.accent).takeIf { listing.fits && !listing.own },
     ("Practice" to PracticeColor).takeIf { listing.practice },
     ("Duty completion" to CompletionColor).takeIf { listing.completion },
     ("Loot" to LootColor).takeIf { listing.loot },

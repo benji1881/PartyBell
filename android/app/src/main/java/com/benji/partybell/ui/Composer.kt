@@ -59,7 +59,7 @@ fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: M
                 enabled = enabled,
                 maxLines = 5,
                 textStyle = TextStyle(color = AppColors.text, fontSize = 15.sp, lineHeight = 21.sp, fontFamily = Jakarta),
-                cursorBrush = SolidColor(AppColors.sage),
+                cursorBrush = SolidColor(AppColors.accent),
                 keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 modifier = Modifier
                     .weight(1f)
@@ -85,7 +85,7 @@ fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: M
                 modifier = Modifier
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(if (canSend) AppColors.sage else AppColors.line)
+                    .background(if (canSend) AppColors.accent else AppColors.line)
                     .clickable(enabled = canSend) {
                         PartyState.send(channel, message, to)
                         text = ""
@@ -94,7 +94,7 @@ fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: M
                 Icon(
                     Icons.AutoMirrored.Filled.Send,
                     contentDescription = "Send",
-                    tint = if (canSend) AppColors.onSage else AppColors.muted,
+                    tint = if (canSend) AppColors.onAccent else AppColors.muted,
                     modifier = Modifier.size(20.dp),
                 )
             }

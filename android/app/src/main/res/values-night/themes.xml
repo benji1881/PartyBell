@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="background">#FF171A17</color>
+    <color name="background">#FF18191C</color>
 
     <style name="Theme.PartyBell" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">@color/background</item>

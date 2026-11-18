@@ -156,12 +156,12 @@ private fun LinkBanner(modifier: Modifier = Modifier) {
         if (failed) {
             Text(
                 "Reconnect",
-                color = AppColors.onSage,
+                color = AppColors.onAccent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(AppColors.sage)
+                    .background(AppColors.accent)
                     .clickable { PartyService.nudge(context) }
                     .padding(horizontal = 12.dp, vertical = 5.dp),
             )
@@ -202,7 +202,7 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
                         Icon(
                             tab.icon,
                             contentDescription = null,
-                            tint = if (active) AppColors.sage else AppColors.muted,
+                            tint = if (active) AppColors.accent else AppColors.muted,
                             modifier = Modifier.size(24.dp),
                         )
                         if (count > 0) {
@@ -212,7 +212,7 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
                     Spacer(Modifier.height(2.dp))
                     Text(
                         tab.label,
-                        color = if (active) AppColors.sage else AppColors.muted,
+                        color = if (active) AppColors.accent else AppColors.muted,
                         fontSize = 12.sp,
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                     )
@@ -226,12 +226,12 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
 fun Badge(count: Int, modifier: Modifier = Modifier) {
     Text(
         if (count > 99) "99+" else count.toString(),
-        color = AppColors.onSage,
+        color = AppColors.onAccent,
         fontSize = 11.sp,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center,
         modifier = modifier
-            .background(AppColors.sage, RoundedCornerShape(50))
+            .background(AppColors.accent, RoundedCornerShape(50))
             .widthIn(min = 18.dp)
             .padding(horizontal = 5.dp, vertical = 1.dp),
     )
@@ -366,7 +366,7 @@ fun Dot(color: Color, modifier: Modifier = Modifier) {
 
 @Composable
 private fun statusColor(status: Status): Color = when (status) {
-    Status.Connected -> AppColors.sage
+    Status.Connected -> AppColors.accent
     Status.Connecting -> AppColors.yellow
     Status.Off -> AppColors.muted
     Status.NotPaired, Status.UpdatePlugin, Status.UpdateApp -> AppColors.red
@@ -391,13 +391,13 @@ private fun Tabs(selected: String, onSelect: (String) -> Unit, unread: (String) 
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(50))
-                    .background(if (active) AppColors.sage else Color.Transparent)
+                    .background(if (active) AppColors.accent else Color.Transparent)
                     .clickable { onSelect(channel) }
                     .padding(vertical = 8.dp),
             ) {
                 Text(
                     label,
-                    color = if (active) AppColors.onSage else AppColors.muted,
+                    color = if (active) AppColors.onAccent else AppColors.muted,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 14.sp,
                 )

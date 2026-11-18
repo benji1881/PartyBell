@@ -224,7 +224,7 @@ private fun ThreadRow(
                     JobTile(sender?.job ?: friend?.job.orEmpty(), sender?.role ?: friend?.role ?: 0, ChatChannel.nameOf(peer), 44.dp)
                     if (friend != null) {
                         Dot(
-                            if (friend.online) AppColors.sage else AppColors.muted,
+                            if (friend.online) AppColors.accent else AppColors.muted,
                             Modifier
                                 .align(Alignment.BottomEnd)
                                 .background(AppColors.card, RoundedCornerShape(50))
@@ -317,9 +317,9 @@ private fun GroupTile(icon: ImageVector) {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(44.dp)
-            .background(AppColors.sage, RoundedCornerShape(13.dp)),
+            .background(AppColors.accent, RoundedCornerShape(13.dp)),
     ) {
-        Icon(icon, contentDescription = null, tint = AppColors.onSage, modifier = Modifier.size(24.dp))
+        Icon(icon, contentDescription = null, tint = AppColors.onAccent, modifier = Modifier.size(24.dp))
     }
 }
 
@@ -378,7 +378,7 @@ fun ConversationScreen(conversation: String, onBack: () -> Unit) {
         TitleBar(name, onBack) {
             when {
                 friend != null -> {
-                    Dot(if (friend.online) AppColors.sage else AppColors.muted)
+                    Dot(if (friend.online) AppColors.accent else AppColors.muted)
                     Spacer(Modifier.width(6.dp))
                     Text("${friend.world} · ${friend.status.label}", color = AppColors.muted, fontSize = 13.sp)
                 }

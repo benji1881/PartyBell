@@ -22,8 +22,8 @@ import com.benji.partybell.R
 data class Palette(
     val background: Color,
     val card: Color,
-    val sage: Color,
-    val onSage: Color,
+    val accent: Color,
+    val onAccent: Color,
     val text: Color,
     val muted: Color,
     val line: Color,
@@ -34,8 +34,8 @@ data class Palette(
 private val Light = Palette(
     background = Color(0xFFF3EFE6),
     card = Color(0xFFFBF9F4),
-    sage = Color(0xFF5E7F63),
-    onSage = Color.White,
+    accent = Color(0xFF2F4C7A),
+    onAccent = Color.White,
     text = Color(0xFF2B2F2A),
     muted = Color(0xFF7A7F76),
     line = Color(0xFFE4DFD3),
@@ -44,13 +44,13 @@ private val Light = Palette(
 )
 
 private val Dark = Palette(
-    background = Color(0xFF171A17),
-    card = Color(0xFF222622),
-    sage = Color(0xFF5E7F63),
-    onSage = Color(0xFFF4F1EA),
+    background = Color(0xFF18191C),
+    card = Color(0xFF232428),
+    accent = Color(0xFF7D9BD0),
+    onAccent = Color(0xFF15171B),
     text = Color(0xFFECE8DF),
-    muted = Color(0xFF9AA096),
-    line = Color(0xFF2F342F),
+    muted = Color(0xFF9A9C9F),
+    line = Color(0xFF303136),
     yellow = Color(0xFFD9B65A),
     red = Color(0xFFD9776F),
 )
@@ -112,8 +112,8 @@ fun PartyBellTheme(content: @Composable () -> Unit) {
     val palette = if (dark) Dark else Light
     val base = if (dark) darkColorScheme() else lightColorScheme()
     val scheme = base.copy(
-        primary = palette.sage,
-        onPrimary = palette.onSage,
+        primary = palette.accent,
+        onPrimary = palette.onAccent,
         background = palette.background,
         onBackground = palette.text,
         surface = palette.card,
@@ -122,8 +122,8 @@ fun PartyBellTheme(content: @Composable () -> Unit) {
         onSurfaceVariant = palette.muted,
         surfaceContainerHighest = palette.line,
         outline = palette.line,
-        primaryContainer = palette.sage,
-        onPrimaryContainer = palette.onSage,
+        primaryContainer = palette.accent,
+        onPrimaryContainer = palette.onAccent,
     )
     CompositionLocalProvider(LocalPalette provides palette) {
         MaterialTheme(colorScheme = scheme, typography = Typography().withFont(Jakarta), content = content)
