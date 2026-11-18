@@ -33,11 +33,13 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -54,23 +56,33 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.ChatItem
 import com.benji.partybell.EventKind
 import com.benji.partybell.FeedItem
 import com.benji.partybell.OutgoingItem
 import com.benji.partybell.PartyEventItem
+import com.benji.partybell.PartyState
 import com.benji.partybell.SendState
 import com.benji.partybell.groupText
 import kotlinx.coroutines.launch
 import java.util.Calendar
+import kotlin.math.ceil
 
 private const val RUN_GAP_MS = 5 * 60_000L
 private const val SELF = "\u0000self"
@@ -79,6 +91,13 @@ private const val STACK = 4
 private val EventIcon = 20.dp
 private val Ring = 2.dp
 private val Overlap = (-6).dp
+private val MetaGap = 6.dp
+private val CopyIcon = ImageVector.Builder("Copy", 24.dp, 24.dp, 24f, 24f)
+    .addPath(
+        PathParser().parsePathString("M16,1H4C2.9,1 2,1.9 2,3v14h2V3h12V1zM19,5H8C6.9,5 6,5.9 6,7v14c0,1.1 0.9,2 2,2h11c1.1,0 2,-0.9 2,-2V7C21,5.9 20.1,5 19,5zM19,21H8V7h11V21z").toNodes(),
+        fill = SolidColor(Color.Black),
+    )
+    .build()
 private val Big = 18.dp
 private val Small = 5.dp
 
@@ -109,8 +128,11 @@ fun ChatFeed(
     onRetry: (OutgoingItem) -> Unit,
     modifier: Modifier = Modifier,
     showNames: Boolean = true,
+    onTell: ((String) -> Unit)? = null,
 ) {
     val lines = remember(items, newAfter) { lines(items, newAfter).asReversed() }
+    val party by PartyState.party.collectAsStateWithLifecycle()
+    val peers = remember(party) { party.members.associate { it.name to "${it.name}@${it.world}" } }
     val state = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var topKey by remember { mutableStateOf(lines.firstOrNull()?.key) }
@@ -151,7 +173,13 @@ fun ChatFeed(
                         is ChatItem -> if (item.self) {
                             Mine(item.text, item.time, SendState.Sent, "", line, null)
                         } else {
-                            Theirs(item, line, showNames)
+                            val peer = item.peer.ifEmpty { peers[item.name].orEmpty() }
+                            val tell = if (onTell != null && peer.isNotEmpty()) {
+                                MenuItem("Send tell to ${item.name}", Icons.AutoMirrored.Filled.Send) { onTell(peer) }
+                            } else {
+                                null
+                            }
+                            Theirs(item, line, showNames, tell)
                         }
                         is OutgoingItem -> Mine(item.text, item.time, item.state, item.reason, line) { onRetry(item) }
                         is PartyEventItem -> Unit
@@ -376,7 +404,8 @@ private fun EventPill(item: PartyEventItem) {
 }
 
 @Composable
-private fun Theirs(item: ChatItem, line: BubbleLine, showName: Boolean) {
+private fun Theirs(item: ChatItem, line: BubbleLine, showName: Boolean, tell: MenuItem?) {
+    var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(
         topStart = if (line.first) Big else Small,
         topEnd = Big,
@@ -390,12 +419,12 @@ private fun Theirs(item: ChatItem, line: BubbleLine, showName: Boolean) {
             .padding(top = if (line.first) 6.dp else 2.dp, end = 48.dp),
     ) {
         Box(Modifier.width(34.dp)) {
-            if (line.last) JobTile(item.job, item.role, item.name, 30.dp)
+            if (line.last) JobTile(item.job, item.role, item.name, 30.dp, round = true)
         }
         Spacer(Modifier.width(6.dp))
         Column(
             Modifier
-                .copyable(item.text)
+                .longPress { menu = true }
                 .background(AppColors.card, shape)
                 .border(1.dp, AppColors.line, shape)
                 .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp)
@@ -404,13 +433,10 @@ private fun Theirs(item: ChatItem, line: BubbleLine, showName: Boolean) {
                 Text(item.name, color = roleColor(item.role), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(1.dp))
             }
-            Text(item.text, color = AppColors.text, fontSize = 15.sp, lineHeight = 21.sp)
-            Text(
-                clock(LocalContext.current, item.time),
-                color = AppColors.muted,
-                fontSize = 11.sp,
-                modifier = Modifier.align(Alignment.End),
-            )
+            Timed(item.text, AppColors.text) {
+                Text(clock(LocalContext.current, item.time), color = AppColors.muted, fontSize = 11.sp)
+            }
+            MessageMenu(menu, { menu = false }, item.text, tell)
         }
     }
 }
@@ -418,6 +444,7 @@ private fun Theirs(item: ChatItem, line: BubbleLine, showName: Boolean) {
 @Composable
 private fun Mine(text: String, time: Long, state: SendState, reason: String, line: BubbleLine, onRetry: (() -> Unit)?) {
     val failed = state == SendState.Failed
+    var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(
         topStart = Big,
         topEnd = if (line.first) Big else Small,
@@ -433,24 +460,22 @@ private fun Mine(text: String, time: Long, state: SendState, reason: String, lin
     ) {
         Column(
             Modifier
-                .copyable(text)
+                .longPress { menu = true }
                 .background(if (failed) AppColors.red.copy(alpha = 0.18f) else AppColors.accent, shape)
                 .then(if (failed) Modifier.border(1.dp, AppColors.red.copy(alpha = 0.6f), shape) else Modifier)
                 .padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 6.dp)
         ) {
-            Text(text, color = onBubble, fontSize = 15.sp, lineHeight = 21.sp)
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.align(Alignment.End),
-            ) {
-                Text(clock(LocalContext.current, time), color = onBubble.copy(alpha = 0.75f), fontSize = 11.sp)
-                when (state) {
-                    SendState.Sending -> Clock(11.dp, onBubble.copy(alpha = 0.75f))
-                    SendState.Sent -> Icon(Icons.Filled.Check, contentDescription = "Sent", tint = onBubble.copy(alpha = 0.85f), modifier = Modifier.size(13.dp))
-                    SendState.Failed -> Unit
+            Timed(text, onBubble) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(clock(LocalContext.current, time), color = onBubble.copy(alpha = 0.75f), fontSize = 11.sp)
+                    when (state) {
+                        SendState.Sending -> Clock(11.dp, onBubble.copy(alpha = 0.75f))
+                        SendState.Sent -> Icon(Icons.Filled.Check, contentDescription = "Sent", tint = onBubble.copy(alpha = 0.85f), modifier = Modifier.size(13.dp))
+                        SendState.Failed -> Unit
+                    }
                 }
             }
+            MessageMenu(menu, { menu = false }, text, null)
         }
         if (failed) {
             Text(
@@ -503,13 +528,42 @@ private fun JumpButton(count: Int, onClick: () -> Unit) {
 }
 
 @Composable
-private fun Modifier.copyable(text: String): Modifier {
-    val context = LocalContext.current
+private fun Timed(text: String, color: Color, meta: @Composable () -> Unit) {
+    val style = LocalTextStyle.current.merge(TextStyle(color = color, fontSize = 15.sp, lineHeight = 21.sp))
+    val measurer = rememberTextMeasurer()
+    Layout(content = {
+        Text(text, style = style)
+        meta()
+    }) { measurables, constraints ->
+        val loose = constraints.copy(minWidth = 0, minHeight = 0)
+        val body = measurables[0].measure(loose)
+        val stamp = measurables[1].measure(loose)
+        val lines = measurer.measure(text, style, constraints = Constraints(maxWidth = constraints.maxWidth))
+        val last = lines.lineCount - 1
+        val tail = ceil(lines.getLineRight(last) - lines.getLineLeft(last)).toInt() + MetaGap.roundToPx() + stamp.width
+        val inline = tail <= constraints.maxWidth
+        val width = maxOf(body.width, if (inline) tail else stamp.width)
+        val height = if (inline) body.height else body.height + stamp.height
+        layout(width, height) {
+            body.place(0, 0)
+            stamp.place(width - stamp.width, height - stamp.height)
+        }
+    }
+}
+
+@Composable
+private fun Modifier.longPress(onLongPress: () -> Unit): Modifier {
     val haptics = LocalHapticFeedback.current
     return combinedClickable(onClick = {}, onLongClick = {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        copy(context, text)
+        onLongPress()
     })
+}
+
+@Composable
+private fun MessageMenu(expanded: Boolean, onDismiss: () -> Unit, text: String, tell: MenuItem?) {
+    val context = LocalContext.current
+    SpringMenu(expanded, onDismiss, listOfNotNull(MenuItem("Copy text", CopyIcon) { copy(context, text) }, tell))
 }
 
 private fun copy(context: Context, text: String) {

@@ -108,7 +108,7 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
                     when {
                         current != null && ChatChannel.isParty(current) -> {
                             BackHandler { open = null }
-                            PartyScreen(current, onBack = { open = null })
+                            PartyScreen(current, onBack = { open = null }, onTell = { open = ChatChannel.tell(it) })
                         }
                         current != null -> {
                             BackHandler { open = null }
@@ -238,7 +238,7 @@ fun Badge(count: Int, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun PartyScreen(conversation: String, onBack: () -> Unit) {
+private fun PartyScreen(conversation: String, onBack: () -> Unit, onTell: (String) -> Unit) {
     val party by PartyState.party.collectAsStateWithLifecycle()
     val feed by PartyState.feed.collectAsStateWithLifecycle()
     val outbox by PartyState.outbox.collectAsStateWithLifecycle()
@@ -278,7 +278,7 @@ private fun PartyScreen(conversation: String, onBack: () -> Unit) {
         if (items.isEmpty()) {
             Empty("Party chat and changes show up here", Modifier.weight(1f))
         } else {
-            ChatFeed(items, newAfter, onRetry = PartyState::retry, modifier = Modifier.weight(1f))
+            ChatFeed(items, newAfter, onRetry = PartyState::retry, modifier = Modifier.weight(1f), onTell = onTell)
         }
         Composer(
             if (channel == ChatChannel.ALLIANCE) "Message alliance" else "Message party",

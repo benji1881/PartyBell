@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -112,6 +113,7 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
                     friend = null,
                     pinned = !isParty && thread.conversation in pinned,
                     muted = thread.conversation in muted,
+                    mutedUntil = muted.endOf(thread.conversation),
                     onOpen = { onOpen(thread.conversation) },
                     onDelete = if (isParty) null else ({ deleting = thread.conversation }),
                     slots = if (isParty) partySlots else null,
@@ -127,6 +129,7 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
                     friend = friends.list.firstOrNull { it.key.equals(ChatChannel.peerOf(thread.conversation), ignoreCase = true) },
                     pinned = thread.conversation in pinned,
                     muted = thread.conversation in muted,
+                    mutedUntil = muted.endOf(thread.conversation),
                     onOpen = { onOpen(thread.conversation) },
                     onDelete = { deleting = thread.conversation },
                 )
@@ -187,12 +190,19 @@ private fun Section(title: String) {
     )
 }
 
+private val MuteChoices = listOf(
+    "For 1 hour" to DateUtils.HOUR_IN_MILLIS,
+    "For 8 hours" to 8 * DateUtils.HOUR_IN_MILLIS,
+    "Until I unmute" to 0L,
+)
+
 @Composable
 private fun ThreadRow(
     thread: Thread,
     friend: Friend?,
     pinned: Boolean,
     muted: Boolean,
+    mutedUntil: Long,
     onOpen: () -> Unit,
     onDelete: (() -> Unit)?,
     slots: List<Int?>? = null,
@@ -269,7 +279,12 @@ private fun ThreadRow(
                         modifier = Modifier.weight(1f),
                     )
                     if (muted) {
-                        Text("Muted", color = AppColors.muted, fontSize = 11.sp, modifier = Modifier.padding(start = 6.dp))
+                        Text(
+                            if (mutedUntil > 0) "Muted · until ${DateFormat.getTimeFormat(context).format(mutedUntil)}" else "Muted",
+                            color = AppColors.muted,
+                            fontSize = 11.sp,
+                            modifier = Modifier.padding(start = 6.dp),
+                        )
                     }
                     if (thread.unread > 0) {
                         Spacer(Modifier.width(6.dp))
@@ -291,13 +306,27 @@ private fun ThreadRow(
                     },
                 )
             }
-            DropdownMenuItem(
-                text = { Text(if (muted) "Unmute notifications" else "Mute notifications", color = AppColors.text) },
-                onClick = {
-                    ChatPrefs.toggleMute(conversation)
-                    menu = false
-                },
-            )
+            if (muted) {
+                DropdownMenuItem(
+                    text = { Text("Unmute notifications", color = AppColors.text) },
+                    onClick = {
+                        ChatPrefs.unmute(conversation)
+                        menu = false
+                    },
+                )
+            } else {
+                Text("Mute notifications", color = AppColors.muted, fontSize = 13.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                MuteChoices.forEach { (label, length) ->
+                    DropdownMenuItem(
+                        text = { Text(label, color = AppColors.text) },
+                        onClick = {
+                            ChatPrefs.mute(conversation, if (length == 0L) 0L else System.currentTimeMillis() + length)
+                            menu = false
+                        },
+                        contentPadding = PaddingValues(start = 28.dp, end = 12.dp),
+                    )
+                }
+            }
             if (onDelete != null) {
                 DropdownMenuItem(
                     text = { Text("Delete conversation", color = AppColors.red) },

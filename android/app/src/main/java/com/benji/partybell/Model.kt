@@ -19,6 +19,8 @@ data class Party(val members: List<Member> = emptyList(), val capacity: Int = GR
         get() = capacity > GROUP_SIZE
 }
 
+val QUICK_REPLIES = listOf("o/", "omw", "brb", "1 min", "ty!")
+
 object ChatChannel {
     const val PARTY = "party"
     const val ALLIANCE = "alliance"

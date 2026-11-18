@@ -3,6 +3,8 @@ package com.benji.partybell.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -33,6 +36,9 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.benji.partybell.PartyState
+import com.benji.partybell.QUICK_REPLIES
+
+private val ChipShape = RoundedCornerShape(50)
 
 @Composable
 fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: Modifier = Modifier, to: String = "") {
@@ -40,6 +46,7 @@ fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: M
     val message = PartyState.clean(text)
     val problem = PartyState.problem(message, channel, to)
     val canSend = enabled && message.isNotEmpty() && problem == null
+    val quick = if (enabled && text.isEmpty()) QUICK_REPLIES.filter { PartyState.problem(it, channel, to) == null } else emptyList()
     val shape = RoundedCornerShape(22.dp)
 
     Column(modifier) {
@@ -51,6 +58,28 @@ fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: M
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
             )
+        }
+        if (quick.isNotEmpty()) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .padding(bottom = 8.dp),
+            ) {
+                quick.forEach { reply ->
+                    Text(
+                        reply,
+                        color = AppColors.text,
+                        fontSize = 13.sp,
+                        modifier = Modifier
+                            .clip(ChipShape)
+                            .background(AppColors.card)
+                            .border(1.dp, AppColors.line, ChipShape)
+                            .clickable { PartyState.send(channel, reply, to) }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                    )
+                }
+            }
         }
         Row(verticalAlignment = Alignment.Bottom) {
             BasicTextField(

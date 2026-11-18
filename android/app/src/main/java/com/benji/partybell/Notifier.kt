@@ -343,7 +343,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     }
 
     private fun replyAction(conversation: String): NotificationCompat.Action {
-        val input = RemoteInput.Builder(KEY_REPLY).setLabel("Reply").build()
+        val input = RemoteInput.Builder(KEY_REPLY).setLabel("Reply").setChoices(QUICK_REPLIES.toTypedArray<CharSequence>()).build()
         val intent = Intent(context, ReplyReceiver::class.java).putExtra(EXTRA_CONVERSATION, conversation)
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PendingIntent.FLAG_MUTABLE else 0
