@@ -57,6 +57,8 @@ enum class Status(val label: String) {
     UpdateApp("Update the app"),
 }
 
+enum class Link { Ok, Searching, Failed }
+
 enum class EventKind(val key: String, val notify: NotifyKind) {
     Joined("joined", NotifyKind.Joined),
     Left("left", NotifyKind.Left),

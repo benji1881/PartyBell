@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -57,8 +58,10 @@ import com.benji.partybell.ChatChannel
 import com.benji.partybell.ChatItem
 import com.benji.partybell.ChatPrefs
 import com.benji.partybell.FeedItem
+import com.benji.partybell.Link
 import com.benji.partybell.Notifier
 import com.benji.partybell.PartyEventItem
+import com.benji.partybell.PartyService
 import com.benji.partybell.PartyState
 import com.benji.partybell.Status
 
@@ -99,6 +102,7 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
             else -> Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 val onSettings = { showSettings = true }
                 val current = open
+                LinkBanner(Modifier.padding(horizontal = 14.dp))
                 Box(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                     when {
                         current != null && ChatChannel.isParty(current) -> {
@@ -119,6 +123,47 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
                     BottomNav(tab, onSelect = { tab = it })
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LinkBanner(modifier: Modifier = Modifier) {
+    val link by PartyState.link.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    if (link == Link.Ok) return
+    val failed = link == Link.Failed
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .padding(top = 8.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(if (failed) AppColors.card else AppColors.yellow.copy(alpha = 0.2f))
+            .border(1.dp, if (failed) AppColors.line else Color.Transparent, shape)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    ) {
+        Icon(Icons.Filled.Warning, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            if (failed) "Couldn't connect" else "Searching for your PC…",
+            color = AppColors.text,
+            fontSize = 13.sp,
+            modifier = Modifier.weight(1f),
+        )
+        if (failed) {
+            Text(
+                "Reconnect",
+                color = AppColors.onSage,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(AppColors.sage)
+                    .clickable { PartyService.nudge(context) }
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+            )
         }
     }
 }

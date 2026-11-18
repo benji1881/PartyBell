@@ -23,6 +23,7 @@ object PartyState {
     private val viewedFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
     private val listingsFlow = MutableStateFlow(Listings())
     private val findingFlow = MutableStateFlow(false)
+    private val linkFlow = MutableStateFlow(Link.Ok)
     private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val invites = mutableMapOf<Long, Friend>()
     private var nextId = 1L
@@ -37,6 +38,7 @@ object PartyState {
     val viewed: StateFlow<Map<String, Long>> = viewedFlow.asStateFlow()
     val listings: StateFlow<Listings> = listingsFlow.asStateFlow()
     val finding: StateFlow<Boolean> = findingFlow.asStateFlow()
+    val link: StateFlow<Link> = linkFlow.asStateFlow()
     val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
 
     var sender: ((json: String) -> Boolean)? = null
@@ -152,6 +154,10 @@ object PartyState {
 
     fun setStatus(status: Status) {
         statusFlow.value = status
+    }
+
+    fun setLink(link: Link) {
+        linkFlow.value = link
     }
 
     fun viewedUpTo(conversation: String): Long = viewedFlow.value[conversation] ?: 0L

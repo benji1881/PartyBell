@@ -64,6 +64,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         handler.removeCallbacks(reconnect)
         round = 0
         failingSince = 0L
+        if (PartyState.link.value != Link.Ok) PartyState.setLink(Link.Searching)
         connect()
     }
 
@@ -76,6 +77,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         socket = null
         round = 0
         failingSince = 0L
+        PartyState.setLink(Link.Ok)
         notifier.found()
         PartyState.disconnected()
         PartyState.setStatus(Status.Off)
@@ -111,14 +113,16 @@ class Connection(private val context: Context, private val settings: AppSettings
             hostIndex++
             if (hostIndex % settings.hosts.size.coerceAtLeast(1) == 0) round++
         }
-        if (listening && connectivity.activeNetwork == null) return
+        val searching = status == Status.Connecting
+        if (listening && connectivity.activeNetwork == null) {
+            PartyState.setLink(if (searching) Link.Failed else Link.Ok)
+            return
+        }
         val now = SystemClock.elapsedRealtime()
         if (failingSince == 0L) failingSince = now
-        val delay = if (now - failingSince >= IDLE_AFTER_MS) {
-            IDLE_DELAY_MS
-        } else {
-            min(MAX_DELAY_MS, BASE_DELAY_MS shl min(round, MAX_BACKOFF_STEPS))
-        }
+        val idle = now - failingSince >= IDLE_AFTER_MS
+        PartyState.setLink(if (!searching) Link.Ok else if (idle) Link.Failed else Link.Searching)
+        val delay = if (idle) IDLE_DELAY_MS else min(MAX_DELAY_MS, BASE_DELAY_MS shl min(round, MAX_BACKOFF_STEPS))
         handler.postDelayed(reconnect, delay)
     }
 
@@ -167,6 +171,7 @@ class Connection(private val context: Context, private val settings: AppSettings
                 if (PartyState.status.value != Status.Connected) {
                     round = 0
                     failingSince = 0L
+                    PartyState.setLink(Link.Ok)
                     handler.removeCallbacks(lost)
                     notifier.found()
                     PartyState.sender = { json ->
