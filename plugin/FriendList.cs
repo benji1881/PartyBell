@@ -1,4 +1,6 @@
+using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using Lumina.Excel.Sheets;
 using Status = FFXIVClientStructs.FFXIV.Client.UI.Info.InfoProxyCommonList.CharacterData.OnlineStatus;
@@ -11,6 +13,19 @@ internal static unsafe class FriendList
     public const string Offline = "offline";
     private const Status OfflineStates = Status.Offline | Status.OfflineExd | Status.Disconnected;
     private const Status DutyStates = Status.InDuty | Status.SharingDuty | Status.SimilarDuty | Status.PvP;
+    private const string Window = "FriendList";
+
+    public static Task<string?> Refresh() => Services.Framework.RunOnFrameworkThread(Ask);
+
+    private static string? Ask()
+    {
+        if (GameState.NotReady() || Services.ClientState.IsGPosing)
+            return "not ready";
+        if (Services.GameGui.GetAddonByName(Window, 1).Address != IntPtr.Zero)
+            return "window open";
+        var proxy = InfoProxyFriendList.Instance();
+        return proxy != null && proxy->RequestData() ? null : "refused";
+    }
 
     public static List<Friend>? Read()
     {

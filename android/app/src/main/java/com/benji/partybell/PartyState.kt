@@ -11,6 +11,7 @@ object PartyState {
     private const val FEED_SIZE = 200
     private const val MESSAGES_SIZE = 500
     private const val MAX_BYTES = 500
+    private const val FRIENDS_FRESH_MS = 60_000L
     private val whitespace = Regex("\\s+")
 
     private val partyFlow = MutableStateFlow(Party())
@@ -23,10 +24,13 @@ object PartyState {
     private val viewedFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
     private val listingsFlow = MutableStateFlow(emptyMap<Int, Listings>())
     private val findingFlow = MutableStateFlow(false)
+    private val refreshingFriendsFlow = MutableStateFlow(false)
     private val linkFlow = MutableStateFlow(Link.Ok)
     private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val invites = mutableMapOf<Long, Friend>()
     private var nextId = 1L
+    private var friendsAskedAt = 0L
+    private var quietRefresh = false
 
     val party: StateFlow<Party> = partyFlow.asStateFlow()
     val feed: StateFlow<List<FeedItem>> = feedFlow.asStateFlow()
@@ -38,6 +42,7 @@ object PartyState {
     val viewed: StateFlow<Map<String, Long>> = viewedFlow.asStateFlow()
     val listings: StateFlow<Map<Int, Listings>> = listingsFlow.asStateFlow()
     val finding: StateFlow<Boolean> = findingFlow.asStateFlow()
+    val refreshingFriends: StateFlow<Boolean> = refreshingFriendsFlow.asStateFlow()
     val link: StateFlow<Link> = linkFlow.asStateFlow()
     val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
 
@@ -79,7 +84,10 @@ object PartyState {
             is Said -> update(incoming.id) {
                 if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = reason(incoming.reason))
             }
-            is FriendsUpdate -> friendsFlow.value = incoming.friends
+            is FriendsUpdate -> {
+                friendsFlow.value = incoming.friends
+                if (incoming.friends.loaded) refreshingFriendsFlow.value = false
+            }
             is CompanyUpdate -> companyFlow.value = incoming.member
             is Invited -> invites.remove(incoming.id)?.let { friend ->
                 noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else inviteReason(incoming.reason))
@@ -92,6 +100,12 @@ object PartyState {
             is Finding -> if (!incoming.ok) {
                 findingFlow.value = false
                 noticesFlow.tryEmit(findReason(incoming.reason))
+            }
+            is Refreshing -> if (!incoming.ok) {
+                refreshingFriendsFlow.value = false
+                if (!quietRefresh) noticesFlow.tryEmit(friendsReason(incoming.reason))
+            } else if (friendsFlow.value.loaded) {
+                refreshingFriendsFlow.value = false
             }
             is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else openReason(incoming.reason))
             is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else joinReason(incoming.reason))
@@ -134,6 +148,22 @@ object PartyState {
         }
     }
 
+    fun refreshFriends(quiet: Boolean = false) {
+        if (sender?.invoke(Protocol.refreshFriends()) == true) {
+            friendsAskedAt = System.currentTimeMillis()
+            quietRefresh = quiet
+            refreshingFriendsFlow.value = true
+        } else if (!quiet) {
+            noticesFlow.tryEmit("Not connected")
+        }
+    }
+
+    fun friendsStale(): Boolean = System.currentTimeMillis() - friendsAskedAt > FRIENDS_FRESH_MS
+
+    fun friendsTimedOut() {
+        refreshingFriendsFlow.value = false
+    }
+
     fun open(listing: Listing) {
         if (sender?.invoke(Protocol.open(listing.id)) != true) noticesFlow.tryEmit("Not connected")
     }
@@ -157,6 +187,8 @@ object PartyState {
         sender = null
         invites.clear()
         findingFlow.value = false
+        refreshingFriendsFlow.value = false
+        friendsAskedAt = 0L
         friendsFlow.value = Friends()
         outboxFlow.value = outboxFlow.value.map {
             if (it.state == SendState.Sending) it.copy(state = SendState.Failed, reason = "Not connected") else it
@@ -214,6 +246,12 @@ object PartyState {
         "not ready" -> "The game isn't ready"
         "in duty" -> "The Party Finder can't be read in a duty"
         "window open" -> "The Party Finder is open in the game"
+        else -> "The game refused the request"
+    }
+
+    private fun friendsReason(code: String) = when (code) {
+        "not ready" -> "The game isn't ready"
+        "window open" -> "Your friend list is open in the game"
         else -> "The game refused the request"
     }
 

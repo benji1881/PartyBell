@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,12 +49,26 @@ import com.benji.partybell.Friend
 import com.benji.partybell.FriendStatus
 import com.benji.partybell.PartyState
 import com.benji.partybell.Status
+import kotlinx.coroutines.delay
+
+private const val LOAD_MS = 5_000L
 
 @Composable
 fun FriendsScreen(onSettings: () -> Unit, onMessage: (Friend) -> Unit) {
     val friends by PartyState.friends.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
+    val refreshing by PartyState.refreshingFriends.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
+
+    LaunchedEffect(status) {
+        if (status == Status.Connected && PartyState.friendsStale()) PartyState.refreshFriends(quiet = true)
+    }
+    LaunchedEffect(refreshing) {
+        if (refreshing) {
+            delay(LOAD_MS)
+            PartyState.friendsTimedOut()
+        }
+    }
 
     val shown = remember(friends, query) {
         friends.list
@@ -63,9 +78,10 @@ fun FriendsScreen(onSettings: () -> Unit, onMessage: (Friend) -> Unit) {
     val (online, offline) = shown.partition { it.online }
 
     Column(Modifier.fillMaxSize()) {
-        Header("Friends", status, onSettings)
+        Header("Friends", status, onSettings, onRefresh = { PartyState.refreshFriends() })
         when {
             status != Status.Connected -> Empty("Not connected", Modifier.weight(1f))
+            !friends.loaded && refreshing -> Empty("Loading friends…", Modifier.weight(1f))
             !friends.loaded -> Empty("Open your friend list in game once", Modifier.weight(1f))
             else -> {
                 SearchField(query, onChange = { query = it })

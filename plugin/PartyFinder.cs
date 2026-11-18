@@ -221,8 +221,7 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     private static string? Blocked()
     {
-        if (!Services.PlayerState.IsLoaded || Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51]
-            || Services.Condition[ConditionFlag.WatchingCutscene] || Services.Condition[ConditionFlag.WatchingCutscene78] || Services.Condition[ConditionFlag.OccupiedInCutSceneEvent])
+        if (GameState.NotReady())
             return "not ready";
         if (Services.Condition[ConditionFlag.BoundByDuty] || Services.Condition[ConditionFlag.BoundByDuty56] || Services.Condition[ConditionFlag.BoundByDuty95])
             return "in duty";

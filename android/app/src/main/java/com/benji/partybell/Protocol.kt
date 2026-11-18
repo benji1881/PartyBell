@@ -34,6 +34,8 @@ data class Opened(val ok: Boolean, val reason: String) : Incoming
 
 data class Joining(val ok: Boolean, val reason: String) : Incoming
 
+data class Refreshing(val ok: Boolean, val reason: String) : Incoming
+
 data class PluginVersion(val version: String) : Incoming
 
 data object Bye : Incoming
@@ -59,6 +61,7 @@ object Protocol {
             "finding" -> Finding(json.optBoolean("ok"), json.optString("reason"))
             "opened" -> Opened(json.optBoolean("ok"), json.optString("reason"))
             "joining" -> Joining(json.optBoolean("ok"), json.optString("reason"))
+            "refreshing" -> Refreshing(json.optBoolean("ok"), json.optString("reason"))
             "plugin" -> PluginVersion(json.optString("version"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
@@ -103,6 +106,10 @@ object Protocol {
     fun finder(category: Int): String = JSONObject()
         .put("type", "finder")
         .put("category", category)
+        .toString()
+
+    fun refreshFriends(): String = JSONObject()
+        .put("type", "friendsrefresh")
         .toString()
 
     fun open(id: String): String = JSONObject()

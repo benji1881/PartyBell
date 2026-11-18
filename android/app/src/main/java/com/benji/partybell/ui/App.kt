@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
@@ -303,7 +304,7 @@ fun Empty(text: String, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun Header(title: String, status: Status, onSettings: () -> Unit) {
+fun Header(title: String, status: Status, onSettings: () -> Unit, onRefresh: (() -> Unit)? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -317,6 +318,10 @@ fun Header(title: String, status: Status, onSettings: () -> Unit) {
                 Spacer(Modifier.width(6.dp))
                 Text(status.label, color = AppColors.muted, fontSize = 13.sp)
             }
+        }
+        if (onRefresh != null) {
+            CircleButton(Icons.Filled.Refresh, "Refresh", onRefresh)
+            Spacer(Modifier.width(8.dp))
         }
         CircleButton(Icons.Filled.Settings, "Settings", onSettings)
     }
