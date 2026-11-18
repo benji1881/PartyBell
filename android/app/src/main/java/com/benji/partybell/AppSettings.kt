@@ -48,6 +48,14 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("finder_fits", false)
         set(value) = prefs.edit { putBoolean("finder_fits", value) }
 
+    var finderBeginners: Boolean
+        get() = prefs.getBoolean("finder_beginners", false)
+        set(value) = prefs.edit { putBoolean("finder_beginners", value) }
+
+    var finderGoal: Int
+        get() = prefs.getInt("finder_goal", 0)
+        set(value) = prefs.edit { putInt("finder_goal", value) }
+
     val isPaired: Boolean
         get() = hosts.isNotEmpty() && phoneId.isNotEmpty() && key.isNotEmpty()
 

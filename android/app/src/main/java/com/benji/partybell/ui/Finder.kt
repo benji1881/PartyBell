@@ -20,21 +20,25 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,11 +54,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,6 +82,17 @@ private val SLOT_SIZE = 26.dp
 private val PracticeColor = Color(0xFF5E9A4E)
 private val CompletionColor = Color(0xFF4E82C4)
 private val LootColor = Color(0xFFD9853B)
+private const val GRID_COLUMNS = 2
+private val Sliders = ImageVector.Builder("Sliders", 24.dp, 24.dp, 24f, 24f)
+    .addPath(PathParser().parsePathString("M3,5h18v2H3zM3,11h18v2H3zM3,17h18v2H3zM14,3h2v6h-2zM6,9h2v6H6zM16,15h2v6h-2z").toNodes(), fill = SolidColor(Color.Black))
+    .build()
+
+private enum class Goal(val label: String, val keeps: (Listing) -> Boolean) {
+    Any("Any", { true }),
+    Practice("Practice", { it.practice }),
+    Completion("Completion", { it.completion }),
+    Loot("Loot", { it.loot }),
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -84,6 +102,9 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     val status by PartyState.status.collectAsStateWithLifecycle()
     var category by rememberSaveable { mutableIntStateOf(settings.finderCategory) }
     var fits by rememberSaveable { mutableStateOf(settings.finderFits) }
+    var beginners by rememberSaveable { mutableStateOf(settings.finderBeginners) }
+    var goal by rememberSaveable { mutableStateOf(Goal.entries.getOrElse(settings.finderGoal) { Goal.Any }) }
+    var sheet by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
@@ -101,12 +122,18 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
 
     val listings = all[category] ?: Listings()
     val loaded = listings.time > 0L
-    val shown = remember(listings, fits, query) {
+    val shown = remember(listings, fits, beginners, goal, query) {
         listings.list
-            .filter { !fits || it.fits || it.own }
+            .filter { it.own || ((!fits || it.fits) && (!beginners || it.beginners) && goal.keeps(it)) }
             .filter { query.isBlank() || matches(it, query.trim()) }
             .sortedByDescending { it.own }
     }
+
+    val setFits = { on: Boolean -> fits = on; settings.finderFits = on }
+    val setBeginners = { on: Boolean -> beginners = on; settings.finderBeginners = on }
+    val setGoal = { picked: Goal -> goal = picked; settings.finderGoal = picked.ordinal }
+    val clear = { setFits(false); setBeginners(false); setGoal(Goal.Any) }
+    val active = listOf(fits, beginners, goal != Goal.Any).count { it }
 
     Column(Modifier.fillMaxSize()) {
         Row(
@@ -123,20 +150,32 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             Spacer(Modifier.width(8.dp))
             CircleButton(Icons.Filled.Settings, "Settings", onSettings)
         }
-        SearchField(query, onChange = { query = it })
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            SearchField(query, onChange = { query = it }, modifier = Modifier.weight(1f))
+            Spacer(Modifier.width(8.dp))
+            FilterButton(active) { sheet = true }
+        }
         Spacer(Modifier.height(8.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            item {
-                Chip("Fits my job", fits) {
-                    fits = !fits
-                    settings.finderFits = fits
-                }
-            }
-            items(FinderCategory.all, key = { it.first }) { (id, label) ->
-                Chip(label, id == category) {
-                    category = id
-                    settings.finderCategory = id
-                }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            Chip(FinderCategory.label(category), true, trailing = Icons.Filled.ArrowDropDown) { sheet = true }
+            if (fits) Removable("Fits my job") { setFits(false) }
+            if (beginners) Removable("Beginners welcome") { setBeginners(false) }
+            if (goal != Goal.Any) Removable(goal.label) { setGoal(Goal.Any) }
+            if (active > 0) {
+                Text(
+                    "Clear",
+                    color = AppColors.muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable(onClick = clear)
+                        .padding(horizontal = 6.dp, vertical = 7.dp),
+                )
             }
         }
         Spacer(Modifier.height(8.dp))
@@ -161,6 +200,180 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                 item { Spacer(Modifier.height(8.dp)) }
             }
         }
+    }
+
+    if (sheet) {
+        FilterSheet(
+            category = category,
+            goal = goal,
+            fits = fits,
+            beginners = beginners,
+            count = shown.size,
+            onCategory = {
+                category = it
+                settings.finderCategory = it
+            },
+            onGoal = setGoal,
+            onFits = setFits,
+            onBeginners = setBeginners,
+            onClear = clear,
+            onDismiss = { sheet = false },
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FilterSheet(
+    category: Int,
+    goal: Goal,
+    fits: Boolean,
+    beginners: Boolean,
+    count: Int,
+    onCategory: (Int) -> Unit,
+    onGoal: (Goal) -> Unit,
+    onFits: (Boolean) -> Unit,
+    onBeginners: (Boolean) -> Unit,
+    onClear: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = AppColors.background,
+    ) {
+        Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Filters", fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text, modifier = Modifier.weight(1f))
+                Text(
+                    "Clear all",
+                    color = AppColors.accent,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .clickable(onClick = onClear)
+                        .padding(horizontal = 6.dp, vertical = 4.dp),
+                )
+            }
+            SheetLabel("Category")
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                FinderCategory.all.chunked(GRID_COLUMNS).forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        row.forEach { (id, label) ->
+                            Chip(label, id == category, Modifier.weight(1f)) { onCategory(id) }
+                        }
+                    }
+                }
+            }
+            SheetLabel("Goal")
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .background(AppColors.card, RoundedCornerShape(50))
+                    .border(1.dp, AppColors.line, RoundedCornerShape(50))
+                    .padding(3.dp),
+            ) {
+                Goal.entries.forEach {
+                    val picked = it == goal
+                    Text(
+                        it.label,
+                        color = if (picked) AppColors.onAccent else AppColors.text,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(50))
+                            .background(if (picked) AppColors.accent else Color.Transparent)
+                            .clickable { onGoal(it) }
+                            .padding(vertical = 7.dp),
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            ToggleRow("Fits my job", fits, onFits)
+            Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.line))
+            ToggleRow("Beginners welcome", beginners, onBeginners)
+            Spacer(Modifier.height(12.dp))
+            Text(
+                if (count == 1) "Show 1 listing" else "Show $count listings",
+                color = AppColors.onAccent,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(50))
+                    .background(AppColors.accent)
+                    .clickable(onClick = onDismiss)
+                    .padding(vertical = 13.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SheetLabel(text: String) {
+    Text(
+        text,
+        color = AppColors.muted,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+    )
+}
+
+@Composable
+private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onChange(!on) }
+            .padding(vertical = 6.dp),
+    ) {
+        Text(label, color = AppColors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Switch(checked = on, onCheckedChange = onChange)
+    }
+}
+
+@Composable
+private fun FilterButton(active: Int, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(50)
+    val on = active > 0
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .height(44.dp)
+            .clip(shape)
+            .background(if (on) AppColors.accent else AppColors.card)
+            .border(1.dp, if (on) AppColors.accent else AppColors.line, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 13.dp),
+    ) {
+        Icon(Sliders, contentDescription = "Filters", tint = if (on) AppColors.onAccent else AppColors.text, modifier = Modifier.size(18.dp))
+        if (on) {
+            Spacer(Modifier.width(6.dp))
+            Text("$active", color = AppColors.onAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun Removable(label: String, onRemove: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(AppColors.accent.copy(alpha = 0.14f))
+            .clickable(onClick = onRemove)
+            .padding(start = 12.dp, end = 9.dp, top = 7.dp, bottom = 7.dp),
+    ) {
+        Text(label, color = AppColors.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Spacer(Modifier.width(4.dp))
+        Icon(Icons.Filled.Close, contentDescription = "Remove", tint = AppColors.accent, modifier = Modifier.size(14.dp))
     }
 }
 
@@ -192,20 +405,20 @@ private fun remaining(seconds: Int): String = when {
 }
 
 @Composable
-private fun SearchField(query: String, onChange: (String) -> Unit) {
+private fun SearchField(query: String, onChange: (String) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
+        modifier = modifier
+            .height(44.dp)
             .background(AppColors.card, shape)
             .border(1.dp, AppColors.line, shape)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp),
     ) {
         Icon(Icons.Filled.Search, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(8.dp))
         Box(Modifier.weight(1f)) {
-            if (query.isEmpty()) Text("Search duty, leader or description", color = AppColors.muted, fontSize = 14.sp)
+            if (query.isEmpty()) Text("Search duty, leader or description", color = AppColors.muted, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             BasicTextField(
                 value = query,
                 onValueChange = onChange,
@@ -219,20 +432,22 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun Chip(label: String, active: Boolean, onClick: () -> Unit) {
+private fun Chip(label: String, active: Boolean, modifier: Modifier = Modifier, trailing: ImageVector? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
-    Text(
-        label,
-        color = if (active) AppColors.onAccent else AppColors.text,
-        fontSize = 13.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier
+    val color = if (active) AppColors.onAccent else AppColors.text
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+        modifier = modifier
             .clip(shape)
             .background(if (active) AppColors.accent else AppColors.card)
             .border(1.dp, if (active) AppColors.accent else AppColors.line, shape)
             .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-    )
+            .padding(start = 12.dp, end = if (trailing != null) 8.dp else 12.dp, top = 7.dp, bottom = 7.dp),
+    ) {
+        Text(label, color = color, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        if (trailing != null) Icon(trailing, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+    }
 }
 
 @Composable
