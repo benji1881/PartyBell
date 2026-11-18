@@ -64,12 +64,12 @@ internal sealed class ChatRelay : IDisposable
     {
         if (sender.Payloads.OfType<PlayerPayload>().FirstOrDefault() is { } player)
         {
-            var world = player.World.RowId != 0 ? player.World.Value.Name.ExtractText() : CurrentWorld;
+            var world = player.World.ValueNullable?.Name.ExtractText() is { Length: > 0 } listed ? listed : CurrentWorld;
             return (player.PlayerName, $"{player.PlayerName}@{world}");
         }
         var name = new string(sender.TextValue.Where(c => char.IsLetter(c) || c is ' ' or '\'' or '-').ToArray()).Trim();
         return (name, $"{name}@{CurrentWorld}");
     }
 
-    private static string CurrentWorld => Services.PlayerState.CurrentWorld.Value.Name.ExtractText();
+    private static string CurrentWorld => Services.PlayerState.CurrentWorld.ValueNullable?.Name.ExtractText() ?? "";
 }

@@ -107,8 +107,10 @@ public sealed class Plugin : IDalamudPlugin
             feed.SetFriends(Messages.Friends(config.SendFriends && feed.Count > 0 ? FriendList.Read() : null));
             feed.SetCompany(Messages.Company(Company.IsMember));
         }
+        if (Services.PlayerState.HomeWorld.ValueNullable is not { } home)
+            return;
         events.Clear();
-        var selfKey = $"{Services.PlayerState.CharacterName}@{Services.PlayerState.HomeWorld.Value.Name.ExtractText()}";
+        var selfKey = $"{Services.PlayerState.CharacterName}@{home.Name.ExtractText()}";
         var before = tracker.Current;
         if (!tracker.Update(PartyReader.Read(), selfKey, now, now - zonedAt < ZoneGrace, DutyQueue.Matched, events))
             return;
