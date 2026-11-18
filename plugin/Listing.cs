@@ -5,6 +5,7 @@ namespace PartyBell;
 public sealed record Listing(
     string Id,
     string Duty,
+    string Code,
     int Category,
     string Description,
     string Leader,

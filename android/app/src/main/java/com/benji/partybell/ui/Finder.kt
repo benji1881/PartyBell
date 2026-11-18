@@ -164,7 +164,10 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
 }
 
 private fun matches(listing: Listing, query: String) =
-    listOf(listing.title, listing.description, listing.leader).any { it.contains(query, ignoreCase = true) }
+    listOf(listing.title, listing.description, listing.leader).any { it.contains(query, ignoreCase = true) } || codeMatches(listing.code, query)
+
+private fun codeMatches(code: String, query: String) =
+    code.startsWith(query, ignoreCase = true) && code.getOrNull(query.length)?.isDigit() != true && query.any { it.isDigit() }
 
 private fun updated(status: Status, loaded: Boolean, time: Long, now: Long): String = when {
     status != Status.Connected -> status.label

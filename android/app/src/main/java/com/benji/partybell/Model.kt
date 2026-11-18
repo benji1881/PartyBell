@@ -161,6 +161,7 @@ data class Slot(val job: String, val role: Int) {
 data class Listing(
     val id: String,
     val duty: String,
+    val code: String,
     val category: Int,
     val description: String,
     val leader: String,

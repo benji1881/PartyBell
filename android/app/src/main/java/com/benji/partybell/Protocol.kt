@@ -155,6 +155,7 @@ object Protocol {
             Listing(
                 id = it.optString("id"),
                 duty = it.optString("duty"),
+                code = it.optString("code"),
                 category = it.optInt("category"),
                 description = GameText.clean(it.optString("description")),
                 leader = it.optString("leader"),

@@ -257,6 +257,7 @@ internal sealed unsafe class PartyFinder : IDisposable
         return new Listing(
             listing.Id.ToString(),
             DutyName(listing),
+            listing.DutyType == DutyType.Normal ? DutyCodes.Of(listing.RawDuty) : "",
             CategoryOf(listing.Category),
             listing.Description.TextValue,
             listing.Name.TextValue,
