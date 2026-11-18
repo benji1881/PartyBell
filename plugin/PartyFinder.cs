@@ -23,6 +23,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private int segment = -1;
     private int category;
     private bool dirty;
+    private bool complete;
     private DateTime changedAt;
     private DateTime? requestedAt;
 
@@ -40,9 +41,10 @@ internal sealed unsafe class PartyFinder : IDisposable
     {
         lock (gate)
         {
-            if (dirty && now - changedAt >= Quiet)
+            if (dirty && (complete || now - changedAt >= Quiet))
             {
                 dirty = false;
+                complete = false;
                 requestedAt = null;
                 feed.SetListings(Messages.Listings(category, listings.Values.ToList()));
             }
@@ -61,6 +63,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             listings.Clear();
             segment = -1;
             dirty = false;
+            complete = false;
             requestedAt = null;
         }
     }
@@ -93,9 +96,10 @@ internal sealed unsafe class PartyFinder : IDisposable
         var now = DateTime.UtcNow;
         lock (gate)
         {
-            if (args.BatchNumber < segment || now - changedAt >= Quiet)
+            if (args.BatchNumber == 1 || segment == 0 || now - changedAt >= Quiet)
                 listings.Clear();
             segment = args.BatchNumber;
+            complete = segment == 0;
             listings[item.Id] = item;
             category = item.Category;
             dirty = true;
