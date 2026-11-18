@@ -14,7 +14,7 @@ internal static class Request
             var root = document.RootElement;
             return root.GetProperty("type").GetString() == type ? read(root) : null;
         }
-        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
+        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or OverflowException)
         {
             return null;
         }

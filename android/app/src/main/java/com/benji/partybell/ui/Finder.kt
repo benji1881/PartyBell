@@ -3,6 +3,7 @@ package com.benji.partybell.ui
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,6 +44,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -140,7 +142,12 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                     item { Empty(emptyText(status, finding, loaded, listings.list.isEmpty())) }
                 }
                 items(shown, key = { it.id }) { listing ->
-                    ListingCard(listing, listing.secondsLeft(listings.time, now), onTell = { onTell(listing.peer) })
+                    ListingCard(
+                        listing,
+                        listing.secondsLeft(listings.time, now),
+                        onTell = { onTell(listing.peer) },
+                        onOpen = { PartyState.open(listing) },
+                    )
                 }
                 item { Spacer(Modifier.height(8.dp)) }
             }
@@ -217,7 +224,7 @@ private fun Chip(label: String, active: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit) {
+private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onOpen: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
     val objective = objective(listing)
     val border = when {
@@ -231,6 +238,7 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit) {
             .background(AppColors.card, shape)
             .background(objective?.copy(alpha = 0.12f) ?: Color.Transparent, shape)
             .border(1.dp, border, shape)
+            .pointerInput(listing.id) { detectTapGestures(onDoubleTap = { onOpen() }) }
             .padding(horizontal = 14.dp, vertical = 12.dp),
     ) {
         if (listing.own) {

@@ -13,6 +13,7 @@ namespace PartyBell;
 internal sealed unsafe class PartyFinder : IDisposable
 {
     private const byte Other = 16;
+    private const byte DataCenter = 0;
     private const string Window = "LookingForGroup";
     private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
@@ -36,6 +37,8 @@ internal sealed unsafe class PartyFinder : IDisposable
     public void Dispose() => Services.PartyFinderGui.ReceiveListing -= OnListing;
 
     public Task<string?> Request(Finder finder) => Services.Framework.RunOnFrameworkThread(() => Send(finder.Category));
+
+    public Task<string?> Open(OpenListing open) => Services.Framework.RunOnFrameworkThread(() => Show(open.Id));
 
     public void Update(DateTime now)
     {
@@ -72,14 +75,15 @@ internal sealed unsafe class PartyFinder : IDisposable
     {
         if (wanted is < 1 or > Other)
             return "invalid";
-        if (!Services.PlayerState.IsLoaded || Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
-            return "not ready";
-        if (Services.Condition[ConditionFlag.BoundByDuty] || Services.Condition[ConditionFlag.BoundByDuty56] || Services.Condition[ConditionFlag.BoundByDuty95])
-            return "in duty";
+        if (Blocked() is { } reason)
+            return reason;
         if (Services.GameGui.GetAddonByName(Window, 1).Address != IntPtr.Zero)
             return "window open";
         var agent = AgentLookingForGroup.Instance();
-        if (agent == null || !agent->RequestCategoryListings(wanted))
+        if (agent == null)
+            return "refused";
+        agent->SearchAreaTab = DataCenter;
+        if (!agent->RequestCategoryListings(wanted))
             return "refused";
         lock (gate)
         {
@@ -87,6 +91,23 @@ internal sealed unsafe class PartyFinder : IDisposable
             category = wanted;
             requestedAt = DateTime.UtcNow;
         }
+        return null;
+    }
+
+    private string? Show(ulong id)
+    {
+        if (Blocked() is { } reason)
+            return reason;
+        var agent = AgentLookingForGroup.Instance();
+        return agent != null && agent->OpenListing(id) ? null : "refused";
+    }
+
+    private static string? Blocked()
+    {
+        if (!Services.PlayerState.IsLoaded || Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
+            return "not ready";
+        if (Services.Condition[ConditionFlag.BoundByDuty] || Services.Condition[ConditionFlag.BoundByDuty56] || Services.Condition[ConditionFlag.BoundByDuty95])
+            return "in duty";
         return null;
     }
 

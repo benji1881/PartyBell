@@ -41,6 +41,9 @@ internal static class Messages
     public static string Finding(string? reason) =>
         Json(new { type = "finding", ok = reason == null, reason = reason ?? "" });
 
+    public static string Opened(string? reason) =>
+        Json(new { type = "opened", ok = reason == null, reason = reason ?? "" });
+
     public static string Bye() => Json(new { type = "bye" });
 
     public static string Company(bool member) =>

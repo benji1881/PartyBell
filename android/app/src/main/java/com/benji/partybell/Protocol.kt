@@ -30,6 +30,8 @@ data class ListingsUpdate(val listings: Listings) : Incoming
 
 data class Finding(val ok: Boolean, val reason: String) : Incoming
 
+data class Opened(val ok: Boolean, val reason: String) : Incoming
+
 data object Bye : Incoming
 
 data class Challenge(val version: Int, val nonce: ByteArray)
@@ -51,6 +53,7 @@ object Protocol {
             "invited" -> Invited(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
             "listings" -> ListingsUpdate(listings(json))
             "finding" -> Finding(json.optBoolean("ok"), json.optString("reason"))
+            "opened" -> Opened(json.optBoolean("ok"), json.optString("reason"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
@@ -94,6 +97,11 @@ object Protocol {
     fun finder(category: Int): String = JSONObject()
         .put("type", "finder")
         .put("category", category)
+        .toString()
+
+    fun open(id: String): String = JSONObject()
+        .put("type", "open")
+        .put("id", id)
         .toString()
 
     fun answer(ready: Boolean): String = JSONObject()

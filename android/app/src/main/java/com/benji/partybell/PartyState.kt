@@ -92,6 +92,7 @@ object PartyState {
                 findingFlow.value = false
                 noticesFlow.tryEmit(findReason(incoming.reason))
             }
+            is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else openReason(incoming.reason))
             is IconsUpdate, is Answered, is Dismiss, Bye -> Unit
         }
     }
@@ -129,6 +130,10 @@ object PartyState {
         } else {
             noticesFlow.tryEmit("Not connected")
         }
+    }
+
+    fun open(listing: Listing) {
+        if (sender?.invoke(Protocol.open(listing.id)) != true) noticesFlow.tryEmit("Not connected")
     }
 
     fun answer(ready: Boolean): Boolean = sender?.invoke(Protocol.answer(ready)) == true
@@ -204,6 +209,12 @@ object PartyState {
         "in duty" -> "The Party Finder can't be read in a duty"
         "window open" -> "The Party Finder is open in the game"
         else -> "The game refused the request"
+    }
+
+    private fun openReason(code: String) = when (code) {
+        "not ready" -> "The game isn't ready"
+        "in duty" -> "The Party Finder can't be opened in a duty"
+        else -> "The game couldn't open the listing"
     }
 
     private fun inviteReason(code: String) = when (code) {
