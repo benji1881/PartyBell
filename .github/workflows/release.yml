@@ -36,9 +36,11 @@ jobs:
 
       - name: Version
         run: |
-          count="$(git rev-list --count HEAD)"
-          echo "VERSION=0.1.$count" >> "$GITHUB_ENV"
-          echo "VERSION_CODE=$count" >> "$GITHUB_ENV"
+          last="$(git tag -l 'v0.1.*' | sort -V | tail -1)"
+          last="${last:-v0.1.0}"
+          echo "PREVIOUS=$last" >> "$GITHUB_ENV"
+          echo "VERSION=0.1.$(( ${last##*.} + 1 ))" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$(git rev-list --count HEAD)" >> "$GITHUB_ENV"
 
       - name: Plugin
         run: |
@@ -77,4 +79,6 @@ jobs:
           PY
 
       - name: Release
-        run: gh release create "v$VERSION" "PartyBell-$VERSION.zip" "PartyBell-$VERSION.apk" repo.json --title "PartyBell $VERSION" --notes ""
+        run: |
+          git log "$PREVIOUS..HEAD" --no-merges --format="- %s" -- plugin android > notes.md
+          gh release create "v$VERSION" "PartyBell-$VERSION.zip" "PartyBell-$VERSION.apk" repo.json --title "PartyBell $VERSION" --notes-file notes.md
