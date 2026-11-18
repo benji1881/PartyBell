@@ -77,6 +77,11 @@ internal sealed unsafe class PartyFinder : IDisposable
     public void Reset()
     {
         FinishJoin("not ready");
+        Clear();
+    }
+
+    private void Clear()
+    {
         lock (gate)
         {
             listings.Clear();
@@ -103,7 +108,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             return "refused";
         lock (gate)
         {
-            Reset();
+            Clear();
             category = wanted;
             requestedAt = DateTime.UtcNow;
         }
@@ -202,15 +207,23 @@ internal sealed unsafe class PartyFinder : IDisposable
         var now = DateTime.UtcNow;
         lock (gate)
         {
-            if (args.BatchNumber == 1 || segment == 0 || now - changedAt >= Quiet)
+            if ((args.BatchNumber == 1 && segment != 1) || now - changedAt >= Quiet)
+            {
                 listings.Clear();
+                category = requestedAt != null ? category : Tab() ?? item.Category;
+            }
             segment = args.BatchNumber;
             complete = segment == 0;
             listings[item.Id] = item;
-            category = item.Category;
             dirty = true;
             changedAt = now;
         }
+    }
+
+    private static int? Tab()
+    {
+        var agent = AgentLookingForGroup.Instance();
+        return agent != null && agent->CategoryTab is >= 1 and <= Other ? agent->CategoryTab : null;
     }
 
     private static Listing Map(IPartyFinderListing listing, int itemLevel)
