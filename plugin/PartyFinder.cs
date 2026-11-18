@@ -26,6 +26,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private const int CountedSlots = 12;
     private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan NoReply = TimeSpan.FromSeconds(2);
 
     private readonly Feed feed;
     private readonly object gate = new();
@@ -34,6 +35,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private int category;
     private bool dirty;
     private bool complete;
+    private bool emptySent;
     private DateTime changedAt;
     private DateTime? requestedAt;
     private TaskCompletionSource<string?>? joining;
@@ -67,10 +69,15 @@ internal sealed unsafe class PartyFinder : IDisposable
                 if (category != 0)
                     feed.SetListings(category, Messages.Listings(category, listings.Values.ToList()));
             }
-            else if (requestedAt is { } at && listings.Count == 0 && now - at >= Timeout)
+            else if (requestedAt is { } at && listings.Count == 0)
             {
-                requestedAt = null;
-                feed.SetListings(category, Messages.Listings(category, []));
+                if (!emptySent && now - at >= NoReply)
+                {
+                    emptySent = true;
+                    feed.SetListings(category, Messages.Listings(category, []));
+                }
+                if (now - at >= Timeout)
+                    requestedAt = null;
             }
         }
     }
@@ -89,6 +96,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             segment = -1;
             dirty = false;
             complete = false;
+            emptySent = false;
             requestedAt = null;
         }
     }
