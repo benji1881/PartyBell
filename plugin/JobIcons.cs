@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using Lumina.Data.Files;
@@ -12,7 +13,9 @@ internal static class JobIcons
     private const uint IconBase = 62800;
     private const float GlyphBrightness = 130;
     private const float GlyphSoftness = 50;
-    private static readonly (string Role, uint Icon)[] RoleIcons = [("tank", 62581), ("healer", 62582), ("dps", 62583), ("any", 62576)];
+    private const float RoleThreshold = 120;
+    private const float RoleSoftness = 80;
+    private static readonly (string Role, uint Icon, uint Background)[] RoleIcons = [("tank", 62581, 62571), ("healer", 62582, 62572), ("dps", 62583, 62573)];
 
     private static readonly Lazy<(string Version, string Message)> Data = new(Build);
 
@@ -44,17 +47,19 @@ internal static class JobIcons
 
         var roles = new SortedDictionary<string, string>(StringComparer.Ordinal);
         var roleSize = 0;
-        foreach (var (role, id) in RoleIcons)
+        foreach (var (role, id, background) in RoleIcons)
         {
             var texture = Texture(id);
-            if (texture == null || texture.Header.Width != texture.Header.Height || (roleSize != 0 && texture.Header.Width != roleSize))
+            var plain = Texture(background);
+            if (texture == null || plain == null || texture.Header.Width != texture.Header.Height || plain.ImageData.Length != texture.ImageData.Length
+                || (roleSize != 0 && texture.Header.Width != roleSize))
                 continue;
 
             roleSize = texture.Header.Width;
-            var rgba = Rgba(texture.ImageData);
+            var mask = RoleMask(texture.ImageData, plain.ImageData, roleSize);
             hash.AppendData(Encoding.UTF8.GetBytes(role));
-            hash.AppendData(rgba);
-            roles[role] = Convert.ToBase64String(rgba);
+            hash.AppendData(mask);
+            roles[role] = Convert.ToBase64String(mask);
         }
 
         var version = Convert.ToHexStringLower(hash.GetHashAndReset(), 0, 8);
@@ -63,12 +68,42 @@ internal static class JobIcons
 
     private static TexFile? Texture(uint id) => Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}_hr1.tex");
 
-    private static byte[] Rgba(byte[] bgra)
+    private static byte[] RoleMask(byte[] icon, byte[] background, int size)
     {
-        var rgba = (byte[])bgra.Clone();
-        for (var i = 0; i < rgba.Length; i += 4)
-            (rgba[i], rgba[i + 2]) = (rgba[i + 2], rgba[i]);
-        return rgba;
+        var soft = new float[size * size];
+        for (var p = 0; p < soft.Length; p++)
+        {
+            var i = p * 4;
+            var difference = Math.Abs(icon[i] - background[i]) + Math.Abs(icon[i + 1] - background[i + 1]) + Math.Abs(icon[i + 2] - background[i + 2]);
+            soft[p] = Math.Clamp((difference - RoleThreshold) / RoleSoftness, 0, 1);
+        }
+
+        var outside = new bool[soft.Length];
+        var queue = new Queue<int>();
+        void Visit(int p)
+        {
+            if (outside[p] || soft[p] >= 0.5f)
+                return;
+            outside[p] = true;
+            queue.Enqueue(p);
+        }
+        for (var k = 0; k < size; k++)
+        {
+            Visit(k);
+            Visit((size - 1) * size + k);
+            Visit(k * size);
+            Visit(k * size + size - 1);
+        }
+        while (queue.TryDequeue(out var p))
+        {
+            var x = p % size;
+            if (x > 0) Visit(p - 1);
+            if (x < size - 1) Visit(p + 1);
+            if (p >= size) Visit(p - size);
+            if (p < soft.Length - size) Visit(p + size);
+        }
+
+        return soft.Select((value, p) => (byte)(255 * (outside[p] ? value : 1))).ToArray();
     }
 
     private static byte[] Mask(byte[] bgra)

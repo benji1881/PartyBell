@@ -54,18 +54,8 @@ object JobIcons {
 
     private fun use(text: String): Boolean = try {
         val json = JSONObject(text)
-        val size = json.getInt("size")
-        val icons = json.getJSONObject("icons")
-        val bitmaps = icons.keys().asSequence().mapNotNull { job ->
-            val alpha = Base64.getDecoder().decode(icons.getString(job))
-            if (size <= 0 || alpha.size != size * size) return@mapNotNull null
-            val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ALPHA_8)
-            if (bitmap.rowBytes != size) return@mapNotNull null
-            bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(alpha))
-            job to bitmap.asImageBitmap()
-        }.toMap()
-        iconsFlow.value = bitmaps
-        rolesFlow.value = roles(json)
+        iconsFlow.value = masks(json.getJSONObject("icons"), json.getInt("size"))
+        rolesFlow.value = json.optJSONObject("roles")?.let { masks(it, json.optInt("roleSize")) }.orEmpty()
         version = json.getString("version")
         true
     } catch (_: JSONException) {
@@ -74,19 +64,12 @@ object JobIcons {
         false
     }
 
-    private fun roles(json: JSONObject): Map<String, ImageBitmap> {
-        val size = json.optInt("roleSize")
-        val roles = json.optJSONObject("roles") ?: return emptyMap()
-        if (size <= 0) return emptyMap()
-        return roles.keys().asSequence().mapNotNull { role ->
-            val rgba = Base64.getDecoder().decode(roles.getString(role))
-            if (rgba.size != size * size * 4) return@mapNotNull null
-            val pixels = IntArray(size * size) {
-                val i = it * 4
-                (rgba[i + 3].toInt() and 0xFF shl 24) or (rgba[i].toInt() and 0xFF shl 16) or
-                    (rgba[i + 1].toInt() and 0xFF shl 8) or (rgba[i + 2].toInt() and 0xFF)
-            }
-            role to Bitmap.createBitmap(pixels, size, size, Bitmap.Config.ARGB_8888).asImageBitmap()
-        }.toMap()
-    }
+    private fun masks(icons: JSONObject, size: Int): Map<String, ImageBitmap> = icons.keys().asSequence().mapNotNull { key ->
+        val alpha = Base64.getDecoder().decode(icons.getString(key))
+        if (size <= 0 || alpha.size != size * size) return@mapNotNull null
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ALPHA_8)
+        if (bitmap.rowBytes != size) return@mapNotNull null
+        bitmap.copyPixelsFromBuffer(ByteBuffer.wrap(alpha))
+        key to bitmap.asImageBitmap()
+    }.toMap()
 }

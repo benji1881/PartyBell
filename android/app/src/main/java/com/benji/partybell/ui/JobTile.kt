@@ -12,7 +12,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
@@ -32,7 +31,7 @@ private const val CORNER_RATIO = 0.3f
 private const val GLYPH_RATIO = 0.74f
 private const val TEXT_RATIO = 0.3f
 private const val INITIAL_RATIO = 0.42f
-private const val OPEN_ALPHA = 0.6f
+private const val OUTLINE_ALPHA = 0.7f
 
 @Composable
 fun JobTile(job: String, role: Int, name: String, size: Dp, modifier: Modifier = Modifier) {
@@ -76,17 +75,21 @@ fun RoleTile(role: Int, size: Dp, modifier: Modifier = Modifier) {
     val roles by JobIcons.roles.collectAsStateWithLifecycle()
     val name = roleName(role)
     val icon = roles[name] ?: return EmptyTile(size, modifier)
-    Image(
-        bitmap = icon,
-        contentDescription = "Open $name slot",
-        filterQuality = FilterQuality.High,
-        modifier = modifier.size(size).alpha(OPEN_ALPHA),
-    )
+    val color = roleColor(role)
+    Box(modifier.size(size), contentAlignment = Alignment.Center) {
+        EmptyTile(size, color = color.copy(alpha = OUTLINE_ALPHA))
+        Image(
+            bitmap = icon,
+            contentDescription = "Open $name slot",
+            colorFilter = ColorFilter.tint(color),
+            filterQuality = FilterQuality.High,
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
 }
 
 @Composable
-fun EmptyTile(size: Dp, modifier: Modifier = Modifier) {
-    val color = AppColors.muted.copy(alpha = 0.5f)
+fun EmptyTile(size: Dp, modifier: Modifier = Modifier, color: Color = AppColors.muted.copy(alpha = 0.5f)) {
     Canvas(modifier.size(size)) {
         val stroke = this.size.minDimension * 0.05f
         drawRoundRect(
