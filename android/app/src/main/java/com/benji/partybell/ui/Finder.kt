@@ -1,5 +1,7 @@
 package com.benji.partybell.ui
 
+import android.content.Context
+import android.content.Intent
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
@@ -58,6 +61,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -454,6 +458,7 @@ private fun Chip(label: String, active: Boolean, modifier: Modifier = Modifier, 
 private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJoin: () -> Unit, onOpen: () -> Unit) {
     val shape = RoundedCornerShape(18.dp)
     val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
     var menu by remember { mutableStateOf(false) }
     val lift by animateFloatAsState(
         if (menu) LIFT else 1f,
@@ -560,9 +565,46 @@ private fun ListingCard(listing: Listing, seconds: Int, onTell: () -> Unit, onJo
                 MenuItem("Send tell", Icons.AutoMirrored.Filled.Send, onTell).takeIf { !listing.own },
                 MenuItem("Join party", Icons.Filled.Add, onJoin).takeIf { !listing.own && !listing.locked },
                 MenuItem("Open in Party Finder", Icons.Filled.Search, onOpen),
+                MenuItem("Share listing", Icons.Filled.Share) { share(context, shareText(listing, seconds)) },
             ),
         )
     }
+}
+
+private fun shareText(listing: Listing, seconds: Int): String {
+    val details = listOfNotNull(
+        when {
+            listing.practice -> "Practice"
+            listing.completion -> "Duty completion"
+            listing.loot -> "Loot"
+            else -> null
+        },
+        "Min ilvl ${listing.ilvl}".takeIf { listing.ilvl > 0 },
+        "${remaining(seconds)} left",
+    )
+    val open = listing.slots.filterNot { it.filled }
+        .sortedBy { roleRank(it.role) }
+        .groupingBy { roleName(it.role) }
+        .eachCount()
+        .map { (role, count) -> "$count ${openRole(role, count)}" }
+    return listOfNotNull(
+        "**${listing.title}**",
+        details.joinToString(" · "),
+        "Looking for ${open.joinToString(", ")}".takeIf { open.isNotEmpty() },
+        listing.description.trim().lines().joinToString("\n") { "> $it" }.takeIf { listing.description.isNotBlank() },
+        "Leader: ${listing.leader} · ${listing.world}",
+    ).joinToString("\n")
+}
+
+private fun openRole(role: String, count: Int) = when (role) {
+    "dps" -> "DPS"
+    "any" -> "any role"
+    else -> if (count == 1) role else "${role}s"
+}
+
+private fun share(context: Context, text: String) {
+    val intent = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+    context.startActivity(Intent.createChooser(intent, null))
 }
 
 private fun objective(listing: Listing): Color? = when {
