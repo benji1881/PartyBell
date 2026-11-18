@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.AppSettings
 import com.benji.partybell.FinderCategory
 import com.benji.partybell.Listing
+import com.benji.partybell.Listings
 import com.benji.partybell.PartyState
 import com.benji.partybell.Status
 import kotlinx.coroutines.delay
@@ -77,7 +78,7 @@ private val LootColor = Color(0xFFD9853B)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String) -> Unit) {
-    val listings by PartyState.listings.collectAsStateWithLifecycle()
+    val all by PartyState.listings.collectAsStateWithLifecycle()
     val finding by PartyState.finding.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
     var category by rememberSaveable { mutableIntStateOf(settings.finderCategory) }
@@ -92,21 +93,18 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
         }
     }
     LaunchedEffect(category, status) {
-        val current = PartyState.listings.value
-        val stale = current.category != category || System.currentTimeMillis() - current.time > FRESH_MS
+        val current = PartyState.listings.value[category]
+        val stale = current == null || System.currentTimeMillis() - current.time > FRESH_MS
         if (status == Status.Connected && stale) PartyState.find(category)
     }
 
-    val loaded = listings.category == category && listings.time > 0L
-    val shown = remember(listings, category, fits, query) {
-        if (listings.category != category) {
-            emptyList()
-        } else {
-            listings.list
-                .filter { !fits || it.fits || it.own }
-                .filter { query.isBlank() || matches(it, query.trim()) }
-                .sortedByDescending { it.own }
-        }
+    val listings = all[category] ?: Listings()
+    val loaded = listings.time > 0L
+    val shown = remember(listings, fits, query) {
+        listings.list
+            .filter { !fits || it.fits || it.own }
+            .filter { query.isBlank() || matches(it, query.trim()) }
+            .sortedByDescending { it.own }
     }
 
     Column(Modifier.fillMaxSize()) {

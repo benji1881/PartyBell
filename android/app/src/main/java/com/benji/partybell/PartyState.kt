@@ -21,7 +21,7 @@ object PartyState {
     private val outboxFlow = MutableStateFlow<List<OutgoingItem>>(emptyList())
     private val statusFlow = MutableStateFlow(Status.Off)
     private val viewedFlow = MutableStateFlow<Map<String, Long>>(emptyMap())
-    private val listingsFlow = MutableStateFlow(Listings())
+    private val listingsFlow = MutableStateFlow(emptyMap<Int, Listings>())
     private val findingFlow = MutableStateFlow(false)
     private val linkFlow = MutableStateFlow(Link.Ok)
     private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
@@ -36,7 +36,7 @@ object PartyState {
     val outbox: StateFlow<List<OutgoingItem>> = outboxFlow.asStateFlow()
     val status: StateFlow<Status> = statusFlow.asStateFlow()
     val viewed: StateFlow<Map<String, Long>> = viewedFlow.asStateFlow()
-    val listings: StateFlow<Listings> = listingsFlow.asStateFlow()
+    val listings: StateFlow<Map<Int, Listings>> = listingsFlow.asStateFlow()
     val finding: StateFlow<Boolean> = findingFlow.asStateFlow()
     val link: StateFlow<Link> = linkFlow.asStateFlow()
     val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
@@ -85,7 +85,8 @@ object PartyState {
                 noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else inviteReason(incoming.reason))
             }
             is ListingsUpdate -> {
-                listingsFlow.value = incoming.listings
+                val update = incoming.listings
+                listingsFlow.value = if (update.category == 0) emptyMap() else listingsFlow.value + (update.category to update)
                 findingFlow.value = false
             }
             is Finding -> if (!incoming.ok) {

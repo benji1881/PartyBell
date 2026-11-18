@@ -64,12 +64,13 @@ internal sealed unsafe class PartyFinder : IDisposable
                 dirty = false;
                 complete = false;
                 requestedAt = null;
-                feed.SetListings(Messages.Listings(category, listings.Values.ToList()));
+                if (category != 0)
+                    feed.SetListings(category, Messages.Listings(category, listings.Values.ToList()));
             }
             else if (requestedAt is { } at && listings.Count == 0 && now - at >= Timeout)
             {
                 requestedAt = null;
-                feed.SetListings(Messages.Listings(category, []));
+                feed.SetListings(category, Messages.Listings(category, []));
             }
         }
     }
@@ -194,7 +195,8 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     private static string? Blocked()
     {
-        if (!Services.PlayerState.IsLoaded || Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
+        if (!Services.PlayerState.IsLoaded || Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51]
+            || Services.Condition[ConditionFlag.WatchingCutscene] || Services.Condition[ConditionFlag.WatchingCutscene78] || Services.Condition[ConditionFlag.OccupiedInCutSceneEvent])
             return "not ready";
         if (Services.Condition[ConditionFlag.BoundByDuty] || Services.Condition[ConditionFlag.BoundByDuty56] || Services.Condition[ConditionFlag.BoundByDuty95])
             return "in duty";
@@ -207,10 +209,10 @@ internal sealed unsafe class PartyFinder : IDisposable
         var now = DateTime.UtcNow;
         lock (gate)
         {
-            if ((args.BatchNumber == 1 && segment != 1) || now - changedAt >= Quiet)
+            if (segment == -1 || (segment == 0 && !dirty) || (args.BatchNumber == 1 && segment != 1) || now - changedAt >= Quiet)
             {
                 listings.Clear();
-                category = requestedAt != null ? category : Tab() ?? item.Category;
+                category = requestedAt != null ? category : Tab() ?? 0;
             }
             segment = args.BatchNumber;
             complete = segment == 0;
