@@ -36,6 +36,8 @@ internal sealed unsafe class PartyFinder : IDisposable
     private bool dirty;
     private bool complete;
     private bool emptySent;
+    private bool answered;
+    private bool retried;
     private DateTime changedAt;
     private DateTime? requestedAt;
     private TaskCompletionSource<string?>? joining;
@@ -73,6 +75,12 @@ internal sealed unsafe class PartyFinder : IDisposable
             {
                 if (!emptySent && now - at >= NoReply)
                 {
+                    if (!answered && !retried && Blocked() == null && !WindowOpen() && Ask((byte)category))
+                    {
+                        retried = true;
+                        requestedAt = now;
+                        return;
+                    }
                     emptySent = true;
                     feed.SetListings(category, Messages.Listings(category, []));
                 }
@@ -85,6 +93,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     public void Reset()
     {
         FinishJoin("not ready");
+        answered = false;
         Clear();
     }
 
@@ -97,6 +106,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             dirty = false;
             complete = false;
             emptySent = false;
+            retried = false;
             requestedAt = null;
         }
     }
@@ -107,13 +117,9 @@ internal sealed unsafe class PartyFinder : IDisposable
             return "invalid";
         if (Blocked() is { } reason)
             return reason;
-        if (Services.GameGui.GetAddonByName(Window, 1).Address != IntPtr.Zero)
+        if (WindowOpen())
             return "window open";
-        var agent = AgentLookingForGroup.Instance();
-        if (agent == null)
-            return "refused";
-        agent->SearchAreaTab = DataCenter;
-        if (!agent->RequestCategoryListings(wanted))
+        if (!Ask(wanted))
             return "refused";
         lock (gate)
         {
@@ -123,6 +129,18 @@ internal sealed unsafe class PartyFinder : IDisposable
         }
         return null;
     }
+
+    private static bool Ask(byte wanted)
+    {
+        var agent = AgentLookingForGroup.Instance();
+        if (agent == null)
+            return false;
+        agent->SearchAreaTab = DataCenter;
+        agent->CategoryTab = wanted;
+        return agent->RequestCategoryListings(wanted);
+    }
+
+    private static bool WindowOpen() => Services.GameGui.GetAddonByName(Window, 1).Address != IntPtr.Zero;
 
     private string? Show(ulong id)
     {
@@ -222,6 +240,7 @@ internal sealed unsafe class PartyFinder : IDisposable
                 listings.Clear();
                 category = requestedAt != null ? category : Tab() ?? 0;
             }
+            answered = true;
             segment = args.BatchNumber;
             complete = segment == 0;
             listings[item.Id] = item;
