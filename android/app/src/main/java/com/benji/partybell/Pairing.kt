@@ -14,9 +14,11 @@ class Pairing(val hosts: List<String>, val port: Int, val id: String, val key: S
             val port = uri.getQueryParameter("port")?.toIntOrNull()?.takeIf { it in 1..65535 }
             val id = uri.getQueryParameter("id").orEmpty()
             val key = uri.getQueryParameter("key").orEmpty()
-            if (hosts.isEmpty() || port == null || id.isEmpty() || secret(key)?.size != SECRET_SIZE) return null
+            if (hosts.isEmpty() || port == null || id.isEmpty() || !isKey(key)) return null
             return Pairing(hosts, port, id, key)
         }
+
+        fun isKey(key: String) = secret(key)?.size == SECRET_SIZE
 
         fun secret(key: String): ByteArray? = try {
             Base64.getUrlDecoder().decode(key)

@@ -30,7 +30,12 @@ class AppSettings(context: Context) {
         get() = prefs.getString("phone_id", "").orEmpty()
 
     val key: String
-        get() = prefs.getString("key", "").orEmpty()
+        get() {
+            val stored = prefs.getString("key", "").orEmpty()
+            if (!Pairing.isKey(stored)) return Vault.open(stored).orEmpty()
+            prefs.edit { putString("key", Vault.seal(stored)) }
+            return stored
+        }
 
     var enabled: Boolean
         get() = prefs.getBoolean("enabled", false)
@@ -75,7 +80,7 @@ class AppSettings(context: Context) {
         putString("hosts", pairing.hosts.joinToString(","))
         putInt("port", pairing.port)
         putString("phone_id", pairing.id)
-        putString("key", pairing.key)
+        putString("key", Vault.seal(pairing.key))
         putBoolean("enabled", true)
     }
 
