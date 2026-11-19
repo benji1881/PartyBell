@@ -5,8 +5,11 @@ using System.Numerics;
 using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Gui.PartyFinder.Types;
+using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game;
+using FFXIVClientStructs.FFXIV.Client.Game.Network;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
+using FFXIVClientStructs.FFXIV.Client.UI.Info;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Sheets = Lumina.Excel.Sheets;
 
@@ -31,6 +34,8 @@ internal sealed unsafe class PartyFinder : IDisposable
     private readonly Feed feed;
     private readonly object gate = new();
     private readonly Dictionary<string, Listing> listings = [];
+    private readonly HashSet<ulong> blocked = [];
+    private readonly Hook<InfoProxyCrossRealm.Delegates.ReceiveListing>? receiveHook;
     private int segment = -1;
     private int category;
     private bool dirty;
@@ -48,9 +53,22 @@ internal sealed unsafe class PartyFinder : IDisposable
     {
         this.feed = feed;
         Services.PartyFinderGui.ReceiveListing += OnListing;
+        try
+        {
+            receiveHook = Services.GameInteropProvider.HookFromAddress<InfoProxyCrossRealm.Delegates.ReceiveListing>(InfoProxyCrossRealm.MemberFunctionPointers.ReceiveListing, OnReceive);
+            receiveHook.Enable();
+        }
+        catch (Exception e)
+        {
+            Services.Log.Error(e, "Blocked players can't be hidden.");
+        }
     }
 
-    public void Dispose() => Services.PartyFinderGui.ReceiveListing -= OnListing;
+    public void Dispose()
+    {
+        Services.PartyFinderGui.ReceiveListing -= OnListing;
+        receiveHook?.Dispose();
+    }
 
     public Task<string?> Request(Finder finder) => Services.Framework.RunOnFrameworkThread(() => Send(finder.Category));
 
@@ -102,6 +120,7 @@ internal sealed unsafe class PartyFinder : IDisposable
         lock (gate)
         {
             listings.Clear();
+            blocked.Clear();
             segment = -1;
             dirty = false;
             complete = false;
@@ -231,7 +250,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private void OnListing(IPartyFinderListing listing, IPartyFinderListingEventArgs args)
     {
         var item = Map(listing, ItemLevel());
-        var hidden = !item.Own && DutyLocked(listing);
+        var hidden = !item.Own && (DutyLocked(listing) || IsBlocked(listing.Id));
         var now = DateTime.UtcNow;
         lock (gate)
         {
@@ -248,6 +267,37 @@ internal sealed unsafe class PartyFinder : IDisposable
             dirty = true;
             changedAt = now;
         }
+    }
+
+    private void OnReceive(InfoProxyCrossRealm* proxy, ServerIpcSegment<CrossRealmListingSegmentPacket>* packet)
+    {
+        try
+        {
+            var blacklist = InfoProxyBlacklist.Instance();
+            lock (gate)
+            {
+                foreach (ref var entry in packet->Payload.Entries)
+                {
+                    if (entry.ListingId == 0)
+                        continue;
+                    if (blacklist != null && blacklist->GetBlockResultType(entry.AccountId, entry.ContentId) != InfoProxyBlacklist.BlockResultType.NotBlocked)
+                        blocked.Add(entry.ListingId);
+                    else
+                        blocked.Remove(entry.ListingId);
+                }
+            }
+        }
+        catch (Exception e)
+        {
+            Services.Log.Error(e, "Couldn't check blocked players.");
+        }
+        receiveHook!.Original(proxy, packet);
+    }
+
+    private bool IsBlocked(ulong id)
+    {
+        lock (gate)
+            return blocked.Contains(id);
     }
 
     private static int? Tab()
