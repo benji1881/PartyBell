@@ -191,6 +191,14 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     fun opened(conversation: String) {
         conversations.remove(conversation)
         manager.cancel(conversation, CHAT_ID)
+        if (ChatChannel.isParty(conversation)) clearEvents()
+    }
+
+    private fun clearEvents() {
+        burst = null
+        manager.activeNotifications
+            .filter { it.tag == null && it.id >= FIRST_EVENT_ID }
+            .forEach { manager.cancel(it.id) }
     }
 
     private fun muteKey(conversation: String) = if (ChatChannel.isParty(conversation)) ChatChannel.PARTY else conversation

@@ -244,6 +244,7 @@ private fun PartyScreen(conversation: String, onBack: () -> Unit, onTell: (Strin
     val outbox by PartyState.outbox.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
     val viewed by PartyState.viewed.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     val hasAlliance = party.isAlliance || feed.any { it is ChatItem && it.channel == ChatChannel.ALLIANCE }
     var tab by rememberSaveable { mutableStateOf(conversation) }
@@ -261,6 +262,7 @@ private fun PartyScreen(conversation: String, onBack: () -> Unit, onTell: (Strin
     }
     val latest = items.lastOrNull { it is ChatItem }?.time ?: 0L
     LaunchedEffect(channel, latest) { PartyState.markViewed(channel, latest) }
+    LaunchedEffect(channel, items.lastOrNull(), opened) { Notifier(context, AppSettings(context)).opened(channel) }
 
     Column(Modifier.fillMaxSize()) {
         TitleBar("Party", onBack) {
