@@ -66,6 +66,7 @@ class Connection(private val context: Context, private val settings: AppSettings
     private var failingSince = 0L
     private var running = false
     private var listening = false
+    private var secret: ByteArray? = null
 
     fun restart() {
         stop()
@@ -93,6 +94,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         wake.release()
         socket?.close(NORMAL_CLOSE, null)
         socket = null
+        secret = null
         round = 0
         failingSince = 0L
         PartyState.setLink(Link.Ok)
@@ -104,7 +106,7 @@ class Connection(private val context: Context, private val settings: AppSettings
     private fun connect() {
         val hosts = settings.hosts
         if (!running || hosts.isEmpty()) return
-        val secret = Pairing.secret(settings.key)?.takeIf { it.isNotEmpty() }
+        val secret = secret ?: Pairing.secret(settings.key)?.takeIf { it.isNotEmpty() }?.also { secret = it }
         if (secret == null) {
             round++
             schedule(PartyState.status.value.takeIf { it in waiting } ?: Status.Connecting)
