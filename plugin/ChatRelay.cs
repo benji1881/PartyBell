@@ -9,6 +9,8 @@ namespace PartyBell;
 
 internal sealed class ChatRelay : IDisposable
 {
+    private static readonly string CrossWorld = SeIconChar.CrossWorld.ToIconString();
+
     private readonly Configuration config;
     private readonly Feed feed;
     private readonly PartyTracker tracker;
@@ -67,9 +69,15 @@ internal sealed class ChatRelay : IDisposable
             var world = player.World.ValueNullable?.Name.ExtractText() is { Length: > 0 } listed ? listed : CurrentWorld;
             return (player.PlayerName, $"{player.PlayerName}@{world}");
         }
-        var name = new string(sender.TextValue.Where(c => char.IsLetter(c) || c is ' ' or '\'' or '-').ToArray()).Trim();
-        return (name, $"{name}@{CurrentWorld}");
+        var text = string.Concat(sender.Payloads.Select(p => p is IconPayload { Icon: BitmapFontIcon.CrossWorld } ? CrossWorld : (p as ITextProvider)?.Text));
+        var split = text.IndexOf(CrossWorld, StringComparison.Ordinal);
+        var name = Letters(split < 0 ? text : text[..split]);
+        var home = split < 0 ? CurrentWorld : Letters(text[(split + CrossWorld.Length)..]);
+        return (name, $"{name}@{home}");
     }
+
+    private static string Letters(string text) =>
+        new string(text.Where(c => char.IsLetter(c) || c is ' ' or '\'' or '-').ToArray()).Trim();
 
     private static string CurrentWorld => Services.PlayerState.CurrentWorld.ValueNullable?.Name.ExtractText() ?? "";
 }
