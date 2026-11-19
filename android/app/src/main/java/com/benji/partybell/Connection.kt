@@ -1,10 +1,12 @@
 package com.benji.partybell
 
+import android.app.AlarmManager
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -29,6 +31,9 @@ class Connection(private val context: Context, private val settings: AppSettings
         const val LOST_DELAY_MS = 60_000L
         const val IDLE_AFTER_MS = 10 * 60_000L
         const val IDLE_DELAY_MS = 5 * 60_000L
+        const val CONNECT_AWAKE_MS = 15_000L
+        const val MESSAGE_AWAKE_MS = 5_000L
+        const val TAG = "PartyBell:connection"
         val waiting = setOf(Status.NotPaired, Status.UpdatePlugin, Status.UpdateApp)
     }
 
@@ -38,14 +43,24 @@ class Connection(private val context: Context, private val settings: AppSettings
         .build()
     private val handler = Handler(Looper.getMainLooper())
     private val connectivity = context.getSystemService(ConnectivityManager::class.java)
+    private val alarms = context.getSystemService(AlarmManager::class.java)
+    private val wake = context.getSystemService(PowerManager::class.java)
+        .newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG)
+        .apply { setReferenceCounted(false) }
     private val lost = Runnable { notifier.lost() }
     private val reconnect = Runnable { connect() }
+    private val wakeUp = AlarmManager.OnAlarmListener {
+        wake.acquire(CONNECT_AWAKE_MS)
+        connect()
+    }
     private val network = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
-            handler.post { nudge() }
+            wake.acquire(CONNECT_AWAKE_MS)
+            handler.post { moved(network) }
         }
     }
     private var socket: WebSocket? = null
+    private var socketNetwork: Network? = null
     private var hostIndex = 0
     private var round = 0
     private var failingSince = 0L
@@ -62,6 +77,7 @@ class Connection(private val context: Context, private val settings: AppSettings
     fun nudge() {
         if (!running || socket != null) return
         handler.removeCallbacks(reconnect)
+        alarms.cancel(wakeUp)
         round = 0
         failingSince = 0L
         if (PartyState.link.value != Link.Ok) PartyState.setLink(Link.Searching)
@@ -73,6 +89,8 @@ class Connection(private val context: Context, private val settings: AppSettings
         if (listening) runCatching { connectivity.unregisterNetworkCallback(network) }
         listening = false
         handler.removeCallbacksAndMessages(null)
+        alarms.cancel(wakeUp)
+        wake.release()
         socket?.close(NORMAL_CLOSE, null)
         socket = null
         round = 0
@@ -85,8 +103,13 @@ class Connection(private val context: Context, private val settings: AppSettings
 
     private fun connect() {
         val hosts = settings.hosts
-        val secret = Pairing.secret(settings.key)
-        if (!running || hosts.isEmpty() || secret == null) return
+        if (!running || hosts.isEmpty()) return
+        val secret = Pairing.secret(settings.key)?.takeIf { it.isNotEmpty() }
+        if (secret == null) {
+            round++
+            schedule(PartyState.status.value.takeIf { it in waiting } ?: Status.Connecting)
+            return
+        }
 
         val url = try {
             HttpUrl.Builder()
@@ -100,7 +123,13 @@ class Connection(private val context: Context, private val settings: AppSettings
         }
 
         if (PartyState.status.value !in waiting) PartyState.setStatus(Status.Connecting)
+        socketNetwork = connectivity.activeNetwork
         socket = client.newWebSocket(Request.Builder().url(url).build(), Listener(settings.phoneId, secret))
+    }
+
+    private fun moved(to: Network) {
+        val current = socket
+        if (current != null && to != socketNetwork) current.cancel() else nudge()
     }
 
     private fun retry(ws: WebSocket, status: Status, opened: Boolean, farewell: Boolean) {
@@ -108,22 +137,33 @@ class Connection(private val context: Context, private val settings: AppSettings
         socket = null
         if (opened && !farewell) handler.postDelayed(lost, LOST_DELAY_MS)
         PartyState.disconnected()
-        PartyState.setStatus(status)
         if (!opened) {
             hostIndex++
             if (hostIndex % settings.hosts.size.coerceAtLeast(1) == 0) round++
         }
+        schedule(status)
+    }
+
+    private fun schedule(status: Status) {
+        PartyState.setStatus(status)
         val searching = status == Status.Connecting
         if (listening && connectivity.activeNetwork == null) {
             PartyState.setLink(if (searching) Link.Failed else Link.Ok)
+            wake.release()
             return
         }
         val now = SystemClock.elapsedRealtime()
         if (failingSince == 0L) failingSince = now
         val idle = now - failingSince >= IDLE_AFTER_MS
         PartyState.setLink(if (!searching) Link.Ok else if (idle) Link.Failed else Link.Searching)
-        val delay = if (idle) IDLE_DELAY_MS else min(MAX_DELAY_MS, BASE_DELAY_MS shl min(round, MAX_BACKOFF_STEPS))
-        handler.postDelayed(reconnect, delay)
+        if (idle) {
+            wake.release()
+            alarms.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, now + IDLE_DELAY_MS, TAG, wakeUp, handler)
+        } else {
+            val delay = min(MAX_DELAY_MS, BASE_DELAY_MS shl min(round, MAX_BACKOFF_STEPS))
+            wake.acquire(delay + CONNECT_AWAKE_MS)
+            handler.postDelayed(reconnect, delay)
+        }
     }
 
     private fun versionStatus(theirs: Int) = if (theirs < Protocol.VERSION) Status.UpdatePlugin else Status.UpdateApp
@@ -170,6 +210,7 @@ class Connection(private val context: Context, private val settings: AppSettings
                 return
             }
             if (message == Bye) farewell = true
+            wake.acquire(MESSAGE_AWAKE_MS)
             handler.post {
                 if (webSocket !== socket) return@post
                 if (PartyState.status.value != Status.Connected) {
@@ -211,6 +252,7 @@ class Connection(private val context: Context, private val settings: AppSettings
             val status = closeStatus ?: Status.Connecting
             val opened = opened
             val farewell = farewell
+            wake.acquire(CONNECT_AWAKE_MS)
             handler.post { retry(webSocket, status, opened, farewell) }
         }
     }
