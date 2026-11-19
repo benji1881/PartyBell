@@ -179,6 +179,7 @@ object Protocol {
                 completion = it.optBoolean("completion"),
                 cleared = it.optBoolean("cleared"),
                 beginners = it.optBoolean("beginners"),
+                blocked = it.optBoolean("blocked"),
             )
         },
     )

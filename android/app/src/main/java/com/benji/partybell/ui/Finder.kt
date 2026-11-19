@@ -149,6 +149,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     var words by rememberSaveable { mutableStateOf(settings.finderWords) }
     val jobs by JobIcons.jobs.collectAsStateWithLifecycle()
     var beginners by rememberSaveable { mutableStateOf(settings.finderBeginners) }
+    var blocked by rememberSaveable { mutableStateOf(settings.finderBlocked) }
     var goal by rememberSaveable { mutableStateOf(Goal.entries.getOrElse(settings.finderGoal) { Goal.Any }) }
     var sheet by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -169,9 +170,9 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     val listings = all[category] ?: Listings()
     val loaded = listings.time > 0L
     val matcher = remember(words) { WordMatcher(words) }
-    val shown = remember(listings, fits, picks, beginners, goal, query, matcher) {
+    val shown = remember(listings, fits, picks, beginners, blocked, goal, query, matcher) {
         listings.list
-            .filter { it.own || (keepsJobs(it, fits, picks) && (!beginners || it.beginners) && goal.keeps(it)) }
+            .filter { it.own || (keepsJobs(it, fits, picks) && (!beginners || it.beginners) && (blocked || !it.blocked) && goal.keeps(it)) }
             .filter { query.isBlank() || matches(it, query.trim()) }
             .sortedWith(compareByDescending<Listing> { it.own }.thenByDescending { matcher.matches(it.description) })
     }
@@ -184,8 +185,9 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     }
     val setWords = { list: List<String> -> words = list; settings.finderWords = list }
     val setBeginners = { on: Boolean -> beginners = on; settings.finderBeginners = on }
+    val setBlocked = { on: Boolean -> blocked = on; settings.finderBlocked = on }
     val setGoal = { picked: Goal -> goal = picked; settings.finderGoal = picked.ordinal }
-    val clear = { setJobs(false, emptySet()); setBeginners(false); setGoal(Goal.Any) }
+    val clear = { setJobs(false, emptySet()); setBeginners(false); setBlocked(false); setGoal(Goal.Any) }
     val jobFilter = fits || picks.isNotEmpty()
     val active = listOf(jobFilter, beginners, goal != Goal.Any).count { it }
 
@@ -265,6 +267,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             picks = picks,
             jobs = jobs,
             beginners = beginners,
+            blocked = blocked,
             words = words,
             count = shown.size,
             onCategory = {
@@ -274,6 +277,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             onGoal = setGoal,
             onJobs = setJobs,
             onBeginners = setBeginners,
+            onBlocked = setBlocked,
             onWords = setWords,
             onClear = clear,
             onDismiss = { sheet = false },
@@ -290,12 +294,14 @@ private fun FilterSheet(
     picks: Set<String>,
     jobs: List<Job>,
     beginners: Boolean,
+    blocked: Boolean,
     words: List<String>,
     count: Int,
     onCategory: (Int) -> Unit,
     onGoal: (Goal) -> Unit,
     onJobs: (Boolean, Set<String>) -> Unit,
     onBeginners: (Boolean) -> Unit,
+    onBlocked: (Boolean) -> Unit,
     onWords: (List<String>) -> Unit,
     onClear: () -> Unit,
     onDismiss: () -> Unit,
@@ -354,6 +360,8 @@ private fun FilterSheet(
             NavRow("Jobs", jobSummary(fits, picks, jobs).ifEmpty { "Any job" }) { jobsSheet = true }
             Divider()
             ToggleRow(BEGINNERS, beginners, onBeginners, sprout)
+            Divider()
+            ToggleRow("Show blocked recruiters", blocked, onBlocked)
             Divider()
             NavRow("Highlight words", words.joinToString(", ").ifEmpty { "None" }) { wordsSheet = true }
             Spacer(Modifier.height(12.dp))
@@ -895,6 +903,7 @@ private class TagInfo(val label: String, val color: Color? = null, val icon: Ima
 private fun tags(listing: Listing): List<TagInfo> {
     val sprout by JobIcons.sprout.collectAsStateWithLifecycle()
     return listOfNotNull(
+        TagInfo("Blocked", AppColors.red).takeIf { listing.blocked },
         TagInfo("Fits your job", AppColors.accent).takeIf { listing.fits && !listing.own },
         TagInfo("Practice", PracticeColor).takeIf { listing.practice },
         TagInfo("Duty completion", CompletionColor).takeIf { listing.completion },

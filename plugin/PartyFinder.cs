@@ -250,7 +250,9 @@ internal sealed unsafe class PartyFinder : IDisposable
     private void OnListing(IPartyFinderListing listing, IPartyFinderListingEventArgs args)
     {
         var item = Map(listing, ItemLevel());
-        var hidden = !item.Own && (DutyLocked(listing) || IsBlocked(listing.Id));
+        var hidden = !item.Own && DutyLocked(listing);
+        if (!item.Own && IsBlocked(listing.Id))
+            item = item with { Blocked = true };
         var now = DateTime.UtcNow;
         lock (gate)
         {
@@ -358,7 +360,8 @@ internal sealed unsafe class PartyFinder : IDisposable
             listing[ObjectiveFlags.Loot],
             listing[ObjectiveFlags.DutyCompletion],
             listing[ConditionFlags.DutyComplete],
-            listing.BeginnersWelcome);
+            listing.BeginnersWelcome,
+            false);
     }
 
     internal static int Role(byte role) => role == 3 ? 2 : role;

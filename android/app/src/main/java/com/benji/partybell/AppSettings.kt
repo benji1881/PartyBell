@@ -52,6 +52,10 @@ class AppSettings(context: Context) {
         get() = prefs.getBoolean("finder_beginners", false)
         set(value) = prefs.edit { putBoolean("finder_beginners", value) }
 
+    var finderBlocked: Boolean
+        get() = prefs.getBoolean("finder_blocked", false)
+        set(value) = prefs.edit { putBoolean("finder_blocked", value) }
+
     var finderGoal: Int
         get() = prefs.getInt("finder_goal", 0)
         set(value) = prefs.edit { putInt("finder_goal", value) }
