@@ -231,6 +231,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private void OnListing(IPartyFinderListing listing, IPartyFinderListingEventArgs args)
     {
         var item = Map(listing, ItemLevel());
+        var hidden = !item.Own && DutyLocked(listing);
         var now = DateTime.UtcNow;
         lock (gate)
         {
@@ -242,7 +243,8 @@ internal sealed unsafe class PartyFinder : IDisposable
             answered = true;
             segment = args.BatchNumber;
             complete = segment == 0;
-            listings[item.Id] = item;
+            if (!hidden)
+                listings[item.Id] = item;
             dirty = true;
             changedAt = now;
         }
@@ -310,6 +312,12 @@ internal sealed unsafe class PartyFinder : IDisposable
     }
 
     internal static int Role(byte role) => role == 3 ? 2 : role;
+
+    private static bool DutyLocked(IPartyFinderListing listing) =>
+        listing.DutyType == DutyType.Normal
+        && listing.Duty.ValueNullable is { ContentLinkType: 1 } duty
+        && duty.Content.TryGetValue<Sheets.InstanceContent>(out var content)
+        && !Services.UnlockState.IsInstanceContentUnlocked(content);
 
     private static int CategoryOf(DutyCategory category) => category == DutyCategory.None ? Other : BitOperations.Log2((uint)category);
 

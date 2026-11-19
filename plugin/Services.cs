@@ -18,5 +18,6 @@ internal sealed class Services
     [PluginService] public static IGameInteropProvider GameInteropProvider { get; private set; } = null!;
     [PluginService] public static IFramework Framework { get; private set; } = null!;
     [PluginService] public static ICommandManager CommandManager { get; private set; } = null!;
+    [PluginService] public static IUnlockState UnlockState { get; private set; } = null!;
     [PluginService] public static IPluginLog Log { get; private set; } = null!;
 }
