@@ -17,12 +17,10 @@ public sealed class Configuration : IPluginConfiguration
     public bool AllowPhoneInvite { get; set; } = true;
     public List<PairedPhone> Phones { get; set; } = [];
 
-    public PairedPhone AddPhone()
+    public void AddPhone(PairedPhone phone)
     {
-        var phone = PairedPhone.Create();
         Phones = [.. Phones, phone];
         Save();
-        return phone;
     }
 
     public void RemovePhone(PairedPhone phone)

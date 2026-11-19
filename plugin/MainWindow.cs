@@ -30,10 +30,13 @@ internal sealed class MainWindow : Window
 
     public override void OnOpen() => addresses = Network.Addresses();
 
-    public override void OnClose() => pairing = null;
+    public override void OnClose() => CancelPairing();
 
     public override void Draw()
     {
+        if (pairing != null && server.Pending == null)
+            pairing = null;
+
         if (pairing != null)
             DrawPairing(pairing);
         else
@@ -48,9 +51,10 @@ internal sealed class MainWindow : Window
         ImGui.PopStyleColor();
         ImGui.Spacing();
         qr.Draw(QrSize);
+        ImGui.TextColored(MutedColor, "Waiting for your phone...");
         ImGui.Spacing();
-        if (ImGui.Button("Done"))
-            pairing = null;
+        if (ImGui.Button("Cancel"))
+            CancelPairing();
     }
 
     private void DrawSettings()
@@ -154,10 +158,21 @@ internal sealed class MainWindow : Window
         addresses = Network.Addresses();
         if (addresses.Count == 0)
             return;
-        var phone = config.AddPhone();
+        var phone = PairedPhone.Create();
+        server.Pending = phone;
         pairing = new QrCode(PairingLink.Create(phone, addresses.Select(a => a.Address), config.Port));
         if (!server.Running)
             server.Start();
+    }
+
+    private void CancelPairing()
+    {
+        if (pairing == null)
+            return;
+        pairing = null;
+        server.Pending = null;
+        if (config.Phones.Count == 0)
+            server.Stop();
     }
 
     private void Restart()

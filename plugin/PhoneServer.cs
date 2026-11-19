@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -23,6 +24,8 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
     public string? Error { get; private set; }
 
     public bool Running => listener != null;
+
+    public PairedPhone? Pending { get; set; }
 
     public void Start()
     {
@@ -57,6 +60,14 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
         Error = null;
     }
 
+    private void Paired(PairedPhone phone)
+    {
+        if (Pending != phone)
+            return;
+        Pending = null;
+        config.AddPhone(phone);
+    }
+
     private async Task AcceptLoop(TcpListener server, CancellationToken token)
     {
         while (!token.IsCancellationRequested)
@@ -85,13 +96,15 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
             using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true, KeepAliveInterval = KeepAlive });
             if (!handshakes.Wait(0))
                 return;
+            var pending = Pending;
+            IReadOnlyList<PairedPhone> phones = pending == null ? config.Phones : [.. config.Phones, pending];
             Session? session;
             try
             {
                 using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
                 timeout.CancelAfter(HandshakeTimeout);
                 session = await WebSocketUpgrade.Accept(stream, timeout.Token)
-                    ? await SecureChannel.Authenticate(socket, config.Phones, timeout.Token)
+                    ? await SecureChannel.Authenticate(socket, phones, timeout.Token)
                     : null;
             }
             finally
@@ -100,6 +113,9 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
             }
             if (session == null)
                 return;
+            var phone = session.Phone;
+            if (phone == pending)
+                _ = Services.Framework.RunOnFrameworkThread(() => Paired(phone));
 
             using var sealer = new Sealer(session);
             var client = new PhoneClient(socket, sealer, chat, readyCheck, inviter, finder);
