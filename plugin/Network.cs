@@ -6,7 +6,7 @@ using System.Net.Sockets;
 
 namespace PartyBell;
 
-internal sealed record NetworkAddress(string Address, string Label, bool Tailscale);
+internal sealed record NetworkAddress(string Address, string Label, bool Tunnel);
 
 internal static class Network
 {
@@ -14,7 +14,7 @@ internal static class Network
         NetworkInterface.GetAllNetworkInterfaces()
             .Where(nic => nic.OperationalStatus == OperationalStatus.Up && nic.NetworkInterfaceType != NetworkInterfaceType.Loopback)
             .SelectMany(AddressesOf)
-            .OrderBy(a => a.Tailscale)
+            .OrderBy(a => a.Tunnel)
             .ToList();
 
     private static IEnumerable<NetworkAddress> AddressesOf(NetworkInterface nic)
@@ -24,13 +24,13 @@ internal static class Network
         return properties.UnicastAddresses
             .Select(a => a.Address)
             .Where(a => a.AddressFamily == AddressFamily.InterNetwork)
-            .Select(a => IsTailscale(a) ? new NetworkAddress(a.ToString(), "Tailscale", true) : new NetworkAddress(a.ToString(), nic.Name, false))
-            .Where(a => a.Tailscale || gateway);
+            .Select(a => IsTunnel(a) ? new NetworkAddress(a.ToString(), "Secure tunnel", true) : new NetworkAddress(a.ToString(), nic.Name, false))
+            .Where(a => a.Tunnel || gateway);
     }
 
     public static bool IsLocal(IPAddress address) =>
-        IsTailscale(address) || address.GetAddressBytes() is [10, ..] or [127, ..] or [172, >= 16 and <= 31, ..] or [192, 168, ..] or [169, 254, ..];
+        IsTunnel(address) || address.GetAddressBytes() is [10, ..] or [127, ..] or [172, >= 16 and <= 31, ..] or [192, 168, ..] or [169, 254, ..];
 
-    private static bool IsTailscale(IPAddress address) =>
+    private static bool IsTunnel(IPAddress address) =>
         address.GetAddressBytes() is [100, var second, _, _] && second is >= 64 and <= 127;
 }
