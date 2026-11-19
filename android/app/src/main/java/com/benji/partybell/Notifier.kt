@@ -339,7 +339,9 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
-        return NotificationCompat.Action.Builder(R.drawable.ic_bell, label, pending).build()
+        return NotificationCompat.Action.Builder(R.drawable.ic_bell, label, pending)
+            .setAuthenticationRequired(true)
+            .build()
     }
 
     private fun replyAction(conversation: String): NotificationCompat.Action {
@@ -352,6 +354,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             .addRemoteInput(input)
             .setSemanticAction(NotificationCompat.Action.SEMANTIC_ACTION_REPLY)
             .setShowsUserInterface(false)
+            .setAuthenticationRequired(true)
             .build()
     }
 
