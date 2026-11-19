@@ -11,11 +11,13 @@ public sealed class PairedPhone
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
     public string Secret { get; set; } = "";
+    public DateTime PairedAt { get; set; }
 
     public static PairedPhone Create() => new()
     {
         Id = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4)),
         Name = $"Phone added {DateTime.Now:yyyy-MM-dd HH:mm}",
         Secret = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(SecretSize)),
+        PairedAt = DateTime.UtcNow,
     };
 }

@@ -119,7 +119,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
 
             using var sealer = new Sealer(session);
             var client = new PhoneClient(socket, sealer, chat, readyCheck, inviter, finder);
-            feed.Join(client);
+            feed.Join(client, phone.PairedAt);
             client.Send(Messages.Plugin(Version));
             if (session.Icons != JobIcons.Version)
                 client.Send(JobIcons.Message);

@@ -13,7 +13,7 @@ internal sealed class Feed
     private readonly object gate = new();
     private readonly Queue<(DateTime Time, string Json)> history = new();
     private readonly Queue<(DateTime Time, string Json)> kept = new();
-    private readonly List<PhoneClient> clients = [];
+    private readonly Dictionary<PhoneClient, DateTime> clients = [];
     private string party = Messages.Party(PartySnapshot.Empty);
     private string friends = Messages.Friends(null);
     private string company = Messages.Company(false);
@@ -76,7 +76,8 @@ internal sealed class Feed
             history.Clear();
             foreach (var item in recent)
                 history.Enqueue(item);
-            Send(Messages.History(All(), true));
+            foreach (var (client, since) in clients)
+                client.Send(Messages.History(All(since), true));
         }
     }
 
@@ -92,7 +93,7 @@ internal sealed class Feed
         }
     }
 
-    public void Join(PhoneClient client)
+    public void Join(PhoneClient client, DateTime since)
     {
         lock (gate)
         {
@@ -102,15 +103,15 @@ internal sealed class Feed
             client.Send(Messages.NoListings());
             foreach (var json in listings.Values)
                 client.Send(json);
-            client.Send(Messages.History(All(), false));
-            clients.Add(client);
+            client.Send(Messages.History(All(since), false));
+            clients[client] = since;
         }
     }
 
     public Task Goodbye()
     {
         lock (gate)
-            return Task.WhenAll(clients.Select(c => c.Goodbye()));
+            return Task.WhenAll(clients.Keys.Select(c => c.Goodbye()));
     }
 
     public void Leave(PhoneClient client)
@@ -130,11 +131,11 @@ internal sealed class Feed
         }
     }
 
-    private IEnumerable<string> All() => history.Concat(kept).OrderBy(h => h.Time).Select(h => h.Json);
+    private IEnumerable<string> All(DateTime since) => history.Concat(kept).Where(h => h.Time >= since).OrderBy(h => h.Time).Select(h => h.Json);
 
     private void Send(string json)
     {
-        foreach (var client in clients)
+        foreach (var client in clients.Keys)
             client.Send(json);
     }
 }
