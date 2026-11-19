@@ -145,9 +145,13 @@ class Connection(private val context: Context, private val settings: AppSettings
                 webSocket.close(NORMAL_CLOSE, null)
                 return
             }
-            val phoneNonce = Crypto.nonce()
-            sealer = Sealer(Crypto.sessionKeys(secret, challenge.nonce, phoneNonce))
-            webSocket.send(Protocol.hello(phoneId, phoneNonce, Crypto.proof(secret, challenge.nonce, phoneNonce), JobIcons.version))
+            val handshake = Crypto.handshake(secret, challenge.nonce, challenge.ephemeral)
+            if (handshake == null) {
+                webSocket.close(POLICY_CLOSE, null)
+                return
+            }
+            sealer = Sealer(handshake.keys)
+            webSocket.send(Protocol.hello(phoneId, handshake, JobIcons.version))
         }
 
         override fun onMessage(webSocket: WebSocket, bytes: ByteString) {

@@ -40,10 +40,10 @@ data class PluginVersion(val version: String) : Incoming
 
 data object Bye : Incoming
 
-data class Challenge(val version: Int, val nonce: ByteArray)
+data class Challenge(val version: Int, val nonce: ByteArray, val ephemeral: ByteArray)
 
 object Protocol {
-    const val VERSION = 5
+    const val VERSION = 6
 
     fun parse(text: String): Incoming? = try {
         val json = JSONObject(text)
@@ -73,18 +73,19 @@ object Protocol {
     fun challenge(text: String): Challenge? = try {
         val json = JSONObject(text)
         val nonce = Base64.getDecoder().decode(json.getString("nonce"))
-        Challenge(json.optInt("v", 1), nonce).takeIf { nonce.size == Crypto.NONCE_SIZE }
+        Challenge(json.optInt("v", 1), nonce, Base64.getDecoder().decode(json.optString("ephemeral"))).takeIf { nonce.size == Crypto.NONCE_SIZE }
     } catch (_: JSONException) {
         null
     } catch (_: IllegalArgumentException) {
         null
     }
 
-    fun hello(id: String, nonce: ByteArray, proof: ByteArray, icons: String): String = JSONObject()
+    fun hello(id: String, handshake: Handshake, icons: String): String = JSONObject()
         .put("v", VERSION)
         .put("id", id)
-        .put("nonce", Base64.getEncoder().encodeToString(nonce))
-        .put("proof", Base64.getEncoder().encodeToString(proof))
+        .put("nonce", Base64.getEncoder().encodeToString(handshake.nonce))
+        .put("ephemeral", Base64.getEncoder().encodeToString(handshake.ephemeral))
+        .put("proof", Base64.getEncoder().encodeToString(handshake.proof))
         .put("icons", icons)
         .toString()
 

@@ -2,29 +2,52 @@ package com.benji.partybell
 
 import java.nio.ByteBuffer
 import java.security.GeneralSecurityException
+import java.security.KeyFactory
+import java.security.KeyPairGenerator
 import java.security.SecureRandom
+import java.security.spec.ECGenParameterSpec
+import java.security.spec.X509EncodedKeySpec
 import javax.crypto.Cipher
+import javax.crypto.KeyAgreement
 import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
 class SessionKeys(val toPhone: ByteArray, val toPc: ByteArray)
 
+class Handshake(val nonce: ByteArray, val ephemeral: ByteArray, val proof: ByteArray, val keys: SessionKeys)
+
 object Crypto {
     const val NONCE_SIZE = 16
     private const val HMAC = "HmacSHA256"
+    private const val CURVE = "secp256r1"
     private val proofLabel = "partybell phone".toByteArray()
     private val toPhoneLabel = "partybell to phone".toByteArray()
     private val toPcLabel = "partybell to pc".toByteArray()
     private val random = SecureRandom()
 
-    fun nonce(): ByteArray = ByteArray(NONCE_SIZE).also(random::nextBytes)
+    fun handshake(secret: ByteArray, serverNonce: ByteArray, serverKey: ByteArray): Handshake? = try {
+        val own = KeyPairGenerator.getInstance("EC").run {
+            initialize(ECGenParameterSpec(CURVE), random)
+            generateKeyPair()
+        }
+        val shared = KeyAgreement.getInstance("ECDH").run {
+            init(own.private)
+            doPhase(KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(serverKey)), true)
+            generateSecret()
+        }
+        val nonce = ByteArray(NONCE_SIZE).also(random::nextBytes)
+        val ephemeral = own.public.encoded
+        val salt = serverNonce + nonce + serverKey + ephemeral
+        Handshake(nonce, ephemeral, hmac(secret, proofLabel + salt), sessionKeys(secret + shared, salt))
+    } catch (_: GeneralSecurityException) {
+        null
+    } catch (_: IllegalStateException) {
+        null
+    }
 
-    fun proof(secret: ByteArray, serverNonce: ByteArray, phoneNonce: ByteArray): ByteArray =
-        hmac(secret, proofLabel + serverNonce + phoneNonce)
-
-    fun sessionKeys(secret: ByteArray, serverNonce: ByteArray, phoneNonce: ByteArray): SessionKeys {
-        val prk = hmac(serverNonce + phoneNonce, secret)
+    private fun sessionKeys(keyMaterial: ByteArray, salt: ByteArray): SessionKeys {
+        val prk = hmac(salt, keyMaterial)
         return SessionKeys(hmac(prk, toPhoneLabel + byteArrayOf(1)), hmac(prk, toPcLabel + byteArrayOf(1)))
     }
 

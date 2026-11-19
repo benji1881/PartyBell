@@ -10,11 +10,11 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed record Session(byte[] SendKey, byte[] ReceiveKey, string Icons);
+internal sealed record Session(PairedPhone Phone, byte[] SendKey, byte[] ReceiveKey, string Icons);
 
 internal static class SecureChannel
 {
-    public const int Version = 5;
+    public const int Version = 6;
     public const WebSocketCloseStatus NotPaired = (WebSocketCloseStatus)4001;
     public const WebSocketCloseStatus UpdateNeeded = (WebSocketCloseStatus)4002;
     private const int NonceSize = 16;
@@ -26,8 +26,15 @@ internal static class SecureChannel
 
     public static async Task<Session?> Authenticate(WebSocket socket, IReadOnlyList<PairedPhone> phones, CancellationToken token)
     {
+        using var ephemeral = ECDiffieHellman.Create(ECCurve.NamedCurves.nistP256);
         var serverNonce = RandomNumberGenerator.GetBytes(NonceSize);
-        var challenge = JsonSerializer.SerializeToUtf8Bytes(new { v = Version, nonce = Convert.ToBase64String(serverNonce) });
+        var serverKey = ephemeral.ExportSubjectPublicKeyInfo();
+        var challenge = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            v = Version,
+            nonce = Convert.ToBase64String(serverNonce),
+            ephemeral = Convert.ToBase64String(serverKey),
+        });
         await socket.SendAsync(challenge, WebSocketMessageType.Text, true, token);
 
         var hello = await ReceiveHello(socket, token);
@@ -37,29 +44,49 @@ internal static class SecureChannel
             return null;
         }
 
-        var session = hello == null ? null : Verify(hello, serverNonce, phones);
+        var session = hello == null ? null : Verify(hello, serverNonce, ephemeral, serverKey, phones);
         if (session == null)
             await socket.CloseOutputAsync(NotPaired, "not paired", token);
         return session;
     }
 
-    private static Session? Verify(Hello hello, byte[] serverNonce, IReadOnlyList<PairedPhone> phones)
+    private static Session? Verify(Hello hello, byte[] serverNonce, ECDiffieHellman ephemeral, byte[] serverKey, IReadOnlyList<PairedPhone> phones)
     {
         var phone = phones.FirstOrDefault(p => p.Id == hello.Id);
         if (phone == null || hello.Nonce.Length != NonceSize)
             return null;
 
         var secret = Base64Url.DecodeFromChars(phone.Secret);
-        byte[] salt = [.. serverNonce, .. hello.Nonce];
+        byte[] salt = [.. serverNonce, .. hello.Nonce, .. serverKey, .. hello.Ephemeral];
         byte[] message = [.. ProofLabel, .. salt];
         var expected = HMACSHA256.HashData(secret, message);
         if (!CryptographicOperations.FixedTimeEquals(expected, hello.Proof))
             return null;
 
+        var shared = Agree(ephemeral, hello.Ephemeral);
+        if (shared == null)
+            return null;
+
+        byte[] keyMaterial = [.. secret, .. shared];
         return new Session(
-            HKDF.DeriveKey(HashAlgorithmName.SHA256, secret, KeySize, salt, ToPhoneLabel),
-            HKDF.DeriveKey(HashAlgorithmName.SHA256, secret, KeySize, salt, ToPcLabel),
+            phone,
+            HKDF.DeriveKey(HashAlgorithmName.SHA256, keyMaterial, KeySize, salt, ToPhoneLabel),
+            HKDF.DeriveKey(HashAlgorithmName.SHA256, keyMaterial, KeySize, salt, ToPcLabel),
             hello.Icons);
+    }
+
+    private static byte[]? Agree(ECDiffieHellman ephemeral, byte[] phoneKey)
+    {
+        using var phone = ECDiffieHellman.Create();
+        try
+        {
+            phone.ImportSubjectPublicKeyInfo(phoneKey, out _);
+            return ephemeral.DeriveRawSecretAgreement(phone.PublicKey);
+        }
+        catch (Exception e) when (e is CryptographicException or ArgumentException)
+        {
+            return null;
+        }
     }
 
     private static async Task<Hello?> ReceiveHello(WebSocket socket, CancellationToken token)
@@ -77,6 +104,7 @@ internal static class SecureChannel
                 root.TryGetProperty("v", out var version) ? version.GetInt32() : 1,
                 root.GetProperty("id").GetString() ?? "",
                 Convert.FromBase64String(root.GetProperty("nonce").GetString() ?? ""),
+                root.TryGetProperty("ephemeral", out var ephemeral) ? Convert.FromBase64String(ephemeral.GetString() ?? "") : [],
                 Convert.FromBase64String(root.GetProperty("proof").GetString() ?? ""),
                 root.TryGetProperty("icons", out var icons) ? icons.GetString() ?? "" : "");
         }
@@ -86,5 +114,5 @@ internal static class SecureChannel
         }
     }
 
-    private sealed record Hello(int Version, string Id, byte[] Nonce, byte[] Proof, string Icons);
+    private sealed record Hello(int Version, string Id, byte[] Nonce, byte[] Ephemeral, byte[] Proof, string Icons);
 }
