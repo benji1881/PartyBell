@@ -172,7 +172,7 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
         }
 
         Text(
-            "PartyBell ${Updater.current(context)}",
+            "PartyBell ${Updater.current(context)} · by benji1881",
             color = AppColors.muted,
             fontSize = 12.sp,
             textAlign = TextAlign.Center,
