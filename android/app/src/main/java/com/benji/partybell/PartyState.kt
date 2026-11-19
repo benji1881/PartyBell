@@ -239,6 +239,7 @@ object PartyState {
         "not ready" -> "The game isn't ready"
         "invalid" -> "Not a valid name"
         "unsupported" -> "The game can't show some of these characters"
+        "not delivered" -> "The game couldn't deliver the tell"
         else -> "The game refused it"
     }
 

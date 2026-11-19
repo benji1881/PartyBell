@@ -38,6 +38,8 @@ internal sealed class ChatRelay : IDisposable
     {
         if (message.LogKind == XivChatType.TellIncoming)
             chat.Received(TellKey(Sender(message.Sender)));
+        else if (message.LogKind == XivChatType.TellOutgoing)
+            chat.Delivered(message.Message.TextValue);
         if (Channel(message.LogKind) is not { } channel || !Enabled(channel))
             return;
 

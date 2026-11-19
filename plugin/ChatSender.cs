@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text;
@@ -16,6 +17,8 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
     public const string Tell = "tell";
     private const int MaxBytes = 500;
     private const string ReplyPrefix = "/r ";
+    private static readonly TimeSpan DeliveryTimeout = TimeSpan.FromSeconds(8);
+    private readonly List<(string Text, TaskCompletionSource Done)> undelivered = [];
     private string replyTo = "";
 
     public void Received(string from) => replyTo = from;
@@ -43,7 +46,28 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
         if (Encoding.UTF8.GetByteCount(line) > MaxBytes)
             return "too long";
 
-        return await Services.Framework.RunOnFrameworkThread(() => Post(say.Channel, IsReply(say) ? ReplyPrefix + text : line));
+        if (say.Channel != Tell)
+            return await Services.Framework.RunOnFrameworkThread(() => Post(say.Channel, line));
+
+        var delivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var reason = await Services.Framework.RunOnFrameworkThread(() =>
+        {
+            undelivered.Add((text, delivery));
+            return Post(say.Channel, IsReply(say) ? ReplyPrefix + text : line);
+        });
+        if (reason == null && await Task.WhenAny(delivery.Task, Task.Delay(DeliveryTimeout)) == delivery.Task)
+            return null;
+        await Services.Framework.RunOnFrameworkThread(() => undelivered.RemoveAll(t => t.Done == delivery));
+        return reason ?? "not delivered";
+    }
+
+    public void Delivered(string text)
+    {
+        var index = undelivered.FindIndex(t => t.Text == text);
+        if (index < 0)
+            return;
+        undelivered[index].Done.TrySetResult();
+        undelivered.RemoveAt(index);
     }
 
     private unsafe string? Post(string channel, string line)

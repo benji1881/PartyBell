@@ -87,7 +87,7 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
                     return;
                 }
                 if (Say.Parse(plain) is { } say)
-                    Send(Messages.Said(say.Id, await chat.Send(say)));
+                    _ = Said(say);
                 else if (Answer.Parse(plain) is { } answer)
                     Send(Messages.Answered(answer.Ready, await readyCheck.Answer(answer.Ready)));
                 else if (Invite.Parse(plain) is { } invite)
@@ -106,6 +106,8 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
         {
         }
     }
+
+    private async Task Said(Say say) => Send(Messages.Said(say.Id, await chat.Send(say)));
 
     private static bool IsDisconnect(Exception e) => e is WebSocketException or IOException or OperationCanceledException;
 }
