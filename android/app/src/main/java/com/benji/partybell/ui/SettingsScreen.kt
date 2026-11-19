@@ -8,9 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -18,11 +16,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
@@ -39,7 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleResumeEffect
@@ -67,6 +62,12 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
     var batteryFree by remember { mutableStateOf(true) }
     val update by Updater.update.collectAsState()
     val status by PartyState.status.collectAsStateWithLifecycle()
+    var showLicences by remember { mutableStateOf(false) }
+
+    if (showLicences) {
+        LicencesScreen(onBack = { showLicences = false }, modifier = modifier)
+        return
+    }
 
     LifecycleResumeEffect(Unit) {
         batteryFree = ignoresBattery(context)
@@ -96,21 +97,7 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
             .padding(horizontal = 14.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(AppColors.card)
-                    .border(1.dp, AppColors.line, CircleShape)
-                    .clickable(onClick = onBack),
-            ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = AppColors.text, modifier = Modifier.size(22.dp))
-            }
-            Spacer(Modifier.width(14.dp))
-            Text("Settings", fontFamily = Fraunces, fontSize = 26.sp, color = AppColors.text)
-        }
+        ScreenHeader("Settings", onBack)
 
         if (!batteryFree) {
             BatteryWarning {
@@ -171,13 +158,17 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
             }
         }
 
-        Text(
-            "PartyBell ${Updater.current(context)} · by benji1881",
-            color = AppColors.muted,
-            fontSize = 12.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+            Text("PartyBell ${Updater.current(context)} · by benji1881", color = AppColors.muted, fontSize = 12.sp)
+            Text(
+                "Open source licences",
+                color = AppColors.accent,
+                fontSize = 12.sp,
+                modifier = Modifier
+                    .clickable { showLicences = true }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+            )
+        }
     }
 }
 
@@ -204,19 +195,6 @@ private fun BatteryWarning(onClick: () -> Unit) {
         }
         Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(20.dp))
     }
-}
-
-@Composable
-private fun Card(content: @Composable ColumnScope.() -> Unit) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(AppColors.card, RoundedCornerShape(18.dp))
-            .border(1.dp, AppColors.line, RoundedCornerShape(18.dp))
-            .padding(16.dp),
-        content = content,
-    )
 }
 
 @Composable
