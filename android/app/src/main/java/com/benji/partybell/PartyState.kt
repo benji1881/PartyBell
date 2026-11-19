@@ -262,6 +262,7 @@ object PartyState {
     }
 
     private fun joinReason(code: String) = when (code) {
+        "disabled" -> "Joining listings from phones is off in the plugin"
         "not ready" -> "The game isn't ready"
         "in duty" -> "You can't join a party in a duty"
         "busy" -> "Already joining a party"

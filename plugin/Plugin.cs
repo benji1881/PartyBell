@@ -39,7 +39,7 @@ public sealed class Plugin : IDalamudPlugin
 
         readyCheck = new ReadyCheck(feed, config, tracker);
         queue = new DutyQueue(feed);
-        finder = new PartyFinder(feed);
+        finder = new PartyFinder(feed, config);
         server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck, new Inviter(config, tracker), finder);
         chat = new ChatRelay(config, feed, tracker);
         window = new MainWindow(config, server, feed);

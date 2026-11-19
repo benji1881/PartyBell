@@ -121,6 +121,13 @@ internal sealed class MainWindow : Window
             config.Save();
         }
 
+        var allowPhoneJoin = config.AllowPhoneJoin;
+        if (ImGui.Checkbox("Allow joining listings from phones", ref allowPhoneJoin))
+        {
+            config.AllowPhoneJoin = allowPhoneJoin;
+            config.Save();
+        }
+
         ImGui.Separator();
         DrawPhones();
 

@@ -32,6 +32,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private static readonly TimeSpan NoReply = TimeSpan.FromSeconds(2);
 
     private readonly Feed feed;
+    private readonly Configuration config;
     private readonly object gate = new();
     private readonly Dictionary<string, Listing> listings = [];
     private readonly HashSet<ulong> blocked = [];
@@ -49,9 +50,10 @@ internal sealed unsafe class PartyFinder : IDisposable
     private bool joinPressed;
     private DateTime joinBy;
 
-    public PartyFinder(Feed feed)
+    public PartyFinder(Feed feed, Configuration config)
     {
         this.feed = feed;
+        this.config = config;
         Services.PartyFinderGui.ReceiveListing += OnListing;
         try
         {
@@ -74,7 +76,9 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     public Task<string?> Open(OpenListing open) => Services.Framework.RunOnFrameworkThread(() => Show(open.Id));
 
-    public Task<string?> Join(JoinListing join) => Services.Framework.RunOnFrameworkThread<Task<string?>>(() => StartJoin(join.Id)).Unwrap();
+    public Task<string?> Join(JoinListing join) => config.AllowPhoneJoin
+        ? Services.Framework.RunOnFrameworkThread<Task<string?>>(() => StartJoin(join.Id)).Unwrap()
+        : Task.FromResult<string?>("disabled");
 
     public void Update(DateTime now)
     {

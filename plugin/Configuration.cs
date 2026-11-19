@@ -15,6 +15,7 @@ public sealed class Configuration : IPluginConfiguration
     public bool SendFreeCompanyChat { get; set; } = true;
     public bool SendFriends { get; set; } = true;
     public bool AllowPhoneInvite { get; set; } = true;
+    public bool AllowPhoneJoin { get; set; } = true;
     public List<PairedPhone> Phones { get; set; } = [];
 
     public void AddPhone(PairedPhone phone)
