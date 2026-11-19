@@ -14,19 +14,30 @@ internal sealed class ChatRelay : IDisposable
     private readonly Configuration config;
     private readonly Feed feed;
     private readonly PartyTracker tracker;
+    private readonly ChatSender chat;
 
-    public ChatRelay(Configuration config, Feed feed, PartyTracker tracker)
+    public ChatRelay(Configuration config, Feed feed, PartyTracker tracker, ChatSender chat)
     {
         this.config = config;
         this.feed = feed;
         this.tracker = tracker;
+        this.chat = chat;
         Services.ChatGui.ChatMessage += OnChatMessage;
+        Services.ClientState.Logout += OnLogout;
     }
 
-    public void Dispose() => Services.ChatGui.ChatMessage -= OnChatMessage;
+    public void Dispose()
+    {
+        Services.ChatGui.ChatMessage -= OnChatMessage;
+        Services.ClientState.Logout -= OnLogout;
+    }
+
+    private void OnLogout(int type, int code) => chat.Received("");
 
     private void OnChatMessage(IHandleableChatMessage message)
     {
+        if (message.LogKind == XivChatType.TellIncoming)
+            chat.Received(TellKey(Sender(message.Sender)));
         if (Channel(message.LogKind) is not { } channel || !Enabled(channel))
             return;
 
@@ -35,11 +46,9 @@ internal sealed class ChatRelay : IDisposable
         if (channel == ChatSender.Tell)
         {
             var outgoing = message.LogKind == XivChatType.TellOutgoing;
-            var peer = tracker.Find(sender.Name);
-            var key = peer is { World.Length: > 0 } ? peer.Key : sender.Key;
             var name = outgoing ? Services.PlayerState.CharacterName : sender.Name;
-            var member = outgoing ? PartyReader.Self() : peer;
-            feed.Publish(Messages.Chat(name, member, text, channel, outgoing, key), true);
+            var member = outgoing ? PartyReader.Self() : tracker.Find(name);
+            feed.Publish(Messages.Chat(name, member, text, channel, outgoing, TellKey(sender)), true);
             return;
         }
 
@@ -47,6 +56,9 @@ internal sealed class ChatRelay : IDisposable
         var known = tracker.Find(sender.Name) ?? (self ? PartyReader.Self() : null);
         feed.Publish(Messages.Chat(sender.Name, known, text, channel, self, ""), channel == ChatSender.FreeCompany);
     }
+
+    private string TellKey((string Name, string Key) sender) =>
+        tracker.Find(sender.Name) is { World.Length: > 0 } peer ? peer.Key : sender.Key;
 
     private bool Enabled(string channel) => channel switch
     {

@@ -40,8 +40,9 @@ public sealed class Plugin : IDalamudPlugin
         readyCheck = new ReadyCheck(feed, config, tracker);
         queue = new DutyQueue(feed);
         finder = new PartyFinder(feed, config);
-        server = new PhoneServer(feed, config, new ChatSender(config, tracker), readyCheck, new Inviter(config, tracker), finder);
-        chat = new ChatRelay(config, feed, tracker);
+        var sender = new ChatSender(config, tracker);
+        server = new PhoneServer(feed, config, sender, readyCheck, new Inviter(config, tracker), finder);
+        chat = new ChatRelay(config, feed, tracker, sender);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
         if (config.Phones.Count > 0)

@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using System.Text;
@@ -14,6 +15,10 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
     public const string FreeCompany = "fc";
     public const string Tell = "tell";
     private const int MaxBytes = 500;
+    private const string ReplyPrefix = "/r ";
+    private string replyTo = "";
+
+    public void Received(string from) => replyTo = from;
 
     public async Task<string?> Send(Say say)
     {
@@ -38,7 +43,7 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
         if (Encoding.UTF8.GetByteCount(line) > MaxBytes)
             return "too long";
 
-        return await Services.Framework.RunOnFrameworkThread(() => Post(say.Channel, line));
+        return await Services.Framework.RunOnFrameworkThread(() => Post(say.Channel, IsReply(say) ? ReplyPrefix + text : line));
     }
 
     private unsafe string? Post(string channel, string line)
@@ -71,6 +76,8 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
             message->Dtor(true);
         }
     }
+
+    private bool IsReply(Say say) => say.Channel == Tell && say.To.Equals(replyTo, StringComparison.OrdinalIgnoreCase);
 
     [GeneratedRegex(@"^[A-Za-z][A-Za-z'\-]* [A-Za-z][A-Za-z'\-]*@[A-Za-z]+$")]
     private static partial Regex Recipient();
