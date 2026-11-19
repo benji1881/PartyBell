@@ -10,11 +10,13 @@ namespace PartyBell;
 
 internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder) : IDisposable
 {
+    private const int MaxHandshakes = 8;
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan KeepAlive = TimeSpan.FromSeconds(20);
     private static readonly TimeSpan GoodbyeTimeout = TimeSpan.FromSeconds(1);
     private static readonly string Version = typeof(PhoneServer).Assembly.GetName().Version?.ToString(3) ?? "";
 
+    private readonly SemaphoreSlim handshakes = new(MaxHandshakes);
     private TcpListener? listener;
     private CancellationTokenSource? cancel;
 
@@ -77,15 +79,24 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
         using var connection = tcp;
         try
         {
+            if (tcp.Client.RemoteEndPoint is not IPEndPoint { Address: var address } || !Network.IsLocal(address))
+                return;
             var stream = tcp.GetStream();
             using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true, KeepAliveInterval = KeepAlive });
+            if (!handshakes.Wait(0))
+                return;
             Session? session;
-            using (var timeout = CancellationTokenSource.CreateLinkedTokenSource(token))
+            try
             {
+                using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
                 timeout.CancelAfter(HandshakeTimeout);
-                if (!await WebSocketUpgrade.Accept(stream, timeout.Token))
-                    return;
-                session = await SecureChannel.Authenticate(socket, config.Phones, timeout.Token);
+                session = await WebSocketUpgrade.Accept(stream, timeout.Token)
+                    ? await SecureChannel.Authenticate(socket, config.Phones, timeout.Token)
+                    : null;
+            }
+            finally
+            {
+                handshakes.Release();
             }
             if (session == null)
                 return;

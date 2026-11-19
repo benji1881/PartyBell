@@ -28,6 +28,9 @@ internal static class Network
             .Where(a => a.Tailscale || gateway);
     }
 
+    public static bool IsLocal(IPAddress address) =>
+        IsTailscale(address) || address.GetAddressBytes() is [10, ..] or [127, ..] or [172, >= 16 and <= 31, ..] or [192, 168, ..] or [169, 254, ..];
+
     private static bool IsTailscale(IPAddress address) =>
         address.GetAddressBytes() is [100, var second, _, _] && second is >= 64 and <= 127;
 }
