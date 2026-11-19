@@ -1,6 +1,6 @@
 # PartyBell
 
-Your FFXIV party on your phone.
+Your party on your phone, for Final Fantasy XIV.
 
 A Dalamud plugin sends your party list, party changes and party chat to the PartyBell Android app. The app shows your party and a chat feed, and notifies you when the party is full.
 
@@ -25,5 +25,7 @@ Install [Tailscale](https://tailscale.com) on your PC and phone, sign in with th
 ## License
 
 Apache-2.0. The Plus Jakarta Sans and Fraunces fonts are OFL-1.1.
+
+PartyBell is not affiliated with or endorsed by Square Enix. Final Fantasy XIV is a trademark of Square Enix.
 
 AI-assisted.
