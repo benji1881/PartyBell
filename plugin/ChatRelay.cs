@@ -35,9 +35,11 @@ internal sealed class ChatRelay : IDisposable
         if (channel == ChatSender.Tell)
         {
             var outgoing = message.LogKind == XivChatType.TellOutgoing;
+            var peer = tracker.Find(sender.Name);
+            var key = peer is { World.Length: > 0 } ? peer.Key : sender.Key;
             var name = outgoing ? Services.PlayerState.CharacterName : sender.Name;
-            var member = outgoing ? PartyReader.Self() : tracker.Find(name);
-            feed.Publish(Messages.Chat(name, member, text, channel, outgoing, sender.Key), true);
+            var member = outgoing ? PartyReader.Self() : peer;
+            feed.Publish(Messages.Chat(name, member, text, channel, outgoing, key), true);
             return;
         }
 
