@@ -48,7 +48,7 @@ object PartyState {
 
     var sender: ((json: String) -> Boolean)? = null
 
-    fun clean(text: String): String = text.replace(whitespace, " ").trim()
+    fun clean(text: String): String = GameText.fromEmoji(text).replace(whitespace, " ").trim()
 
     fun problem(text: String, channel: String, to: String = ""): String? = when {
         text.startsWith("/") -> "Commands can't be sent from the phone"
