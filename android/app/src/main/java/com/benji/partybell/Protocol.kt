@@ -39,6 +39,8 @@ data class Refreshing(val ok: Boolean, val reason: String) : Incoming
 
 data class PluginVersion(val version: String) : Incoming
 
+data class QueueUpdate(val status: QueueStatus?) : Incoming
+
 data object Bye : Incoming
 
 data class SavedTells(val tells: List<ChatItem>, val viewed: Map<String, Long>)
@@ -66,6 +68,7 @@ object Protocol {
             "joining" -> Joining(json.optBoolean("ok"), json.optString("reason"))
             "refreshing" -> Refreshing(json.optBoolean("ok"), json.optString("reason"))
             "plugin" -> PluginVersion(json.optString("version"))
+            "queuestatus" -> QueueUpdate(json.optJSONObject("status")?.let(::queue))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
@@ -190,7 +193,7 @@ object Protocol {
                 seconds = it.optInt("seconds"),
                 ilvl = it.optInt("ilvl"),
                 slots = objects(it, "slots").map { slot -> Slot(slot.optString("job"), slot.optInt("role")) },
-                jobs = it.optJSONArray("jobs")?.let { jobs -> List(jobs.length()) { index -> jobs.optString(index) } }.orEmpty(),
+                jobs = strings(it, "jobs"),
                 fits = it.optBoolean("fits"),
                 own = it.optBoolean("own"),
                 locked = it.optBoolean("locked"),
@@ -202,6 +205,17 @@ object Protocol {
                 blocked = it.optBoolean("blocked"),
             )
         },
+    )
+
+    private fun queue(json: JSONObject) = QueueStatus(
+        state = QueueState.of(json.optString("state")),
+        job = json.optString("job"),
+        duties = strings(json, "duties"),
+        entered = json.optLong("entered"),
+        ready = json.optLong("ready"),
+        position = json.optInt("position", -1),
+        wait = json.optInt("wait"),
+        counts = objects(json, "counts").map { QueueCount(it.optString("role"), it.optInt("found"), it.optInt("needed")) },
     )
 
     private fun item(json: JSONObject): FeedItem? = when (json.optString("type")) {
@@ -240,6 +254,11 @@ object Protocol {
         .put("self", item.self)
         .put("time", item.time)
         .put("peer", item.peer)
+
+    private fun strings(json: JSONObject, key: String): List<String> {
+        val array = json.optJSONArray(key) ?: return emptyList()
+        return List(array.length()) { array.optString(it) }
+    }
 
     private fun objects(json: JSONObject, key: String): List<JSONObject> {
         val array = json.optJSONArray(key) ?: return emptyList()

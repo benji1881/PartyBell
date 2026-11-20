@@ -205,6 +205,34 @@ data class Listing(
     fun secondsLeft(time: Long, now: Long): Int = (seconds - ((now - time) / 1000).toInt()).coerceAtLeast(0)
 }
 
+enum class QueueState(val key: String, val label: String) {
+    Waiting("waiting", "Waiting"),
+    Forming("forming", "Forming party"),
+    Reserving("reserving", "Reserving server"),
+    Ready("ready", "Commence in the game"),
+    Accepted("accepted", "Waiting for others");
+
+    val popped: Boolean
+        get() = this == Ready || this == Accepted
+
+    companion object {
+        fun of(key: String) = entries.firstOrNull { it.key == key } ?: Waiting
+    }
+}
+
+data class QueueCount(val role: String, val found: Int, val needed: Int)
+
+data class QueueStatus(
+    val state: QueueState,
+    val job: String,
+    val duties: List<String>,
+    val entered: Long,
+    val ready: Long,
+    val position: Int,
+    val wait: Int,
+    val counts: List<QueueCount>,
+)
+
 data class Listings(val category: Int = 0, val time: Long = 0L, val list: List<Listing> = emptyList())
 
 object FinderCategory {

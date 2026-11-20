@@ -29,6 +29,9 @@ internal static class Messages
     public static string Queue(string duty) =>
         Json(new { type = "event", kind = "queue", name = "", job = "", role = 0, detail = duty, time = Now });
 
+    public static string QueueStatus(QueueStatus? status) =>
+        Json(new { type = "queuestatus", status });
+
     public static string Friends(IReadOnlyList<Friend>? friends) =>
         Json(new { type = "friends", loaded = friends != null, friends = friends ?? [] });
 

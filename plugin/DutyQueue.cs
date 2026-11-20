@@ -24,6 +24,7 @@ internal sealed unsafe class DutyQueue(Feed feed)
     {
         var finder = ContentsFinder.Instance();
         var ready = finder != null && finder->QueueInfo.QueueState == ContentsFinderQueueState.Ready;
+        feed.SetQueue(Messages.QueueStatus(QueueStatus.Read()));
         if (ready == popped)
             return;
         popped = ready;
@@ -35,13 +36,14 @@ internal sealed unsafe class DutyQueue(Feed feed)
 
     public void Reset()
     {
+        feed.SetQueue(Messages.QueueStatus(null));
         if (!popped)
             return;
         popped = false;
         feed.Broadcast(Messages.Dismiss("queue"));
     }
 
-    private static string Name(ContentsId duty)
+    public static string Name(ContentsId duty)
     {
         var name = duty.ContentType switch
         {

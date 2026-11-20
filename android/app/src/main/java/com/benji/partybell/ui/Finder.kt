@@ -538,13 +538,6 @@ internal fun Divider() {
     Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.line))
 }
 
-private fun roleTitle(role: String) = when (role) {
-    "tank" -> "Tanks"
-    "healer" -> "Healers"
-    "dps" -> "DPS"
-    else -> "Other"
-}
-
 private fun keepsJobs(listing: Listing, fits: Boolean, picks: Set<String>) =
     (!fits && picks.isEmpty()) || (fits && listing.fits) || listing.jobs.any { it in picks }
 

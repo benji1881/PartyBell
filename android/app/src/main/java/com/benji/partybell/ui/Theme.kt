@@ -89,6 +89,16 @@ private val RoleOrder = listOf(ROLE_TANK, ROLE_HEALER, ROLE_MELEE, ROLE_RANGED)
 
 fun roleRank(role: Int): Int = RoleOrder.indexOf(role).let { if (it < 0) RoleOrder.size else it }
 
+fun roleColor(name: String): Color? = RoleOrder.firstOrNull { roleName(it) == name }?.let(::roleColor)
+
+fun roleTitle(role: String) = when (role) {
+    "tank" -> "Tanks"
+    "healer" -> "Healers"
+    "dps" -> "DPS"
+    "players" -> "Players"
+    else -> "Other"
+}
+
 @OptIn(ExperimentalTextApi::class)
 private fun variable(resource: Int, weight: Int) =
     Font(resource, FontWeight(weight), variationSettings = FontVariation.Settings(FontVariation.weight(weight)))

@@ -26,6 +26,7 @@ object PartyState {
     private val findingFlow = MutableStateFlow(false)
     private val refreshingFriendsFlow = MutableStateFlow(false)
     private val linkFlow = MutableStateFlow(Link.Ok)
+    private val queueFlow = MutableStateFlow<QueueStatus?>(null)
     private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val invites = mutableMapOf<Long, Friend>()
     private var nextId = 1L
@@ -44,6 +45,7 @@ object PartyState {
     val finding: StateFlow<Boolean> = findingFlow.asStateFlow()
     val refreshingFriends: StateFlow<Boolean> = refreshingFriendsFlow.asStateFlow()
     val link: StateFlow<Link> = linkFlow.asStateFlow()
+    val queue: StateFlow<QueueStatus?> = queueFlow.asStateFlow()
     val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
 
     var sender: ((json: String) -> Boolean)? = null
@@ -109,7 +111,11 @@ object PartyState {
             }
             is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else openReason(incoming.reason))
             is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else joinReason(incoming.reason))
-            Bye -> listingsFlow.value = emptyMap()
+            is QueueUpdate -> queueFlow.value = incoming.status
+            Bye -> {
+                listingsFlow.value = emptyMap()
+                queueFlow.value = null
+            }
             is IconsUpdate, is Answered, is Dismiss, is PluginVersion -> Unit
         }
     }
@@ -195,6 +201,7 @@ object PartyState {
         invites.clear()
         findingFlow.value = false
         refreshingFriendsFlow.value = false
+        queueFlow.value = null
         friendsAskedAt = 0L
         friendsFlow.value = Friends()
         outboxFlow.value = outboxFlow.value.map {

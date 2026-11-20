@@ -103,6 +103,7 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
             else -> Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 val onSettings = { showSettings = true }
                 val current = open
+                QueueBar(Modifier.padding(horizontal = 14.dp))
                 LinkBanner(Modifier.padding(horizontal = 14.dp))
                 Box(Modifier.weight(1f).padding(horizontal = 14.dp)) {
                     when {
