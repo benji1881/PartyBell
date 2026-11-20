@@ -28,7 +28,7 @@ internal static class JobIcons
     private const int BoardColumns = 4;
     private const uint Aetheryte = 60453;
     private const string AetheryteKey = "aetheryte";
-    private const int CurrencySize = 40;
+    private const int CurrencySize = 72;
     private static readonly string[] BoardSlots = ["main", "head", "body", "hands", "", "legs", "feet", "off", "ears", "neck", "wrists", "ring"];
     private static readonly (string Role, uint Icon, uint Background)[] RoleIcons = [("tank", 62581, 62571), ("healer", 62582, 62572), ("dps", 62583, 62573)];
 
@@ -116,7 +116,7 @@ internal static class JobIcons
         var icons = new SortedDictionary<string, string>(StringComparer.Ordinal);
         foreach (var item in Currencies.All)
         {
-            if (Texture(item.Icon, false) is { Header.Width: CurrencySize, Header.Height: CurrencySize } texture)
+            if (Texture(item.Icon) is { Header.Width: CurrencySize, Header.Height: CurrencySize } texture)
                 Add(icons, hash, item.Id.ToString(CultureInfo.InvariantCulture), Rgba(texture.ImageData));
         }
         return new IconSet(CurrencySize, icons);
@@ -129,8 +129,8 @@ internal static class JobIcons
         set[key] = Convert.ToBase64String(data);
     }
 
-    private static TexFile? Texture(uint id, bool high = true) =>
-        Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}{(high ? "_hr1" : "")}.tex");
+    private static TexFile? Texture(uint id) =>
+        Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}_hr1.tex");
 
     private static byte[] Tile(TexFile texture, int left, int top)
     {
