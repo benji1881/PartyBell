@@ -10,7 +10,6 @@ using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Network;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
-using FFXIVClientStructs.FFXIV.Component.GUI;
 using Sheets = Lumina.Excel.Sheets;
 
 namespace PartyBell;
@@ -49,6 +48,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private TaskCompletionSource<string?>? joining;
     private bool joinPressed;
     private DateTime joinBy;
+    private DateTime? centreBy;
 
     public PartyFinder(Feed feed, Configuration config)
     {
@@ -115,6 +115,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     public void Reset()
     {
         FinishJoin("not ready");
+        centreBy = null;
         answered = false;
         Clear();
     }
@@ -170,7 +171,22 @@ internal sealed unsafe class PartyFinder : IDisposable
         if (Blocked() is { } reason)
             return reason;
         var agent = AgentLookingForGroup.Instance();
-        return agent != null && agent->OpenListing(id) ? null : "refused";
+        if (agent == null || !agent->OpenListing(id))
+            return "refused";
+        centreBy = DateTime.UtcNow + Timeout;
+        return null;
+    }
+
+    public void Centre(DateTime now)
+    {
+        if (centreBy is not { } by)
+            return;
+        var detail = Addons.Ready(Detail);
+        if (detail != null)
+            Addons.Centre(detail);
+        else if (now <= by)
+            return;
+        centreBy = null;
     }
 
     private Task<string?> StartJoin(ulong id)
@@ -196,7 +212,7 @@ internal sealed unsafe class PartyFinder : IDisposable
         }
         if (!joinPressed)
         {
-            var detail = Ready(Detail);
+            var detail = Addons.Ready(Detail);
             var button = detail == null ? null : detail->GetComponentButtonById(JoinButton);
             if (button == null || !button->IsEnabled)
                 return;
@@ -204,7 +220,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             joinPressed = true;
             return;
         }
-        var confirm = Ready(Confirm);
+        var confirm = Addons.Ready(Confirm);
         if (confirm != null)
         {
             confirm->FireCallbackInt(Yes);
@@ -217,12 +233,6 @@ internal sealed unsafe class PartyFinder : IDisposable
         var task = joining;
         joining = null;
         task?.TrySetResult(reason);
-    }
-
-    private static AtkUnitBase* Ready(string name)
-    {
-        var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName(name, 1).Address;
-        return addon != null && addon->IsReady && addon->IsVisible ? addon : null;
     }
 
     private static int ItemLevel()

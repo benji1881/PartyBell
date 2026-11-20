@@ -73,6 +73,7 @@ public sealed class Plugin : IDalamudPlugin
     {
         readyCheck.Update();
         var now = DateTime.UtcNow;
+        finder.Centre(now);
         if (now < nextRead)
             return;
         nextRead = now + ReadInterval;
