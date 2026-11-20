@@ -1,5 +1,6 @@
 package com.benji.partybell
 
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.util.Base64
@@ -40,6 +41,8 @@ data class PluginVersion(val version: String) : Incoming
 
 data object Bye : Incoming
 
+data class SavedTells(val tells: List<ChatItem>, val viewed: Map<String, Long>)
+
 data class Challenge(val version: Int, val nonce: ByteArray, val ephemeral: ByteArray)
 
 object Protocol {
@@ -77,6 +80,22 @@ object Protocol {
     } catch (_: JSONException) {
         null
     } catch (_: IllegalArgumentException) {
+        null
+    }
+
+    fun savedTells(saved: SavedTells): String = JSONObject()
+        .put("tells", JSONArray(saved.tells.map(::chat)))
+        .put("viewed", JSONObject(saved.viewed))
+        .toString()
+
+    fun savedTells(text: String): SavedTells? = try {
+        val json = JSONObject(text)
+        val viewed = json.optJSONObject("viewed") ?: JSONObject()
+        SavedTells(
+            objects(json, "tells").mapNotNull { item(it) as? ChatItem },
+            viewed.keys().asSequence().associateWith { viewed.optLong(it) },
+        )
+    } catch (_: JSONException) {
         null
     }
 
@@ -210,6 +229,17 @@ object Protocol {
         )
         else -> null
     }
+
+    private fun chat(item: ChatItem): JSONObject = JSONObject()
+        .put("type", "chat")
+        .put("name", item.name)
+        .put("job", item.job)
+        .put("role", item.role)
+        .put("text", item.text)
+        .put("channel", item.channel)
+        .put("self", item.self)
+        .put("time", item.time)
+        .put("peer", item.peer)
 
     private fun objects(json: JSONObject, key: String): List<JSONObject> {
         val array = json.optJSONArray(key) ?: return emptyList()

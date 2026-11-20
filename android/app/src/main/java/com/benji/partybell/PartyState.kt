@@ -9,7 +9,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 object PartyState {
     private const val FEED_SIZE = 200
-    private const val MESSAGES_SIZE = 500
+    private const val CONVERSATION_SIZE = 1000
     private const val MAX_BYTES = 500
     private const val FRIENDS_FRESH_MS = 60_000L
     private val whitespace = Regex("\\s+")
@@ -181,6 +181,12 @@ object PartyState {
 
     fun forget(conversation: String) {
         outboxFlow.value = outboxFlow.value.filter { it.conversation != conversation }
+        messagesFlow.value = messagesFlow.value.filter { it.conversation != conversation }
+    }
+
+    fun restore(saved: SavedTells) {
+        messagesFlow.value = merge(messagesFlow.value, saved.tells)
+        viewedFlow.value = saved.viewed + viewedFlow.value
     }
 
     fun disconnected() {
@@ -210,7 +216,7 @@ object PartyState {
     }
 
     private fun merge(current: List<ChatItem>, added: List<ChatItem>) =
-        (current + added).distinct().sortedBy { it.time }.takeLast(MESSAGES_SIZE)
+        (current + added).distinct().groupBy { it.conversation }.values.flatMap { chat -> chat.sortedBy { it.time }.takeLast(CONVERSATION_SIZE) }.sortedBy { it.time }
 
     private fun prefixBytes(channel: String, to: String) = when (channel) {
         ChatChannel.TELL -> "/tell  ".length + to.encodeToByteArray().size

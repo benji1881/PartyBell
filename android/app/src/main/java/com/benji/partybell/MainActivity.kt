@@ -25,6 +25,7 @@ class MainActivity : ComponentActivity() {
 
         JobIcons.load(this)
         ChatPrefs.load(this)
+        TellHistory.load(this)
         request.value = intent.getStringExtra(Notifier.EXTRA_OPEN)
         val settings = AppSettings(this)
         if (settings.enabled && settings.isPaired) PartyService.start(this)

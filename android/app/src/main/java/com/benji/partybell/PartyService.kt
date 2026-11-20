@@ -32,6 +32,7 @@ class PartyService : Service() {
         val type = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE else 0
         ServiceCompat.startForeground(this, Notifier.SERVICE_ID, notifier.serviceNotification(), type)
         JobIcons.load(this)
+        TellHistory.load(this)
         connection = Connection(this, settings, notifier)
     }
 
