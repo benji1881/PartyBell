@@ -109,7 +109,8 @@ object PartyState {
             }
             is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else openReason(incoming.reason))
             is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else joinReason(incoming.reason))
-            is IconsUpdate, is Answered, is Dismiss, is PluginVersion, Bye -> Unit
+            Bye -> listingsFlow.value = emptyMap()
+            is IconsUpdate, is Answered, is Dismiss, is PluginVersion -> Unit
         }
     }
 
