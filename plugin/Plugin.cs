@@ -38,10 +38,10 @@ public sealed class Plugin : IDalamudPlugin
         config.Save();
 
         readyCheck = new ReadyCheck(feed, config, tracker);
-        queue = new DutyQueue(feed);
+        queue = new DutyQueue(feed, config);
         finder = new PartyFinder(feed, config);
         var sender = new ChatSender(config, tracker);
-        server = new PhoneServer(feed, config, sender, readyCheck, new Inviter(config, tracker), finder);
+        server = new PhoneServer(feed, config, sender, readyCheck, new Inviter(config, tracker), finder, queue);
         chat = new ChatRelay(config, feed, tracker, sender);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
@@ -85,6 +85,7 @@ public sealed class Plugin : IDalamudPlugin
             if (tracker.Reset())
                 feed.SetParty(Messages.Party(PartySnapshot.Empty));
             feed.SetCompany(Messages.Company(false));
+            feed.SetCharacter(Messages.Character(null));
             readyCheck.Reset();
             queue.Reset();
             if (loggedIn)
@@ -108,6 +109,7 @@ public sealed class Plugin : IDalamudPlugin
             nextFriends = now + FriendInterval;
             feed.SetFriends(Messages.Friends(config.SendFriends && feed.Count > 0 ? FriendList.Read() : null));
             feed.SetCompany(Messages.Company(Company.IsMember));
+            feed.SetCharacter(Messages.Character(feed.Count > 0 ? Character.Read() : null));
         }
         if (Services.PlayerState.HomeWorld.ValueNullable is not { } home)
             return;

@@ -41,6 +41,10 @@ data class PluginVersion(val version: String) : Incoming
 
 data class QueueUpdate(val status: QueueStatus?) : Incoming
 
+data class CharacterUpdate(val profile: Profile?) : Incoming
+
+data class DutyReply(val action: String, val ok: Boolean, val reason: String) : Incoming
+
 data object Bye : Incoming
 
 data class SavedTells(val tells: List<ChatItem>, val viewed: Map<String, Long>)
@@ -69,6 +73,8 @@ object Protocol {
             "refreshing" -> Refreshing(json.optBoolean("ok"), json.optString("reason"))
             "plugin" -> PluginVersion(json.optString("version"))
             "queuestatus" -> QueueUpdate(json.optJSONObject("status")?.let(::queue))
+            "character" -> CharacterUpdate(json.optJSONObject("character")?.let(::profile))
+            "duty" -> DutyReply(json.optString("action"), json.optBoolean("ok"), json.optString("reason"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
@@ -150,6 +156,11 @@ object Protocol {
         .put("ready", ready)
         .toString()
 
+    fun duty(action: String): String = JSONObject()
+        .put("type", "duty")
+        .put("action", action)
+        .toString()
+
     private fun party(json: JSONObject) = Party(
         members = objects(json, "members").map {
             Member(
@@ -213,9 +224,32 @@ object Protocol {
         duties = strings(json, "duties"),
         entered = json.optLong("entered"),
         ready = json.optLong("ready"),
+        expires = json.optLong("expires"),
         position = json.optInt("position", -1),
         wait = json.optInt("wait", -1),
         counts = objects(json, "counts").map { QueueCount(it.optString("role"), it.optInt("found"), it.optInt("needed")) },
+        actions = json.optBoolean("actions"),
+    )
+
+    private fun profile(json: JSONObject) = Profile(
+        name = json.optString("name"),
+        world = json.optString("world"),
+        dataCenter = json.optString("dataCenter"),
+        job = json.optString("job"),
+        jobName = json.optString("jobName"),
+        role = json.optInt("role"),
+        level = json.optInt("level"),
+        max = json.optBoolean("max"),
+        exp = json.optLong("exp"),
+        expNeeded = json.optLong("expNeeded"),
+        itemLevel = json.optInt("itemLevel"),
+        zone = json.optString("zone"),
+        area = json.optString("area"),
+        instance = json.optInt("instance"),
+        gear = objects(json, "gear").map {
+            GearPiece(it.optInt("slot"), it.optString("name"), it.optInt("level"), it.optInt("condition"), it.optInt("spiritbond"))
+        },
+        currencies = objects(json, "currencies").map { Currency(it.optLong("id"), it.optString("name"), it.optLong("count")) },
     )
 
     private fun item(json: JSONObject): FeedItem? = when (json.optString("type")) {

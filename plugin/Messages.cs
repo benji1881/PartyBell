@@ -32,6 +32,9 @@ internal static class Messages
     public static string QueueStatus(QueueStatus? status) =>
         Json(new { type = "queuestatus", status });
 
+    public static string Character(Character? character) =>
+        Json(new { type = "character", character });
+
     public static string Friends(IReadOnlyList<Friend>? friends) =>
         Json(new { type = "friends", loaded = friends != null, friends = friends ?? [] });
 
@@ -66,11 +69,14 @@ internal static class Messages
     public static string Answered(bool ready, string? reason) =>
         Json(new { type = "answered", ready, ok = reason == null, reason = reason ?? "" });
 
+    public static string Duty(string action, string? reason) =>
+        Json(new { type = "duty", action, ok = reason == null, reason = reason ?? "" });
+
     public static string Dismiss(string kind) =>
         Json(new { type = "dismiss", kind });
 
-    public static string Icons(string version, int size, IReadOnlyDictionary<string, string> icons, int roleSize, IReadOnlyDictionary<string, string> roles, IReadOnlyList<Job> jobs, int sproutSize, string sprout) =>
-        Json(new { type = "icons", version, size, icons, roleSize, roles, jobs, sproutSize, sprout });
+    public static string Icons(string version, int size, IReadOnlyDictionary<string, string> icons, int roleSize, IReadOnlyDictionary<string, string> roles, IReadOnlyList<Job> jobs, int sproutSize, string sprout, IconSet symbols, IconSet currencies) =>
+        Json(new { type = "icons", version, size, icons, roleSize, roles, jobs, sproutSize, sprout, symbols, currencies });
 
     public static string History(IEnumerable<string> items, bool reset, bool all = false) =>
         $"{{\"type\":\"history\",\"reset\":{(reset ? "true" : "false")},\"all\":{(all ? "true" : "false")},\"items\":[{string.Join(',', items)}]}}";

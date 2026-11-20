@@ -10,14 +10,15 @@ namespace PartyBell;
 
 internal sealed record QueueCount(string Role, int Found, int Needed);
 
-internal sealed record QueueStatus(string State, string Job, IReadOnlyList<string> Duties, long Entered, long Ready, int Position, int Wait, IReadOnlyList<QueueCount> Counts)
+internal sealed record QueueStatus(string State, string Job, IReadOnlyList<string> Duties, long Entered, long Ready, long Expires, int Position, int Wait, IReadOnlyList<QueueCount> Counts, bool Actions)
 {
     private const long Second = 1000;
+    private const long AcceptWindow = 45 * Second;
     private const byte Unknown = 255;
     private const byte PastLast = 254;
     private const int LastPosition = 50;
 
-    public static unsafe QueueStatus? Read()
+    public static unsafe QueueStatus? Read(bool actions)
     {
         var finder = ContentsFinder.Instance();
         if (finder == null)
@@ -29,15 +30,18 @@ internal sealed record QueueStatus(string State, string Job, IReadOnlyList<strin
         var popped = state is ContentsFinderQueueState.Ready or ContentsFinderQueueState.Accepted;
         var known = state != ContentsFinderQueueState.Pending;
         var info = queue.InfoState;
+        var ready = popped ? queue.QueueReadyTimestamp * Second : 0;
         return new QueueStatus(
             StateOf(state, info),
             JobName(queue.QueuedClassJobId),
             popped ? [DutyQueue.Name(queue.PoppedQueueEntry)] : Queued(ref queue),
             queue.EnteredQueueTimestamp * Second,
-            popped ? queue.QueueReadyTimestamp * Second : 0,
+            ready,
+            popped ? ready + AcceptWindow : 0,
             PositionOf(known, popped, info),
             WaitOf(known, info),
-            known && !popped ? CountsOf(info) : []);
+            known && !popped ? CountsOf(info) : [],
+            actions);
     }
 
     private static int PositionOf(bool known, bool popped, QueueInfoState info) =>

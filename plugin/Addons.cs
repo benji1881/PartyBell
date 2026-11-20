@@ -19,4 +19,19 @@ internal static unsafe class Addons
         addon->GetSize(&width, &height, true);
         addon->SetPosition((short)((stage->ScreenSize.Width - width) / 2), (short)((stage->ScreenSize.Height - height) / 2));
     }
+
+    public static bool Click(AtkUnitBase* addon, AtkComponentButton* button)
+    {
+        if (button == null || button->AtkComponentBase.OwnerNode == null)
+            return false;
+        for (var evt = button->AtkComponentBase.OwnerNode->AtkResNode.AtkEventManager.Event; evt != null; evt = evt->NextEvent)
+        {
+            if (evt->State.EventType != AtkEventType.ButtonClick)
+                continue;
+            var data = new AtkEventData();
+            addon->ReceiveEvent(AtkEventType.ButtonClick, (int)evt->Param, evt, &data);
+            return true;
+        }
+        return false;
+    }
 }

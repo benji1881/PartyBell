@@ -28,7 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.JobIcons
 
-private const val CORNER_RATIO = 0.3f
+internal const val CORNER_RATIO = 0.3f
 private const val GLYPH_RATIO = 0.74f
 private const val ROUND_GLYPH_RATIO = 0.64f
 private const val TEXT_RATIO = 0.3f
@@ -91,7 +91,7 @@ fun RoleTile(role: Int, size: Dp, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun EmptyTile(size: Dp, modifier: Modifier = Modifier, color: Color = AppColors.muted.copy(alpha = 0.5f)) {
+fun EmptyTile(size: Dp, modifier: Modifier = Modifier, color: Color = AppColors.muted.copy(alpha = 0.5f), dashed: Boolean = true) {
     Canvas(modifier.size(size)) {
         val stroke = this.size.minDimension * 0.05f
         drawRoundRect(
@@ -99,7 +99,7 @@ fun EmptyTile(size: Dp, modifier: Modifier = Modifier, color: Color = AppColors.
             topLeft = Offset(stroke / 2, stroke / 2),
             size = this.size.copy(this.size.width - stroke, this.size.height - stroke),
             cornerRadius = CornerRadius(this.size.minDimension * CORNER_RATIO),
-            style = Stroke(stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(stroke * 2.4f, stroke * 2f))),
+            style = Stroke(stroke, pathEffect = if (dashed) PathEffect.dashPathEffect(floatArrayOf(stroke * 2.4f, stroke * 2f)) else null),
         )
     }
 }

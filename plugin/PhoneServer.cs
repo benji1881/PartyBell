@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder) : IDisposable
+internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder, DutyQueue queue) : IDisposable
 {
     private const int MaxHandshakes = 8;
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
@@ -118,7 +118,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
                 _ = Services.Framework.RunOnFrameworkThread(() => Paired(phone));
 
             using var sealer = new Sealer(session);
-            var client = new PhoneClient(socket, sealer, chat, readyCheck, inviter, finder);
+            var client = new PhoneClient(socket, sealer, chat, readyCheck, inviter, finder, queue);
             feed.Join(client, phone.PairedAt);
             client.Send(Messages.Plugin(Version));
             if (session.Icons != JobIcons.Version)

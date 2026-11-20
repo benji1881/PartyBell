@@ -18,6 +18,10 @@ enum class NotifyKind(val key: String, val label: String, val default: Boolean) 
 }
 
 class AppSettings(context: Context) {
+    private companion object {
+        const val GIL = "1"
+    }
+
     private val prefs = context.getSharedPreferences("partybell", Context.MODE_PRIVATE)
 
     val hosts: List<String>
@@ -72,6 +76,10 @@ class AppSettings(context: Context) {
     var finderWords: List<String>
         get() = prefs.getString("finder_words", "").orEmpty().split('\n').filter(String::isNotEmpty)
         set(value) = prefs.edit { putString("finder_words", value.joinToString("\n")) }
+
+    var characterCurrencies: List<Long>
+        get() = prefs.getString("character_currencies", GIL).orEmpty().split(',').mapNotNull(String::toLongOrNull)
+        set(value) = prefs.edit { putString("character_currencies", value.joinToString(",")) }
 
     val isPaired: Boolean
         get() = hosts.isNotEmpty() && phoneId.isNotEmpty() && key.isNotEmpty()

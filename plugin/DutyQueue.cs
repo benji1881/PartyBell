@@ -1,13 +1,16 @@
+using System.Threading.Tasks;
 using FFXIVClientStructs.FFXIV.Client.Enums;
 using FFXIVClientStructs.FFXIV.Client.Game.UI;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using Sheets = Lumina.Excel.Sheets;
 
 namespace PartyBell;
 
-internal sealed unsafe class DutyQueue(Feed feed)
+internal sealed unsafe class DutyQueue(Feed feed, Configuration config)
 {
     private const string Fallback = "Duty";
+    private const string Confirm = "ContentsFinderConfirm";
 
     private bool popped;
 
@@ -24,7 +27,7 @@ internal sealed unsafe class DutyQueue(Feed feed)
     {
         var finder = ContentsFinder.Instance();
         var ready = finder != null && finder->QueueInfo.QueueState == ContentsFinderQueueState.Ready;
-        feed.SetQueue(Messages.QueueStatus(QueueStatus.Read()));
+        feed.SetQueue(Messages.QueueStatus(QueueStatus.Read(config.AllowPhoneDuty)));
         if (ready == popped)
             return;
         popped = ready;
@@ -32,6 +35,37 @@ internal sealed unsafe class DutyQueue(Feed feed)
             feed.Publish(Messages.Queue(Name(finder->QueueInfo.PoppedQueueEntry)));
         else
             feed.Broadcast(Messages.Dismiss("queue"));
+    }
+
+    public Task<string?> Act(string action) => config.AllowPhoneDuty
+        ? Services.Framework.RunOnFrameworkThread(() => Run(action))
+        : Task.FromResult<string?>("disabled");
+
+    private static string? Run(string action)
+    {
+        var finder = ContentsFinder.Instance();
+        if (finder == null)
+            return "not queued";
+        var state = finder->QueueInfo.QueueState;
+        if (action == DutyAction.Leave)
+        {
+            if (state is not (ContentsFinderQueueState.Pending or ContentsFinderQueueState.Queued))
+                return "not queued";
+            finder->QueueInfo.CancelQueue();
+            return null;
+        }
+        if (state != ContentsFinderQueueState.Ready)
+            return "not ready";
+        var addon = (AddonContentsFinderConfirm*)Addons.Ready(Confirm);
+        if (addon == null)
+            return "no window";
+        var button = action switch
+        {
+            DutyAction.Commence => addon->CommenceButton,
+            DutyAction.Withdraw => addon->WithdrawButton,
+            _ => null,
+        };
+        return button != null && Addons.Click(&addon->AtkUnitBase, button) ? null : "failed";
     }
 
     public void Reset()

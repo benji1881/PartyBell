@@ -30,6 +30,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         const val EXTRA_CONVERSATION = "conversation"
         const val EXTRA_OPEN = "open"
         const val EXTRA_READY = "ready"
+        const val EXTRA_DUTY = "duty"
         const val OPEN_SETTINGS = "settings"
         private const val CHAT_ID = 2
         private const val READY_ID = 4
@@ -142,6 +143,12 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             }
         }
     )
+
+    fun dutying(action: String) = queueStatus(if (action == DutyAction.COMMENCE) "Commencing…" else "Withdrawing…")
+
+    fun dutied(reply: DutyReply) {
+        if (!reply.ok) queueStatus("Couldn't answer: " + PartyState.dutyReason(reply.reason).replaceFirstChar(Char::lowercase))
+    }
 
     fun dismiss(kind: String) = when (kind) {
         EventKind.Queue.key -> manager.cancel(QUEUE_ID)
@@ -300,13 +307,28 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
 
     @SuppressLint("MissingPermission")
     private fun queue(duty: String) {
-        val notification = alertBuilder("Duty ready", duty, QUEUE_TIMEOUT_MS)
-            .setWhen(System.currentTimeMillis() + QUEUE_TIMEOUT_MS)
+        val builder = queueBuilder(duty)
+        if (PartyState.queue.value?.actions == true) {
+            builder.addAction(dutyAction(DutyAction.COMMENCE, "Commence"))
+            builder.addAction(dutyAction(DutyAction.WITHDRAW, "Withdraw"))
+        }
+        manager.notify(QUEUE_ID, builder.build())
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun queueStatus(text: String) {
+        if (!settings.notifies(NotifyKind.Queue) || !canPost()) return
+        manager.notify(QUEUE_ID, queueBuilder(text).setOnlyAlertOnce(true).setSilent(true).build())
+    }
+
+    private fun queueBuilder(text: String): NotificationCompat.Builder {
+        val now = System.currentTimeMillis()
+        val expires = PartyState.queue.value?.expires?.takeIf { it > now } ?: (now + QUEUE_TIMEOUT_MS)
+        return alertBuilder("Duty ready", text, expires - now)
+            .setWhen(expires)
             .setShowWhen(true)
             .setUsesChronometer(true)
             .setChronometerCountDown(true)
-            .build()
-        manager.notify(QUEUE_ID, notification)
     }
 
     @SuppressLint("MissingPermission")
@@ -347,6 +369,14 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
+        return NotificationCompat.Action.Builder(R.drawable.ic_bell, label, pending)
+            .setAuthenticationRequired(true)
+            .build()
+    }
+
+    private fun dutyAction(action: String, label: String): NotificationCompat.Action {
+        val intent = Intent(context, DutyReceiver::class.java).putExtra(EXTRA_DUTY, action)
+        val pending = PendingIntent.getBroadcast(context, action.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         return NotificationCompat.Action.Builder(R.drawable.ic_bell, label, pending)
             .setAuthenticationRequired(true)
             .build()

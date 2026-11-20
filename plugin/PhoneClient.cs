@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder)
+internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder, DutyQueue queue)
 {
     private const int MaxMessageSize = 8192;
 
@@ -90,6 +90,8 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
                     _ = Said(say);
                 else if (Answer.Parse(plain) is { } answer)
                     Send(Messages.Answered(answer.Ready, await readyCheck.Answer(answer.Ready)));
+                else if (DutyAction.Parse(plain) is { } duty)
+                    Send(Messages.Duty(duty.Action, await queue.Act(duty.Action)));
                 else if (Invite.Parse(plain) is { } invite)
                     Send(Messages.Invited(invite.Id, await inviter.Send(invite)));
                 else if (Finder.Parse(plain) is { } request)

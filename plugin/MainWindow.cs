@@ -128,6 +128,13 @@ internal sealed class MainWindow : Window
             config.Save();
         }
 
+        var allowPhoneDuty = config.AllowPhoneDuty;
+        if (ImGui.Checkbox("Allow accepting duties from phones", ref allowPhoneDuty))
+        {
+            config.AllowPhoneDuty = allowPhoneDuty;
+            config.Save();
+        }
+
         ImGui.Separator();
         DrawPhones();
 

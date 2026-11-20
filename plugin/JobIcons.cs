@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
@@ -7,6 +8,8 @@ using Lumina.Data.Files;
 using Lumina.Excel.Sheets;
 
 namespace PartyBell;
+
+internal sealed record IconSet(int Size, IReadOnlyDictionary<string, string> Icons);
 
 internal static class JobIcons
 {
@@ -20,6 +23,13 @@ internal static class JobIcons
     private const int ShadeLowPercent = 10;
     private const int ShadeHighPercent = 90;
     private const float ShadeFloor = 0.35f;
+    private const string ArmouryBoard = "ui/uld/ArmouryBoard_hr1.tex";
+    private const int SymbolSize = 80;
+    private const int BoardColumns = 4;
+    private const uint Aetheryte = 60453;
+    private const string AetheryteKey = "aetheryte";
+    private const int CurrencySize = 40;
+    private static readonly string[] BoardSlots = ["main", "head", "body", "hands", "", "legs", "feet", "off", "ears", "neck", "wrists", "ring"];
     private static readonly (string Role, uint Icon, uint Background)[] RoleIcons = [("tank", 62581, 62571), ("healer", 62582, 62572), ("dps", 62583, 62573)];
 
     private static readonly Lazy<(string Version, string Message)> Data = new(Build);
@@ -44,10 +54,7 @@ internal static class JobIcons
                 continue;
 
             size = texture.Header.Width;
-            var mask = Mask(texture.ImageData);
-            hash.AppendData(Encoding.UTF8.GetBytes(abbreviation));
-            hash.AppendData(mask);
-            icons[abbreviation] = Convert.ToBase64String(mask);
+            Add(icons, hash, abbreviation, Mask(texture.ImageData));
         }
 
         var roles = new SortedDictionary<string, string>(StringComparer.Ordinal);
@@ -61,10 +68,7 @@ internal static class JobIcons
                 continue;
 
             roleSize = texture.Header.Width;
-            var mask = RoleMask(texture.ImageData, plain.ImageData, roleSize);
-            hash.AppendData(Encoding.UTF8.GetBytes(role));
-            hash.AppendData(mask);
-            roles[role] = Convert.ToBase64String(mask);
+            Add(roles, hash, role, RoleMask(texture.ImageData, plain.ImageData, roleSize));
         }
 
         var jobs = Services.DataManager.GetExcelSheet<ClassJob>()
@@ -87,11 +91,65 @@ internal static class JobIcons
             sprout = Convert.ToBase64String(rgba);
         }
 
+        var symbols = Symbols(hash);
+        var currencies = CurrencyIcons(hash);
         var version = Convert.ToHexStringLower(hash.GetHashAndReset(), 0, 8);
-        return (version, Messages.Icons(version, size, icons, roleSize, roles, jobs, sproutSize, sprout));
+        return (version, Messages.Icons(version, size, icons, roleSize, roles, jobs, sproutSize, sprout, symbols, currencies));
     }
 
-    private static TexFile? Texture(uint id) => Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}_hr1.tex");
+    private static IconSet Symbols(IncrementalHash hash)
+    {
+        var symbols = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        var board = Services.DataManager.GetFile<TexFile>(ArmouryBoard);
+        for (var i = 0; board != null && i < BoardSlots.Length; i++)
+        {
+            if (BoardSlots[i].Length > 0)
+                Add(symbols, hash, BoardSlots[i], Glyph(Tile(board, i % BoardColumns * SymbolSize, i / BoardColumns * SymbolSize)));
+        }
+        if (Texture(Aetheryte) is { } aetheryte)
+            Add(symbols, hash, AetheryteKey, Glyph(Tile(aetheryte, (aetheryte.Header.Width - SymbolSize) / 2, (aetheryte.Header.Height - SymbolSize) / 2)));
+        return new IconSet(SymbolSize, symbols);
+    }
+
+    private static IconSet CurrencyIcons(IncrementalHash hash)
+    {
+        var icons = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var item in Currencies.All)
+        {
+            if (Texture(item.Icon, false) is { Header.Width: CurrencySize, Header.Height: CurrencySize } texture)
+                Add(icons, hash, item.Id.ToString(CultureInfo.InvariantCulture), Rgba(texture.ImageData));
+        }
+        return new IconSet(CurrencySize, icons);
+    }
+
+    private static void Add(IDictionary<string, string> set, IncrementalHash hash, string key, byte[] data)
+    {
+        hash.AppendData(Encoding.UTF8.GetBytes(key));
+        hash.AppendData(data);
+        set[key] = Convert.ToBase64String(data);
+    }
+
+    private static TexFile? Texture(uint id, bool high = true) =>
+        Services.DataManager.GetFile<TexFile>($"ui/icon/{id / 1000 * 1000:D6}/{id:D6}{(high ? "_hr1" : "")}.tex");
+
+    private static byte[] Tile(TexFile texture, int left, int top)
+    {
+        var width = texture.Header.Width;
+        var height = texture.Header.Height;
+        var tile = new byte[SymbolSize * SymbolSize * 4];
+        for (var y = 0; y < SymbolSize; y++)
+        {
+            for (var x = 0; x < SymbolSize; x++)
+            {
+                var (sx, sy) = (left + x, top + y);
+                if (sx >= 0 && sy >= 0 && sx < width && sy < height)
+                    Array.Copy(texture.ImageData, (sy * width + sx) * 4, tile, (y * SymbolSize + x) * 4, 4);
+            }
+        }
+        return tile;
+    }
+
+    private static byte[] Glyph(byte[] bgra) => Shade(bgra, bgra.Where((_, i) => i % 4 == 3).ToArray());
 
     private static byte[] RoleMask(byte[] icon, byte[] background, int size)
     {

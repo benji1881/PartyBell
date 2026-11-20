@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -70,6 +71,7 @@ private enum class Tab(val label: String, val icon: ImageVector) {
     Finder("Finder", Icons.Filled.Search),
     Chats("Chats", Icons.Filled.Email),
     Friends("Friends", Icons.Filled.Person),
+    Character("Character", Icons.Filled.AccountCircle),
 }
 
 @Composable
@@ -117,7 +119,8 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
                         }
                         tab == Tab.Finder -> FinderScreen(settings, onSettings, onTell = { open = ChatChannel.tell(it) })
                         tab == Tab.Chats -> ChatsScreen(onSettings, onOpen = { open = it })
-                        else -> FriendsScreen(onSettings, onMessage = { open = ChatChannel.tell(it.key) })
+                        tab == Tab.Friends -> FriendsScreen(onSettings, onMessage = { open = ChatChannel.tell(it.key) })
+                        else -> CharacterScreen(settings, onSettings)
                     }
                 }
                 if (current == null) {

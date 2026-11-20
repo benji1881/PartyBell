@@ -228,10 +228,41 @@ data class QueueStatus(
     val duties: List<String>,
     val entered: Long,
     val ready: Long,
+    val expires: Long,
     val position: Int,
     val wait: Int,
     val counts: List<QueueCount>,
+    val actions: Boolean,
 )
+
+data class GearPiece(val slot: Int, val name: String, val level: Int, val condition: Int, val spiritbond: Int)
+
+data class Currency(val id: Long, val name: String, val count: Long)
+
+data class Profile(
+    val name: String,
+    val world: String,
+    val dataCenter: String,
+    val job: String,
+    val jobName: String,
+    val role: Int,
+    val level: Int,
+    val max: Boolean,
+    val exp: Long,
+    val expNeeded: Long,
+    val itemLevel: Int,
+    val zone: String,
+    val area: String,
+    val instance: Int,
+    val gear: List<GearPiece>,
+    val currencies: List<Currency>,
+)
+
+object DutyAction {
+    const val COMMENCE = "commence"
+    const val WITHDRAW = "withdraw"
+    const val LEAVE = "leave"
+}
 
 data class Listings(val category: Int = 0, val time: Long = 0L, val list: List<Listing> = emptyList())
 

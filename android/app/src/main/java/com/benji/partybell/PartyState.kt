@@ -27,6 +27,7 @@ object PartyState {
     private val refreshingFriendsFlow = MutableStateFlow(false)
     private val linkFlow = MutableStateFlow(Link.Ok)
     private val queueFlow = MutableStateFlow<QueueStatus?>(null)
+    private val characterFlow = MutableStateFlow<Profile?>(null)
     private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val invites = mutableMapOf<Long, Friend>()
     private var nextId = 1L
@@ -46,6 +47,7 @@ object PartyState {
     val refreshingFriends: StateFlow<Boolean> = refreshingFriendsFlow.asStateFlow()
     val link: StateFlow<Link> = linkFlow.asStateFlow()
     val queue: StateFlow<QueueStatus?> = queueFlow.asStateFlow()
+    val character: StateFlow<Profile?> = characterFlow.asStateFlow()
     val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
 
     var sender: ((json: String) -> Boolean)? = null
@@ -112,9 +114,15 @@ object PartyState {
             is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else openReason(incoming.reason))
             is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else joinReason(incoming.reason))
             is QueueUpdate -> queueFlow.value = incoming.status
+            is CharacterUpdate -> characterFlow.value = incoming.profile
+            is DutyReply -> when {
+                !incoming.ok -> noticesFlow.tryEmit(dutyReason(incoming.reason))
+                incoming.action == DutyAction.LEAVE -> noticesFlow.tryEmit("Left the queue")
+            }
             Bye -> {
                 listingsFlow.value = emptyMap()
                 queueFlow.value = null
+                characterFlow.value = null
             }
             is IconsUpdate, is Answered, is Dismiss, is PluginVersion -> Unit
         }
@@ -181,6 +189,21 @@ object PartyState {
 
     fun answer(ready: Boolean): Boolean = sender?.invoke(Protocol.answer(ready)) == true
 
+    fun duty(action: String): Boolean {
+        val sent = sender?.invoke(Protocol.duty(action)) == true
+        if (!sent) noticesFlow.tryEmit("Not connected")
+        return sent
+    }
+
+    fun dutyReason(code: String) = when (code) {
+        "disabled" -> "Accepting duties from phones is off in the plugin"
+        "not queued" -> "You're not in the queue"
+        "not ready" -> "The duty isn't waiting for you"
+        "no window" -> "The duty window isn't open in the game"
+        "offline" -> "Not connected"
+        else -> "The game refused it"
+    }
+
     fun retry(item: OutgoingItem) {
         outboxFlow.value = outboxFlow.value.filter { it.id != item.id }
         send(item.channel, item.text, item.to)
@@ -202,6 +225,7 @@ object PartyState {
         findingFlow.value = false
         refreshingFriendsFlow.value = false
         queueFlow.value = null
+        characterFlow.value = null
         friendsAskedAt = 0L
         friendsFlow.value = Friends()
         outboxFlow.value = outboxFlow.value.map {

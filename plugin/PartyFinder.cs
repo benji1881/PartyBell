@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Gui.PartyFinder.Types;
 using Dalamud.Hooking;
-using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Network;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
@@ -23,9 +22,6 @@ internal sealed unsafe class PartyFinder : IDisposable
     private const string Confirm = "SelectYesno";
     private const uint JoinButton = 109;
     private const int Yes = 0;
-    private const int EquipSlots = 13;
-    private const int WaistSlot = 5;
-    private const int CountedSlots = 12;
     private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan NoReply = TimeSpan.FromSeconds(2);
@@ -235,23 +231,6 @@ internal sealed unsafe class PartyFinder : IDisposable
         task?.TrySetResult(reason);
     }
 
-    private static int ItemLevel()
-    {
-        var container = InventoryManager.Instance()->GetInventoryContainer(InventoryType.EquippedItems);
-        if (container == null)
-            return 0;
-        var items = Services.DataManager.GetExcelSheet<Sheets.Item>();
-        var total = 0;
-        for (var i = 0; i < EquipSlots; i++)
-        {
-            if (i == WaistSlot || items.GetRowOrDefault(container->GetInventorySlot(i)->GetBaseItemId()) is not { } item)
-                continue;
-            var level = (int)item.LevelItem.RowId;
-            total += i == 0 && item.EquipSlotCategory.ValueNullable?.OffHand == -1 ? level * 2 : level;
-        }
-        return total / CountedSlots;
-    }
-
     private static string? Blocked()
     {
         if (GameState.NotReady())
@@ -263,7 +242,7 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     private void OnListing(IPartyFinderListing listing, IPartyFinderListingEventArgs args)
     {
-        var item = Map(listing, ItemLevel());
+        var item = Map(listing, Gear.ItemLevel());
         var hidden = !item.Own && DutyLocked(listing);
         if (!item.Own && IsBlocked(listing.Id))
             item = item with { Blocked = true };

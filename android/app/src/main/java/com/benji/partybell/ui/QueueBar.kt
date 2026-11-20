@@ -26,10 +26,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,12 +50,15 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.benji.partybell.DutyAction
 import com.benji.partybell.PartyState
+import com.benji.partybell.QueueState
 import com.benji.partybell.QueueStatus
 import kotlinx.coroutines.delay
 
@@ -87,6 +92,7 @@ fun QueueBar(modifier: Modifier = Modifier) {
 @Composable
 private fun QueueCard(status: QueueStatus, modifier: Modifier) {
     var open by rememberSaveable { mutableStateOf(false) }
+    var leaving by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
         while (true) {
@@ -98,6 +104,7 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
     val tone = if (ready) AppColors.yellow else AppColors.accent
     val elapsed = (if (ready) status.ready else now) - status.entered
     val more = status.duties.size > 1
+    val countdown = ready && status.expires > 0
 
     Column(
         modifier = modifier
@@ -134,11 +141,15 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
             }
             Spacer(Modifier.width(10.dp))
             Text(
-                if (ready) "READY" else clock(elapsed),
+                when {
+                    countdown -> clock(status.expires - now)
+                    ready -> "READY"
+                    else -> clock(elapsed)
+                },
                 color = tone,
                 fontWeight = FontWeight.Bold,
-                fontSize = if (ready) 15.sp else 22.sp,
-                letterSpacing = if (ready) 1.sp else 0.sp,
+                fontSize = if (ready && !countdown) 15.sp else 22.sp,
+                letterSpacing = if (ready && !countdown) 1.sp else 0.sp,
                 style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
             )
         }
@@ -188,6 +199,50 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
                 )
             }
         }
+        if (status.actions) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
+                when (status.state) {
+                    QueueState.Ready -> {
+                        ActionButton("Withdraw", AppColors.background, AppColors.text, Modifier.weight(1f)) { PartyState.duty(DutyAction.WITHDRAW) }
+                        ActionButton("Commence", AppColors.accent, AppColors.onAccent, Modifier.weight(1f)) { PartyState.duty(DutyAction.COMMENCE) }
+                    }
+                    QueueState.Accepted -> Unit
+                    else -> ActionButton("Leave queue", AppColors.background, AppColors.red, Modifier.weight(1f)) { leaving = true }
+                }
+            }
+        }
+    }
+
+    if (leaving) {
+        AlertDialog(
+            onDismissRequest = { leaving = false },
+            title = { Text("Leave the queue?") },
+            text = { Text(status.duties.joinToString(", ")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    leaving = false
+                    PartyState.duty(DutyAction.LEAVE)
+                }) { Text("Leave", color = AppColors.red) }
+            },
+            dismissButton = { TextButton(onClick = { leaving = false }) { Text("Cancel") } },
+            containerColor = AppColors.card,
+            titleContentColor = AppColors.text,
+            textContentColor = AppColors.muted,
+        )
+    }
+}
+
+@Composable
+private fun ActionButton(label: String, background: Color, color: Color, modifier: Modifier, onClick: () -> Unit) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = modifier
+            .clip(CircleShape)
+            .background(background)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(vertical = 9.dp),
+    ) {
+        Text(label, color = color, fontWeight = FontWeight.Bold, fontSize = 13.5.sp)
     }
 }
 

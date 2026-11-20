@@ -21,6 +21,8 @@ object JobIcons {
     private val rolesFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     private val jobsFlow = MutableStateFlow<List<Job>>(emptyList())
     private val sproutFlow = MutableStateFlow<ImageBitmap?>(null)
+    private val symbolsFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    private val currenciesFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     private var loading = false
 
     val icons: StateFlow<Map<String, ImageBitmap>> = iconsFlow.asStateFlow()
@@ -30,6 +32,10 @@ object JobIcons {
     val jobs: StateFlow<List<Job>> = jobsFlow.asStateFlow()
 
     val sprout: StateFlow<ImageBitmap?> = sproutFlow.asStateFlow()
+
+    val symbols: StateFlow<Map<String, ImageBitmap>> = symbolsFlow.asStateFlow()
+
+    val currencies: StateFlow<Map<String, ImageBitmap>> = currenciesFlow.asStateFlow()
 
     @Volatile
     var version = ""
@@ -66,6 +72,11 @@ object JobIcons {
             List(jobs.length()) { jobs.getJSONObject(it) }.map { Job(it.getString("name"), it.getInt("role")) }
         }.orEmpty()
         sproutFlow.value = picture(json.optString("sprout"), json.optInt("sproutSize"))
+        symbolsFlow.value = json.optJSONObject("symbols")?.let { masks(it.getJSONObject("icons"), it.getInt("size")) }.orEmpty()
+        currenciesFlow.value = json.optJSONObject("currencies")?.let { set ->
+            val icons = set.getJSONObject("icons")
+            icons.keys().asSequence().mapNotNull { key -> picture(icons.getString(key), set.getInt("size"))?.let { key to it } }.toMap()
+        }.orEmpty()
         version = json.getString("version")
         true
     } catch (_: JSONException) {
