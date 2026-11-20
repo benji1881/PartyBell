@@ -22,6 +22,10 @@ The plugin updates through Dalamud. The app checks GitHub for a new release and 
 
 Install [Tailscale](https://tailscale.com) on your PC and phone, sign in with the same account on both, then pair again.
 
+## Privacy
+
+Your party, chat, friend list and Party Finder listings go only from the plugin to your paired phone, encrypted. There is no PartyBell server and no analytics. The app contacts GitHub to check for updates, and the QR scanner comes from Google Play services.
+
 ## License
 
 Apache-2.0. The Plus Jakarta Sans and Fraunces fonts are OFL-1.1.
