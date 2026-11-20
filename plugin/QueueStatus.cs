@@ -13,6 +13,9 @@ internal sealed record QueueCount(string Role, int Found, int Needed);
 internal sealed record QueueStatus(string State, string Job, IReadOnlyList<string> Duties, long Entered, long Ready, int Position, int Wait, IReadOnlyList<QueueCount> Counts)
 {
     private const long Second = 1000;
+    private const byte Unknown = 255;
+    private const byte PastLast = 254;
+    private const int LastPosition = 50;
 
     public static unsafe QueueStatus? Read()
     {
@@ -33,19 +36,26 @@ internal sealed record QueueStatus(string State, string Job, IReadOnlyList<strin
             queue.EnteredQueueTimestamp * Second,
             popped ? queue.QueueReadyTimestamp * Second : 0,
             PositionOf(known, popped, info),
-            known ? info.AverageWaitTime : 0,
+            WaitOf(known, info),
             known && !popped ? CountsOf(info) : []);
     }
 
     private static int PositionOf(bool known, bool popped, QueueInfoState info) =>
-        !known ? 0 : !popped && info.ContentType == InfoType.PositionAndWaitTime ? info.PositionInQueue : -1;
+        !known ? 0 : popped || info.ContentType != InfoType.PositionAndWaitTime ? -1 : info.PositionInQueue switch
+        {
+            Unknown => 0,
+            PastLast => LastPosition + 1,
+            var position => position,
+        };
+
+    private static int WaitOf(bool known, QueueInfoState info) =>
+        known && info.ContentType <= InfoType.WaitTime && info.AverageWaitTime != Unknown ? info.AverageWaitTime : -1;
 
     private static string StateOf(ContentsFinderQueueState state, QueueInfoState info) => state switch
     {
         ContentsFinderQueueState.Ready => "ready",
         ContentsFinderQueueState.Accepted => "accepted",
-        ContentsFinderQueueState.Queued when info.IsReservingServer => "reserving",
-        ContentsFinderQueueState.Queued when info.ContentType is InfoType.THDAndWaitTime or InfoType.PlayersAndWaitTime => "forming",
+        ContentsFinderQueueState.Queued when info.ContentType != InfoType.PositionAndWaitTime => info.IsReservingServer ? "reserving" : "forming",
         _ => "waiting",
     };
 

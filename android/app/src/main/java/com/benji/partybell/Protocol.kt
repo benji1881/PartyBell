@@ -214,7 +214,7 @@ object Protocol {
         entered = json.optLong("entered"),
         ready = json.optLong("ready"),
         position = json.optInt("position", -1),
-        wait = json.optInt("wait"),
+        wait = json.optInt("wait", -1),
         counts = objects(json, "counts").map { QueueCount(it.optString("role"), it.optInt("found"), it.optInt("needed")) },
     )
 

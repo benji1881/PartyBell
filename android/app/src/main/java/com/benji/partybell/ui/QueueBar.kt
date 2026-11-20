@@ -63,6 +63,7 @@ private const val PULSE_MS = 900
 private const val MAX_PILLS = 3
 private const val SHORT_WAIT = 5
 private const val LONG_WAIT = 30
+private const val LAST_POSITION = 50
 private const val TINT_ALPHA = 0.16f
 private const val TABULAR = "tnum"
 private val CardShape = RoundedCornerShape(20.dp)
@@ -170,7 +171,7 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
             pills(status, elapsed).forEach { PillChip(it, Modifier.weight(1f)) }
         }
-        if (!ready && status.wait > 0) {
+        if (!ready && status.wait in 1..LONG_WAIT) {
             Box(
                 Modifier
                     .padding(top = 10.dp)
@@ -181,7 +182,7 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
             ) {
                 Box(
                     Modifier
-                        .fillMaxWidth((elapsed.toFloat() / (status.wait * MINUTE_MS)).coerceIn(0f, 1f))
+                        .fillMaxWidth((elapsed.toFloat() / (status.wait.coerceAtLeast(SHORT_WAIT) * MINUTE_MS)).coerceIn(0f, 1f))
                         .height(3.dp)
                         .background(tone),
                 )
@@ -222,27 +223,25 @@ private fun PulseDot(color: Color) {
 }
 
 private fun pills(status: QueueStatus, elapsed: Long): List<Pill> {
-    val average = Pill("Avg", waitText(status.wait))
-    if (status.state.popped) return listOf(Pill("Waited", clock(elapsed)), average)
+    val average = Pill("Avg", waitText(status.wait)).takeIf { status.wait >= 0 }
+    if (status.state.popped) return listOfNotNull(Pill("Waited", clock(elapsed)), average)
     val position = when {
+        status.position > LAST_POSITION -> Pill("In line", "#$LAST_POSITION+")
         status.position > 0 -> Pill("In line", "#${status.position}")
         status.position == 0 -> Pill("In line", "…")
         else -> null
     }
     val counts = status.counts.map { Pill(roleTitle(it.role), "${it.found}/${it.needed}", roleColor(it.role)) }
-    return (listOfNotNull(position) + counts + average + Pill("Elapsed", clock(elapsed))).take(MAX_PILLS)
+    return (listOfNotNull(position) + counts + listOfNotNull(average) + Pill("Elapsed", clock(elapsed))).take(MAX_PILLS)
 }
 
-private fun waitText(minutes: Int) = when {
-    minutes <= 0 -> "…"
-    minutes < SHORT_WAIT -> "<${SHORT_WAIT}m"
-    minutes > LONG_WAIT -> ">${LONG_WAIT}m"
-    else -> "${minutes}m"
+private fun waitText(minutes: Int) = when (minutes) {
+    in 1 until SHORT_WAIT -> "<${SHORT_WAIT}m"
+    in SHORT_WAIT..LONG_WAIT -> "${minutes}m"
+    else -> ">${LONG_WAIT}m"
 }
 
 private fun clock(ms: Long): String {
     val seconds = (ms / 1000).coerceAtLeast(0)
-    val hours = seconds / 3600
-    val minutes = seconds % 3600 / 60
-    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds % 60) else "%d:%02d".format(minutes, seconds % 60)
+    return "%d:%02d".format(seconds / 60, seconds % 60)
 }
