@@ -73,6 +73,9 @@ import com.benji.partybell.PartyState
 import com.benji.partybell.Profile
 import com.benji.partybell.Status
 import kotlinx.coroutines.delay
+import java.math.BigDecimal
+import java.math.MathContext
+import java.math.RoundingMode
 import java.text.NumberFormat
 
 private const val MAX_CURRENCIES = 3
@@ -84,6 +87,8 @@ private const val LOAD_MS = 5_000L
 private const val TRACK_ALPHA = 0.35f
 private const val EMPTY_ALPHA = 0.35f
 private const val TABULAR = "tnum"
+private const val MILLION = 1_000_000L
+private const val SHORT_DIGITS = 3
 private val HeroTile = 64.dp
 private val HeroGap = 5.dp
 private val SlotSize = 44.dp
@@ -247,7 +252,7 @@ private fun CurrencyColumn(currency: Currency, modifier: Modifier) {
             Spacer(Modifier.width(4.dp))
         }
         Text(
-            NumberFormat.getIntegerInstance().format(currency.count),
+            short(currency.count),
             color = AppColors.text,
             fontWeight = FontWeight.Bold,
             fontSize = 14.sp,
@@ -255,6 +260,12 @@ private fun CurrencyColumn(currency: Currency, modifier: Modifier) {
             style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
         )
     }
+}
+
+private fun short(count: Long): String = if (count < MILLION) {
+    NumberFormat.getIntegerInstance().format(count)
+} else {
+    BigDecimal(count).divide(BigDecimal(MILLION)).round(MathContext(SHORT_DIGITS, RoundingMode.DOWN)).stripTrailingZeros().toPlainString() + "M"
 }
 
 @Composable
