@@ -63,10 +63,10 @@ object PartyState {
             is History -> {
                 val (kept, party) = incoming.items.partition { it is ChatItem && it.kept }
                 feedFlow.value = party.takeLast(FEED_SIZE)
-                messagesFlow.value = merge(if (incoming.all) emptyList() else messagesFlow.value, kept.filterIsInstance<ChatItem>())
+                messagesFlow.value = merge(if (incoming.all) messagesFlow.value.filter { ChatChannel.isTell(it.conversation) } else messagesFlow.value, kept.filterIsInstance<ChatItem>())
                 if (incoming.all) {
                     outboxFlow.value = emptyList()
-                    viewedFlow.value = emptyMap()
+                    viewedFlow.value = viewedFlow.value.filterKeys(ChatChannel::isTell)
                 } else if (incoming.reset) {
                     outboxFlow.value = outboxFlow.value.filter { !ChatChannel.isParty(it.channel) }
                     viewedFlow.value = viewedFlow.value.filterKeys { !ChatChannel.isParty(it) }

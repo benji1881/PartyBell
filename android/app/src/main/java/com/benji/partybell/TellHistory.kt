@@ -27,8 +27,8 @@ object TellHistory {
         scope.launch {
             combine(PartyState.messages, PartyState.viewed) { messages, viewed ->
                 SavedTells(
-                    messages.filter { it.channel == ChatChannel.TELL },
-                    viewed.filterKeys { ChatChannel.channelOf(it) == ChatChannel.TELL },
+                    messages.filter { ChatChannel.isTell(it.conversation) },
+                    viewed.filterKeys(ChatChannel::isTell),
                 )
             }.distinctUntilChanged().drop(1).collectLatest { saved ->
                 delay(SAVE_DELAY_MS)

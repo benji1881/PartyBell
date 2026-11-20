@@ -32,9 +32,11 @@ object ChatChannel {
 
     fun tell(peer: String) = TELL_PREFIX + peer
 
-    fun channelOf(conversation: String) = if (conversation.startsWith(TELL_PREFIX)) TELL else conversation
+    fun channelOf(conversation: String) = if (isTell(conversation)) TELL else conversation
 
-    fun peerOf(conversation: String) = if (conversation.startsWith(TELL_PREFIX)) conversation.removePrefix(TELL_PREFIX) else ""
+    fun peerOf(conversation: String) = if (isTell(conversation)) conversation.removePrefix(TELL_PREFIX) else ""
+
+    fun isTell(conversation: String) = conversation.startsWith(TELL_PREFIX)
 
     fun isParty(conversation: String) = conversation == PARTY || conversation == ALLIANCE
 
