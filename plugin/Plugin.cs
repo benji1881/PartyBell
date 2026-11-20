@@ -26,6 +26,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PartyFinder finder;
     private readonly MainWindow window;
     private readonly Configuration config;
+    private readonly ItemIcons itemIcons = new();
     private DateTime nextRead;
     private DateTime zonedAt;
     private DateTime nextFriends;
@@ -85,7 +86,7 @@ public sealed class Plugin : IDalamudPlugin
             if (tracker.Reset())
                 feed.SetParty(Messages.Party(PartySnapshot.Empty));
             feed.SetCompany(Messages.Company(false));
-            feed.SetCharacter(Messages.Character(null));
+            SetCharacter(null);
             readyCheck.Reset();
             queue.Reset();
             if (loggedIn)
@@ -109,7 +110,7 @@ public sealed class Plugin : IDalamudPlugin
             nextFriends = now + FriendInterval;
             feed.SetFriends(Messages.Friends(config.SendFriends && feed.Count > 0 ? FriendList.Read() : null));
             feed.SetCompany(Messages.Company(Company.IsMember));
-            feed.SetCharacter(Messages.Character(feed.Count > 0 ? Character.Read() : null));
+            SetCharacter(feed.Count > 0 ? Character.Read() : null);
         }
         if (Services.PlayerState.HomeWorld.ValueNullable is not { } home)
             return;
@@ -125,5 +126,11 @@ public sealed class Plugin : IDalamudPlugin
         feed.SetParty(Messages.Party(tracker.Current!));
         foreach (var e in events)
             feed.Publish(Messages.Event(e));
+    }
+
+    private void SetCharacter(Character? character)
+    {
+        feed.SetItemIcons(itemIcons.Message(character?.Gear));
+        feed.SetCharacter(Messages.Character(character));
     }
 }

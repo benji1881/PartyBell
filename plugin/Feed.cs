@@ -19,6 +19,7 @@ internal sealed class Feed
     private string company = Messages.Company(false);
     private string queue = Messages.QueueStatus(null);
     private string character = Messages.Character(null);
+    private string itemIcons = Messages.ItemIcons(IconSet.None);
     private readonly Dictionary<int, string> listings = [];
 
     public int Count
@@ -46,6 +47,8 @@ internal sealed class Feed
     public void SetQueue(string json) => Replace(ref queue, json);
 
     public void SetCharacter(string json) => Replace(ref character, json);
+
+    public void SetItemIcons(string json) => Replace(ref itemIcons, json);
 
     public void SetListings(int category, string json)
     {
@@ -107,6 +110,7 @@ internal sealed class Feed
             client.Send(friends);
             client.Send(company);
             client.Send(queue);
+            client.Send(itemIcons);
             client.Send(character);
             client.Send(Messages.NoListings());
             foreach (var json in listings.Values)

@@ -235,7 +235,21 @@ data class QueueStatus(
     val actions: Boolean,
 )
 
-data class GearPiece(val slot: Int, val name: String, val level: Int, val condition: Int, val spiritbond: Int)
+data class ItemStat(val name: String, val value: String)
+
+data class ItemBonus(val name: String, val value: Int)
+
+data class GearPiece(
+    val slot: Int,
+    val name: String,
+    val level: Int,
+    val condition: Int,
+    val spiritbond: Int,
+    val icon: Long,
+    val category: String,
+    val stats: List<ItemStat>,
+    val bonuses: List<ItemBonus>,
+)
 
 data class Currency(val id: Long, val name: String, val count: Long)
 

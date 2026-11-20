@@ -35,6 +35,9 @@ internal static class Messages
     public static string Character(Character? character) =>
         Json(new { type = "character", character });
 
+    public static string ItemIcons(IconSet icons) =>
+        Json(new { type = "itemicons", icons.Size, icons.Icons });
+
     public static string Friends(IReadOnlyList<Friend>? friends) =>
         Json(new { type = "friends", loaded = friends != null, friends = friends ?? [] });
 

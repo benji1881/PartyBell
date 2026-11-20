@@ -43,6 +43,8 @@ data class QueueUpdate(val status: QueueStatus?) : Incoming
 
 data class CharacterUpdate(val profile: Profile?) : Incoming
 
+data class ItemIconsUpdate(val text: String) : Incoming
+
 data class DutyReply(val action: String, val ok: Boolean, val reason: String) : Incoming
 
 data object Bye : Incoming
@@ -74,6 +76,7 @@ object Protocol {
             "plugin" -> PluginVersion(json.optString("version"))
             "queuestatus" -> QueueUpdate(json.optJSONObject("status")?.let(::queue))
             "character" -> CharacterUpdate(json.optJSONObject("character")?.let(::profile))
+            "itemicons" -> ItemIconsUpdate(text)
             "duty" -> DutyReply(json.optString("action"), json.optBoolean("ok"), json.optString("reason"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
@@ -247,7 +250,17 @@ object Protocol {
         area = json.optString("area"),
         instance = json.optInt("instance"),
         gear = objects(json, "gear").map {
-            GearPiece(it.optInt("slot"), it.optString("name"), it.optInt("level"), it.optInt("condition"), it.optInt("spiritbond"))
+            GearPiece(
+                slot = it.optInt("slot"),
+                name = it.optString("name"),
+                level = it.optInt("level"),
+                condition = it.optInt("condition"),
+                spiritbond = it.optInt("spiritbond"),
+                icon = it.optLong("icon"),
+                category = it.optString("category"),
+                stats = objects(it, "stats").map { stat -> ItemStat(stat.optString("name"), stat.optString("value")) },
+                bonuses = objects(it, "bonuses").map { bonus -> ItemBonus(bonus.optString("name"), bonus.optInt("value")) },
+            )
         },
         currencies = objects(json, "currencies").map { Currency(it.optLong("id"), it.optString("name"), it.optLong("count")) },
     )

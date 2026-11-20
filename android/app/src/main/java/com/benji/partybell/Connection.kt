@@ -211,6 +211,10 @@ class Connection(private val context: Context, private val settings: AppSettings
                 JobIcons.save(context, message.text)
                 return
             }
+            if (message is ItemIconsUpdate) {
+                JobIcons.items(message.text)
+                return
+            }
             if (message == Bye) farewell = true
             wake.acquire(MESSAGE_AWAKE_MS)
             handler.post {

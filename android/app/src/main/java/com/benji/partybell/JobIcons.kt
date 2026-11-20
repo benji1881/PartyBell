@@ -23,6 +23,7 @@ object JobIcons {
     private val sproutFlow = MutableStateFlow<ImageBitmap?>(null)
     private val symbolsFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     private val currenciesFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
+    private val itemsFlow = MutableStateFlow<Map<String, ImageBitmap>>(emptyMap())
     private var loading = false
 
     val icons: StateFlow<Map<String, ImageBitmap>> = iconsFlow.asStateFlow()
@@ -36,6 +37,8 @@ object JobIcons {
     val symbols: StateFlow<Map<String, ImageBitmap>> = symbolsFlow.asStateFlow()
 
     val currencies: StateFlow<Map<String, ImageBitmap>> = currenciesFlow.asStateFlow()
+
+    val items: StateFlow<Map<String, ImageBitmap>> = itemsFlow.asStateFlow()
 
     @Volatile
     var version = ""
@@ -73,16 +76,28 @@ object JobIcons {
         }.orEmpty()
         sproutFlow.value = picture(json.optString("sprout"), json.optInt("sproutSize"))
         symbolsFlow.value = json.optJSONObject("symbols")?.let { masks(it.getJSONObject("icons"), it.getInt("size")) }.orEmpty()
-        currenciesFlow.value = json.optJSONObject("currencies")?.let { set ->
-            val icons = set.getJSONObject("icons")
-            icons.keys().asSequence().mapNotNull { key -> picture(icons.getString(key), set.getInt("size"))?.let { key to it } }.toMap()
-        }.orEmpty()
+        currenciesFlow.value = json.optJSONObject("currencies")?.let(::pictures).orEmpty()
         version = json.getString("version")
         true
     } catch (_: JSONException) {
         false
     } catch (_: IllegalArgumentException) {
         false
+    }
+
+    fun items(text: String) {
+        try {
+            itemsFlow.value = pictures(JSONObject(text))
+        } catch (_: JSONException) {
+            return
+        } catch (_: IllegalArgumentException) {
+            return
+        }
+    }
+
+    private fun pictures(set: JSONObject): Map<String, ImageBitmap> {
+        val icons = set.getJSONObject("icons")
+        return icons.keys().asSequence().mapNotNull { key -> picture(icons.getString(key), set.getInt("size"))?.let { key to it } }.toMap()
     }
 
     private fun picture(text: String, size: Int): ImageBitmap? {

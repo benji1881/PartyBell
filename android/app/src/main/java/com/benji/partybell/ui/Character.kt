@@ -67,6 +67,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.AppSettings
 import com.benji.partybell.Currency
 import com.benji.partybell.GearPiece
+import com.benji.partybell.ItemStat
 import com.benji.partybell.JobIcons
 import com.benji.partybell.PartyState
 import com.benji.partybell.Profile
@@ -240,22 +241,19 @@ private fun HeroJob(character: Profile?) {
 @Composable
 private fun CurrencyColumn(currency: Currency, modifier: Modifier) {
     val icons by JobIcons.currencies.collectAsStateWithLifecycle()
-    Column(modifier) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            icons[currency.id.toString()]?.let {
-                Image(it, contentDescription = null, filterQuality = FilterQuality.High, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(4.dp))
-            }
-            Text(
-                NumberFormat.getIntegerInstance().format(currency.count),
-                color = AppColors.text,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                maxLines = 1,
-                style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
-            )
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        icons[currency.id.toString()]?.let {
+            Image(it, contentDescription = currency.name, filterQuality = FilterQuality.High, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(4.dp))
         }
-        Text(currency.name, color = AppColors.muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            NumberFormat.getIntegerInstance().format(currency.count),
+            color = AppColors.text,
+            fontWeight = FontWeight.Bold,
+            fontSize = 14.sp,
+            maxLines = 1,
+            style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
+        )
     }
 }
 
@@ -310,23 +308,39 @@ private fun SlotColumn(slots: List<SlotInfo>, character: Profile?, onSlot: (Int)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         slots.forEach { info ->
             val piece = character?.gear?.firstOrNull { it.slot == info.index }
-            GearSlot(info, piece, character != null, SlotSize, Modifier.clickable(enabled = piece != null, role = Role.Button, onClickLabel = info.label) { onSlot(info.index) })
+            GearSlot(info, piece, character != null, SlotSize, AppColors.card, Modifier.clickable(enabled = piece != null, role = Role.Button, onClickLabel = info.label) { onSlot(info.index) })
         }
     }
 }
 
 @Composable
-private fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: Dp, modifier: Modifier = Modifier) {
+private fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: Dp, surface: Color, modifier: Modifier = Modifier) {
     val symbols by JobIcons.symbols.collectAsStateWithLifecycle()
+    val items by JobIcons.items.collectAsStateWithLifecycle()
     val progress = animated((piece?.condition ?: 0).coerceIn(0, FULL) / FULL.toFloat(), RING_MS)
     val fade = animated(if (loaded) 1f else 0f, FADE_MS)
     val color = if (piece != null && piece.condition < REPAIR_BELOW) AppColors.red else AppColors.accent
-    Ring(progress, color, size, modifier.clip(CircleShape)) {
-        symbols[info.symbol]?.let {
-            Glyph(it, AppColors.text, Modifier.size(size * 0.56f).alpha(fade * if (piece == null) EMPTY_ALPHA else 1f))
+    val icon = piece?.let { items[it.icon.toString()] }
+    Box(Modifier.size(size)) {
+        Ring(progress, color, size, Modifier.clip(CircleShape).then(modifier)) {
+            if (icon != null) {
+                Image(icon, contentDescription = piece.name, filterQuality = FilterQuality.High, modifier = Modifier.size(size * 0.74f).clip(CircleShape).alpha(fade))
+            } else {
+                symbols[info.symbol]?.let {
+                    Glyph(it, AppColors.text, Modifier.size(size * 0.56f).alpha(fade * if (piece == null) EMPTY_ALPHA else 1f))
+                }
+            }
         }
         if (piece != null && piece.spiritbond >= FULL) {
-            Box(Modifier.align(Alignment.TopEnd).size(size * 0.2f).alpha(fade).background(AppColors.yellow, CircleShape))
+            Box(
+                Modifier
+                    .align(Alignment.TopEnd)
+                    .size(size * 0.28f)
+                    .alpha(fade)
+                    .background(surface, CircleShape)
+                    .padding(size * 0.05f)
+                    .background(AppColors.yellow, CircleShape),
+            )
         }
     }
 }
@@ -355,16 +369,30 @@ private fun GearSheet(piece: GearPiece, info: SlotInfo, onDismiss: () -> Unit) {
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         containerColor = AppColors.background,
     ) {
-        Column(Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                GearSlot(info, piece, true, SheetSlotSize)
+                GearSlot(info, piece, true, SheetSlotSize, AppColors.background)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(piece.name, fontFamily = Fraunces, fontSize = 20.sp, color = AppColors.text)
-                    Text("${info.label} · Item level ${piece.level}", color = AppColors.muted, fontSize = 13.sp)
+                    Text("${piece.category.ifEmpty { info.label }} · Item level ${piece.level}", color = AppColors.muted, fontSize = 13.sp)
                 }
             }
-            Spacer(Modifier.height(18.dp))
+            if (piece.stats.isNotEmpty()) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 16.dp)) {
+                    piece.stats.forEach { StatBox(it, Modifier.weight(1f)) }
+                }
+            }
+            if (piece.bonuses.isNotEmpty()) {
+                Text("Bonuses", color = AppColors.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp, bottom = 2.dp))
+                piece.bonuses.forEach { bonus ->
+                    Row(Modifier.padding(vertical = 3.dp)) {
+                        Text(bonus.name, color = AppColors.text, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Text("+${bonus.value}", color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 14.sp, style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR))
+                    }
+                }
+            }
+            Line(Modifier.padding(vertical = 16.dp))
             Meter("Condition", piece.condition, if (piece.condition < REPAIR_BELOW) AppColors.red else AppColors.accent)
             Spacer(Modifier.height(14.dp))
             Meter("Spiritbond", piece.spiritbond, AppColors.yellow)
@@ -376,6 +404,14 @@ private fun GearSheet(piece: GearPiece, info: SlotInfo, onDismiss: () -> Unit) {
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun StatBox(stat: ItemStat, modifier: Modifier) {
+    Column(modifier.background(AppColors.card, RoundedCornerShape(12.dp)).padding(horizontal = 10.dp, vertical = 8.dp)) {
+        Text(stat.name, color = AppColors.muted, fontSize = 11.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(stat.value, color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR))
     }
 }
 

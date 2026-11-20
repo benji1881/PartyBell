@@ -124,7 +124,7 @@ object PartyState {
                 queueFlow.value = null
                 characterFlow.value = null
             }
-            is IconsUpdate, is Answered, is Dismiss, is PluginVersion -> Unit
+            is IconsUpdate, is ItemIconsUpdate, is Answered, is Dismiss, is PluginVersion -> Unit
         }
     }
 

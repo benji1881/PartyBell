@@ -4,7 +4,7 @@ using Sheets = Lumina.Excel.Sheets;
 
 namespace PartyBell;
 
-internal sealed record GearPiece(int Slot, string Name, int Level, int Condition, int Spiritbond);
+internal sealed record GearPiece(int Slot, string Name, int Level, int Condition, int Spiritbond, uint Icon, string Category, IReadOnlyList<ItemStat> Stats, IReadOnlyList<ItemBonus> Bonuses);
 
 internal static unsafe class Gear
 {
@@ -29,7 +29,18 @@ internal static unsafe class Gear
     {
         var pieces = new List<GearPiece>();
         foreach (var (index, slot, item) in Equipped())
-            pieces.Add(new GearPiece(index, item.Name.ExtractText(), (int)item.LevelItem.RowId, slot.Condition / ConditionScale, slot.SpiritbondOrCollectability / SpiritbondScale));
+        {
+            pieces.Add(new GearPiece(
+                index,
+                item.Name.ExtractText(),
+                (int)item.LevelItem.RowId,
+                slot.Condition / ConditionScale,
+                slot.SpiritbondOrCollectability / SpiritbondScale,
+                item.Icon,
+                item.ItemUICategory.ValueNullable?.Name.ExtractText() ?? "",
+                ItemStats.Header(item, slot),
+                ItemStats.Bonuses(item, slot)));
+        }
         return pieces;
     }
 
@@ -43,7 +54,7 @@ internal static unsafe class Gear
         for (var i = 0; i < EquipSlots; i++)
         {
             var slot = container->GetInventorySlot(i);
-            if (i != WaistSlot && slot != null && items.GetRowOrDefault(slot->GetBaseItemId()) is { } item)
+            if (i != WaistSlot && slot != null && slot->GetBaseItemId() is not 0 and var id && items.GetRowOrDefault(id) is { } item)
                 equipped.Add((i, *slot, item));
         }
         return equipped;

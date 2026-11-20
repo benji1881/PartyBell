@@ -36,7 +36,7 @@ internal sealed record Character(
         return new Character(
             state.CharacterName,
             home.Name.ExtractText(),
-            home.DataCenter.ValueNullable?.Name.ExtractText() ?? "",
+            Services.DataManager.GetExcelSheet<Sheets.WorldDCGroupType>().GetRowOrDefault(home.Unknown0)?.Name.ExtractText() ?? "",
             job.Abbreviation.ExtractText(),
             DutyQueue.Capitalised(job.Name.ExtractText()) ?? "",
             job.Role,

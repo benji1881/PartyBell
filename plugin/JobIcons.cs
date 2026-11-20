@@ -9,7 +9,10 @@ using Lumina.Excel.Sheets;
 
 namespace PartyBell;
 
-internal sealed record IconSet(int Size, IReadOnlyDictionary<string, string> Icons);
+internal sealed record IconSet(int Size, IReadOnlyDictionary<string, string> Icons)
+{
+    public static readonly IconSet None = new(0, new Dictionary<string, string>());
+}
 
 internal static class JobIcons
 {
@@ -29,6 +32,7 @@ internal static class JobIcons
     private const uint Aetheryte = 60453;
     private const string AetheryteKey = "aetheryte";
     private const int CurrencySize = 72;
+    private const int ItemSize = 80;
     private static readonly string[] BoardSlots = ["main", "head", "body", "hands", "", "legs", "feet", "off", "ears", "neck", "wrists", "ring"];
     private static readonly (string Role, uint Icon, uint Background)[] RoleIcons = [("tank", 62581, 62571), ("healer", 62582, 62572), ("dps", 62583, 62573)];
 
@@ -120,6 +124,17 @@ internal static class JobIcons
                 Add(icons, hash, item.Id.ToString(CultureInfo.InvariantCulture), Rgba(texture.ImageData));
         }
         return new IconSet(CurrencySize, icons);
+    }
+
+    public static IconSet Items(IEnumerable<uint> ids)
+    {
+        var icons = new SortedDictionary<string, string>(StringComparer.Ordinal);
+        foreach (var id in ids)
+        {
+            if (Texture(id) is { Header.Width: ItemSize, Header.Height: ItemSize } texture)
+                icons[id.ToString(CultureInfo.InvariantCulture)] = Convert.ToBase64String(Rgba(texture.ImageData));
+        }
+        return new IconSet(ItemSize, icons);
     }
 
     private static void Add(IDictionary<string, string> set, IncrementalHash hash, string key, byte[] data)
