@@ -79,6 +79,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -150,28 +151,54 @@ fun Empty(text: String, modifier: Modifier = Modifier) {
     }
 }
 
+/** One-line screen title with what is going on next to it, and actions on the right. */
 @Composable
-fun Header(title: String, status: Status, onSettings: () -> Unit, onRefresh: (() -> Unit)? = null) {
+fun Header(title: String, onSettings: () -> Unit, onRefresh: (() -> Unit)? = null, detail: @Composable () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 12.dp),
+            .padding(top = 4.dp, bottom = 8.dp),
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontFamily = Fraunces, fontSize = 28.sp, color = AppColors.text)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Dot(statusColor(status))
-                Spacer(Modifier.width(6.dp))
-                Text(status.label, color = AppColors.muted, fontSize = 13.sp)
-            }
-        }
-        if (onRefresh != null) {
-            CircleButton(Icons.Filled.Refresh, "Refresh", onRefresh)
-            Spacer(Modifier.width(8.dp))
-        }
+        Text(title, fontFamily = Fraunces, fontSize = 24.sp, color = AppColors.text)
+        Spacer(Modifier.width(10.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f).padding(top = 3.dp)) { detail() }
+        if (onRefresh != null) CircleButton(Icons.Filled.Refresh, "Refresh", onRefresh)
         CircleButton(Icons.Filled.Settings, "Settings", onSettings)
     }
+}
+
+@Composable
+fun StatusLine(status: Status) {
+    Dot(statusColor(status))
+    Spacer(Modifier.width(6.dp))
+    Text(status.label, color = AppColors.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+@Composable
+fun SectionLabel(title: String) {
+    Text(
+        title.uppercase(),
+        color = AppColors.muted,
+        fontSize = 11.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        modifier = Modifier.padding(start = 4.dp, top = 12.dp, bottom = 6.dp),
+    )
+}
+
+/** A row of a grouped list: the rows share one card and are split by hairlines that start at [inset]. */
+@Composable
+fun Modifier.groupRow(index: Int, count: Int, inset: Dp = 0.dp): Modifier {
+    val top = if (index == 0) GroupRadius else 0.dp
+    val bottom = if (index == count - 1) GroupRadius else 0.dp
+    val line = AppColors.line
+    return clip(RoundedCornerShape(top, top, bottom, bottom))
+        .background(AppColors.card)
+        .drawWithContent {
+            drawContent()
+            if (index > 0) drawLine(line, Offset(inset.toPx(), 0f), Offset(size.width, 0f), 1.dp.toPx())
+        }
 }
 
 @Composable
@@ -180,12 +207,11 @@ fun TitleBar(title: String, onBack: () -> Unit, subtitle: @Composable () -> Unit
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 12.dp),
+            .padding(top = 4.dp, bottom = 8.dp),
     ) {
-        CircleButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack)
-        Spacer(Modifier.width(12.dp))
+        CircleButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack, Modifier.offset(x = (-8).dp))
         Column(Modifier.weight(1f)) {
-            Text(title, fontFamily = Fraunces, fontSize = 24.sp, color = AppColors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(title, fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Row(verticalAlignment = Alignment.CenterVertically) { subtitle() }
         }
     }
@@ -196,10 +222,8 @@ fun CircleButton(icon: ImageVector, description: String, onClick: () -> Unit, mo
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .size(44.dp)
+            .size(40.dp)
             .clip(CircleShape)
-            .background(AppColors.card)
-            .border(1.dp, AppColors.line, CircleShape)
             .clickable(onClick = onClick),
     ) {
         Icon(icon, contentDescription = description, tint = AppColors.text, modifier = Modifier.size(22.dp))
@@ -220,13 +244,13 @@ internal fun statusColor(status: Status): Color = when (status) {
 }
 
 @Composable
-internal fun NavRow(label: String, value: String, onClick: () -> Unit) {
+internal fun NavRow(label: String, value: String, modifier: Modifier = Modifier, inset: Dp = 0.dp, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(horizontal = inset, vertical = 14.dp),
     ) {
         Text(label, color = AppColors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
         Text(
@@ -260,3 +284,20 @@ fun SlotBars(filled: List<Int?>, modifier: Modifier = Modifier) {
         }
     }
 }
+
+private val FadeWidth = 24.dp
+private val GroupRadius = 18.dp
+
+/** Fades content out at the edges that can still scroll, so it is clear there is more. */
+fun Modifier.fadeEdges(start: Boolean, end: Boolean, vertical: Boolean = false) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val fade = FadeWidth.toPx()
+        val length = if (vertical) size.height else size.width
+        fun edge(from: Float, to: Float) = drawRect(
+            if (vertical) Brush.verticalGradient(listOf(Color.Transparent, Color.Black), from, to) else Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), from, to),
+            blendMode = BlendMode.DstIn,
+        )
+        if (start) edge(0f, fade)
+        if (end) edge(length, length - fade)
+    }

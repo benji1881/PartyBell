@@ -14,12 +14,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.DropdownMenu
@@ -79,7 +79,7 @@ fun FriendsScreen(onSettings: () -> Unit, onMessage: (Friend) -> Unit) {
     val (online, offline) = shown.partition { it.online }
 
     Column(Modifier.fillMaxSize()) {
-        Header("Friends", status, onSettings, onRefresh = { PartyState.refreshFriends() })
+        Header("Friends", onSettings, onRefresh = { PartyState.refreshFriends() }) { StatusLine(status) }
         when {
             status != Status.Connected -> Empty(Reasons.NOT_CONNECTED, Modifier.weight(1f))
             !friends.loaded && refreshing -> Empty("Loading friends…", Modifier.weight(1f))
@@ -87,10 +87,10 @@ fun FriendsScreen(onSettings: () -> Unit, onMessage: (Friend) -> Unit) {
             else -> {
                 SearchField(query, onChange = { query = it })
                 LazyColumn(Modifier.weight(1f)) {
-                    item { FriendSection("Online · ${online.size}") }
-                    items(online, key = { "on:" + it.key }) { FriendRow(it, onMessage) }
-                    item { FriendSection("Offline · ${offline.size}") }
-                    items(offline, key = { "off:" + it.key }) { FriendRow(it, onMessage) }
+                    item { SectionLabel("Online · ${online.size}") }
+                    itemsIndexed(online, key = { _, it -> "on:" + it.key }) { index, friend -> FriendRow(friend, Modifier.groupRow(index, online.size, RowInset), onMessage) }
+                    item { SectionLabel("Offline · ${offline.size}") }
+                    itemsIndexed(offline, key = { _, it -> "off:" + it.key }) { index, friend -> FriendRow(friend, Modifier.groupRow(index, offline.size, RowInset), onMessage) }
                     if (shown.isEmpty() && query.isNotBlank()) {
                         item { Empty("No friends match \"${query.trim()}\"") }
                     }
@@ -142,26 +142,13 @@ private fun SearchField(query: String, onChange: (String) -> Unit) {
 }
 
 @Composable
-private fun FriendSection(title: String) {
-    Text(
-        title.uppercase(),
-        color = AppColors.muted,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 1.sp,
-        modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 6.dp),
-    )
-}
-
-@Composable
-private fun FriendRow(friend: Friend, onMessage: (Friend) -> Unit) {
+private fun FriendRow(friend: Friend, modifier: Modifier, onMessage: (Friend) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .background(AppColors.card, RoundedCornerShape(18.dp))
+            .clickable(enabled = friend.online) { onMessage(friend) }
             .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp)
             .alpha(if (friend.online) 1f else 0.55f),
     ) {
@@ -176,16 +163,6 @@ private fun FriendRow(friend: Friend, onMessage: (Friend) -> Unit) {
             }
         }
         if (friend.online) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(AppColors.accent.copy(alpha = 0.15f))
-                    .clickable { onMessage(friend) },
-            ) {
-                Icon(Icons.Filled.Email, contentDescription = "Message ${friend.name}", tint = AppColors.accent, modifier = Modifier.size(20.dp))
-            }
             Box {
                 Box(
                     contentAlignment = Alignment.Center,
@@ -216,6 +193,8 @@ private fun FriendRow(friend: Friend, onMessage: (Friend) -> Unit) {
         }
     }
 }
+
+private val RowInset = 64.dp
 
 @Composable
 private fun statusTint(status: FriendStatus): Color = when (status) {

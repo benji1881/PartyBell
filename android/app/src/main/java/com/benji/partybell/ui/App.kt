@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
@@ -30,6 +29,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -202,16 +202,13 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
                         .clickable { onSelect(tab) }
                         .padding(vertical = 6.dp),
                 ) {
-                    Box {
+                    BadgedBox(badge = { if (count > 0) Badge(count) }) {
                         Icon(
                             tab.icon,
                             contentDescription = null,
                             tint = if (active) AppColors.accent else AppColors.muted,
                             modifier = Modifier.size(24.dp),
                         )
-                        if (count > 0) {
-                            Badge(count, Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-4).dp))
-                        }
                     }
                     Spacer(Modifier.height(2.dp))
                     Text(

@@ -91,7 +91,7 @@ fun QueueBar(modifier: Modifier = Modifier) {
 
 @Composable
 private fun QueueCard(status: QueueStatus, modifier: Modifier) {
-    var open by rememberSaveable { mutableStateOf(false) }
+    var expanded by rememberSaveable { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -103,7 +103,8 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
     val ready = status.state.popped
     val tone = if (ready) AppColors.yellow else AppColors.accent
     val elapsed = (if (ready) status.ready else now) - status.entered
-    val more = status.duties.size > 1
+    val others = status.duties.drop(1)
+    val open = expanded || ready
     val countdown = ready && status.expires > 0
 
     Column(
@@ -114,7 +115,7 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
             .background(AppColors.card)
             .background(Brush.verticalGradient(listOf(if (ready) tone.copy(alpha = TINT_ALPHA) else Color.Transparent, Color.Transparent)))
             .border(1.dp, if (ready) tone else AppColors.line, CardShape)
-            .clickable(enabled = more, onClickLabel = if (open) "Hide duties" else "Show duties") { open = !open }
+            .clickable(enabled = !ready, onClickLabel = if (open) "Hide details" else "Show details") { expanded = !expanded }
             .padding(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -126,12 +127,21 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
             }
             Spacer(Modifier.width(10.dp))
             Column(Modifier.weight(1f)) {
-                Text("Duty Finder", color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                Text(
+                    status.duties.firstOrNull() ?: "Duty Finder",
+                    color = AppColors.text,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     PulseDot(tone)
                     Spacer(Modifier.width(6.dp))
                     Text(
-                        listOf(status.state.label, status.job).filter { it.isNotEmpty() }.joinToString(" · "),
+                        listOf(status.state.label, status.job, if (others.isEmpty()) "" else "+${others.size} more")
+                            .filter { it.isNotEmpty() }
+                            .joinToString(" · "),
                         color = AppColors.muted,
                         fontSize = 12.5.sp,
                         maxLines = 1,
@@ -140,96 +150,105 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
                 }
             }
             Spacer(Modifier.width(10.dp))
-            Text(
-                when {
-                    countdown -> clock(status.expires - now)
-                    ready -> "READY"
-                    else -> clock(elapsed)
-                },
-                color = tone,
-                fontWeight = FontWeight.Bold,
-                fontSize = if (ready && !countdown) 15.sp else 22.sp,
-                letterSpacing = if (ready && !countdown) 1.sp else 0.sp,
-                style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
-            )
-        }
-        HorizontalDivider(color = AppColors.line, modifier = Modifier.padding(vertical = 10.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Duty(status.duties.firstOrNull().orEmpty(), Modifier.weight(1f))
-            if (more) {
-                Spacer(Modifier.width(8.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .background(AppColors.background, CircleShape)
-                        .padding(start = 10.dp, end = 4.dp, top = 2.dp, bottom = 2.dp),
-                ) {
-                    Text(if (open) "Less" else "+${status.duties.size - 1}", color = AppColors.text, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                    Icon(
-                        Icons.Filled.KeyboardArrowDown,
-                        contentDescription = null,
-                        tint = AppColors.muted,
-                        modifier = Modifier.size(18.dp).rotate(if (open) 180f else 0f),
-                    )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    when {
+                        countdown -> clock(status.expires - now)
+                        ready -> "READY"
+                        else -> clock(elapsed)
+                    },
+                    color = tone,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = if (ready && !countdown) 15.sp else 22.sp,
+                    letterSpacing = if (ready && !countdown) 1.sp else 0.sp,
+                    style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
+                )
+                if (!ready && status.wait > 0) {
+                    Text("avg ${waitText(status.wait)}", color = AppColors.muted, fontSize = 11.sp)
                 }
             }
-        }
-        AnimatedVisibility(open && more, enter = expandVertically(), exit = shrinkVertically()) {
-            Column(Modifier.padding(top = 6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                status.duties.drop(1).forEach { Duty(it) }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
-            pills(status, elapsed).forEach { PillChip(it, Modifier.weight(1f)) }
-        }
-        if (!ready && status.wait in 1..LONG_WAIT) {
-            Box(
-                Modifier
-                    .padding(top = 10.dp)
-                    .fillMaxWidth()
-                    .height(3.dp)
-                    .clip(CircleShape)
-                    .background(AppColors.line),
-            ) {
-                Box(
-                    Modifier
-                        .fillMaxWidth((elapsed.toFloat() / (status.wait.coerceAtLeast(SHORT_WAIT) * MINUTE_MS)).coerceIn(0f, 1f))
-                        .height(3.dp)
-                        .background(tone),
+            if (!ready) {
+                Icon(
+                    Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = AppColors.muted,
+                    modifier = Modifier.padding(start = 4.dp).size(20.dp).rotate(if (open) 180f else 0f),
                 )
             }
         }
-        if (status.actions) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
-                when (status.state) {
-                    QueueState.Ready -> {
-                        ActionButton("Withdraw", AppColors.background, AppColors.text, Modifier.weight(1f)) { PartyState.duty(DutyAction.WITHDRAW) }
-                        ActionButton("Commence", AppColors.accent, AppColors.onAccent, Modifier.weight(1f)) { PartyState.duty(DutyAction.COMMENCE) }
-                    }
-                    QueueState.Accepted -> Unit
-                    else -> ActionButton("Leave queue", AppColors.background, AppColors.red, Modifier.weight(1f)) { leaving = true }
-                }
+        AnimatedVisibility(open, enter = expandVertically(), exit = shrinkVertically()) {
+            Column {
+                Details(status, others, elapsed, tone) { leaving = true }
             }
         }
     }
 
     if (leaving) {
-        AlertDialog(
-            onDismissRequest = { leaving = false },
-            title = { Text("Leave the queue?") },
-            text = { Text(status.duties.joinToString(", ")) },
-            confirmButton = {
-                TextButton(onClick = {
-                    leaving = false
-                    PartyState.duty(DutyAction.LEAVE)
-                }) { Text("Leave", color = AppColors.red) }
-            },
-            dismissButton = { TextButton(onClick = { leaving = false }) { Text("Cancel") } },
-            containerColor = AppColors.card,
-            titleContentColor = AppColors.text,
-            textContentColor = AppColors.muted,
-        )
+        LeaveDialog(status) { leaving = false }
     }
+}
+
+@Composable
+private fun Details(status: QueueStatus, others: List<String>, elapsed: Long, tone: Color, onLeave: () -> Unit) {
+    val ready = status.state.popped
+    val pills = pills(status, elapsed)
+    HorizontalDivider(color = AppColors.line, modifier = Modifier.padding(top = 10.dp))
+    if (others.isNotEmpty()) {
+        Column(Modifier.padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            others.forEach { Duty(it) }
+        }
+    }
+    if (pills.isNotEmpty()) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 10.dp)) {
+            pills.forEach { PillChip(it, Modifier.weight(1f)) }
+        }
+    }
+    if (!ready && status.wait in 1..LONG_WAIT) {
+        Box(
+            Modifier
+                .padding(top = 10.dp)
+                .fillMaxWidth()
+                .height(3.dp)
+                .clip(CircleShape)
+                .background(AppColors.line),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxWidth((elapsed.toFloat() / (status.wait.coerceAtLeast(SHORT_WAIT) * MINUTE_MS)).coerceIn(0f, 1f))
+                    .height(3.dp)
+                    .background(tone),
+            )
+        }
+    }
+    if (status.actions && status.state != QueueState.Accepted) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 12.dp)) {
+            if (status.state == QueueState.Ready) {
+                ActionButton("Withdraw", AppColors.background, AppColors.text, Modifier.weight(1f)) { PartyState.duty(DutyAction.WITHDRAW) }
+                ActionButton("Commence", AppColors.accent, AppColors.onAccent, Modifier.weight(1f)) { PartyState.duty(DutyAction.COMMENCE) }
+            } else {
+                ActionButton("Leave queue", AppColors.background, AppColors.red, Modifier.weight(1f), onLeave)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LeaveDialog(status: QueueStatus, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Leave the queue?") },
+        text = { Text(status.duties.joinToString(", ")) },
+        confirmButton = {
+            TextButton(onClick = {
+                onDismiss()
+                PartyState.duty(DutyAction.LEAVE)
+            }) { Text("Leave", color = AppColors.red) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        containerColor = AppColors.card,
+        titleContentColor = AppColors.text,
+        textContentColor = AppColors.muted,
+    )
 }
 
 @Composable
@@ -278,8 +297,7 @@ private fun PulseDot(color: Color) {
 }
 
 private fun pills(status: QueueStatus, elapsed: Long): List<Pill> {
-    val average = Pill("Avg", waitText(status.wait)).takeIf { status.wait >= 0 }
-    if (status.state.popped) return listOfNotNull(Pill("Waited", clock(elapsed)), average)
+    if (status.state.popped) return listOfNotNull(Pill("Waited", clock(elapsed)), Pill("Avg", waitText(status.wait)).takeIf { status.wait > 0 })
     val position = when {
         status.position > LAST_POSITION -> Pill("In line", "#$LAST_POSITION+")
         status.position > 0 -> Pill("In line", "#${status.position}")
@@ -287,7 +305,7 @@ private fun pills(status: QueueStatus, elapsed: Long): List<Pill> {
         else -> null
     }
     val counts = status.counts.map { Pill(roleTitle(it.role), "${it.found}/${it.needed}", roleColor(it.role)) }
-    return (listOfNotNull(position) + counts + listOfNotNull(average) + Pill("Elapsed", clock(elapsed))).take(MAX_PILLS)
+    return (listOfNotNull(position) + counts).take(MAX_PILLS)
 }
 
 private fun waitText(minutes: Int) = when (minutes) {

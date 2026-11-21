@@ -283,23 +283,24 @@ data class Listings(val category: Int = 0, val time: Long = 0L, val list: List<L
 object FinderCategory {
     const val DEFAULT = 2
 
+    // Most used first.
     val all = listOf(
-        1 to "Roulette",
-        2 to "Dungeons",
-        3 to "Guildhests",
+        6 to "High-end",
         4 to "Trials",
         5 to "Raids",
-        6 to "High-end",
-        7 to "PvP",
-        8 to "Gold Saucer",
-        9 to "FATEs",
-        10 to "Treasure hunts",
-        11 to "The Hunt",
-        12 to "Gathering forays",
-        13 to "Deep dungeons",
         14 to "Field operations",
+        10 to "Treasure hunts",
+        13 to "Deep dungeons",
+        2 to "Dungeons",
         15 to "V&C dungeons",
+        11 to "The Hunt",
+        1 to "Roulette",
+        7 to "PvP",
+        9 to "FATEs",
+        12 to "Gathering forays",
+        8 to "Gold Saucer",
         16 to "Other",
+        3 to "Guildhests",
     )
 
     fun label(category: Int) = all.firstOrNull { it.first == category }?.second.orEmpty()

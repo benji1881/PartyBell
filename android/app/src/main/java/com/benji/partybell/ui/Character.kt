@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -89,6 +90,7 @@ private const val TRACK_ALPHA = 0.35f
 private const val EMPTY_ALPHA = 0.35f
 private const val TABULAR = "tnum"
 private const val MILLION = 1_000_000L
+private val EDIT_SIZE = 32.dp
 private const val SHORT_DIGITS = 3
 private val HeroTile = 64.dp
 private val HeroGap = 5.dp
@@ -135,7 +137,7 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Header("Character", status, onSettings)
+        Header("Character", onSettings) { StatusLine(status) }
         when {
             status != Status.Connected -> Empty(Reasons.NOT_CONNECTED, Modifier.weight(1f))
             current == null && idle -> Empty("Log in to a character in the game", Modifier.weight(1f))
@@ -188,7 +190,18 @@ private fun HeroCard(character: Profile?, picked: List<Long>, onPick: () -> Unit
         Line()
         Row(verticalAlignment = Alignment.CenterVertically) {
             val shown = picked.mapNotNull { id -> character?.currencies?.firstOrNull { it.id == id } }.take(MAX_CURRENCIES)
-            Row(Modifier.weight(1f).height(40.dp).alpha(fade), verticalAlignment = Alignment.CenterVertically) {
+            // Same width as the edit button, so the currencies sit in the middle of the card.
+            Spacer(Modifier.width(EDIT_SIZE))
+            Row(
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .weight(1f)
+                    .height(40.dp)
+                    .alpha(fade)
+                    .clip(RoundedCornerShape(10.dp))
+                    .clickable(enabled = character != null, role = Role.Button, onClickLabel = "Pick currencies", onClick = onPick),
+            ) {
                 when {
                     character == null -> Unit
                     shown.isEmpty() -> Text("Pick currencies to show", color = AppColors.muted, fontSize = 13.sp)
@@ -198,11 +211,10 @@ private fun HeroCard(character: Profile?, picked: List<Long>, onPick: () -> Unit
                     }
                 }
             }
-            Spacer(Modifier.width(8.dp))
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .size(32.dp)
+                    .size(EDIT_SIZE)
                     .clip(CircleShape)
                     .clickable(enabled = character != null, role = Role.Button, onClickLabel = "Pick currencies", onClick = onPick),
             ) {
@@ -247,7 +259,7 @@ private fun HeroJob(character: Profile?) {
 @Composable
 private fun CurrencyColumn(currency: Currency, modifier: Modifier) {
     val icons by JobIcons.currencies.collectAsStateWithLifecycle()
-    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+    Row(modifier, horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
         icons[currency.id.toString()]?.let {
             Image(it, contentDescription = currency.name, filterQuality = FilterQuality.High, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(4.dp))
@@ -274,7 +286,7 @@ private fun LocationCard(character: Profile?) {
     val symbols by JobIcons.symbols.collectAsStateWithLifecycle()
     val fade = animated(if (character != null) 1f else 0f, FADE_MS)
     Card {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.height(40.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 40.dp)) {
             Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                 symbols["aetheryte"]?.let { Glyph(it, AppColors.accent, Modifier.fillMaxSize().alpha(fade)) }
             }

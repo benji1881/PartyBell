@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Face
@@ -103,13 +104,14 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
     }
 
     Column(Modifier.fillMaxSize()) {
-        Header("Chats", status, onSettings)
+        Header("Chats", onSettings) { StatusLine(status) }
         LazyColumn(Modifier.weight(1f)) {
-            item { Section("Groups") }
-            items(groups, key = { it.conversation }) { thread ->
+            item { SectionLabel("Groups") }
+            itemsIndexed(groups, key = { _, it -> it.conversation }) { index, thread ->
                 val isParty = thread.conversation == ChatChannel.PARTY
                 ThreadRow(
                     thread,
+                    Modifier.groupRow(index, groups.size, RowInset),
                     friend = null,
                     pinned = !isParty && thread.conversation in pinned,
                     muted = thread.conversation in muted,
@@ -119,13 +121,14 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
                     slots = if (isParty) partySlots else null,
                 )
             }
-            item { Section("Tells") }
+            item { SectionLabel("Tells") }
             if (tells.isEmpty()) {
                 item { Empty("Tells show up here") }
             }
-            items(tells, key = { it.conversation }) { thread ->
+            itemsIndexed(tells, key = { _, it -> it.conversation }) { index, thread ->
                 ThreadRow(
                     thread,
+                    Modifier.groupRow(index, tells.size, RowInset),
                     friend = friends.list.firstOrNull { it.key.equals(ChatChannel.peerOf(thread.conversation), ignoreCase = true) },
                     pinned = thread.conversation in pinned,
                     muted = thread.conversation in muted,
@@ -178,17 +181,7 @@ private fun thread(
     return Thread(conversation, last, unreadIn(messages, conversation, viewed, cleared), chat.lastOrNull { !it.self })
 }
 
-@Composable
-private fun Section(title: String) {
-    Text(
-        title.uppercase(),
-        color = AppColors.muted,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 1.sp,
-        modifier = Modifier.padding(start = 4.dp, top = 14.dp, bottom = 6.dp),
-    )
-}
+private val RowInset = 68.dp
 
 private val MuteChoices = listOf(
     "For 1 hour" to DateUtils.HOUR_IN_MILLIS,
@@ -199,6 +192,7 @@ private val MuteChoices = listOf(
 @Composable
 private fun ThreadRow(
     thread: Thread,
+    modifier: Modifier,
     friend: Friend?,
     pinned: Boolean,
     muted: Boolean,
@@ -216,10 +210,8 @@ private fun ThreadRow(
     Box {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
-                .padding(vertical = 3.dp)
-                .background(AppColors.card, RoundedCornerShape(18.dp))
                 .combinedClickable(onClick = onOpen, onLongClick = {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     menu = true
@@ -246,26 +238,34 @@ private fun ThreadRow(
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        ChatChannel.title(conversation),
-                        color = AppColors.text,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
-                    )
-                    val world = ChatChannel.worldOf(peer)
-                    if (world.isNotEmpty()) {
-                        Text(" · $world", color = AppColors.muted, fontSize = 12.sp, maxLines = 1)
+                    // The name gets the room first; the world shortens before it does.
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Text(
+                            ChatChannel.title(conversation),
+                            color = AppColors.text,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (pinned) {
+                            Spacer(Modifier.width(4.dp))
+                            Icon(Icons.Filled.Star, contentDescription = "Pinned", tint = AppColors.yellow, modifier = Modifier.size(14.dp))
+                        }
+                        val world = ChatChannel.worldOf(peer)
+                        if (world.isNotEmpty()) {
+                            Text(
+                                " · $world",
+                                color = AppColors.muted,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false),
+                            )
+                        }
                     }
-                    if (pinned) {
-                        Spacer(Modifier.width(4.dp))
-                        Icon(Icons.Filled.Star, contentDescription = "Pinned", tint = AppColors.yellow, modifier = Modifier.size(14.dp))
-                    }
-                    Spacer(Modifier.weight(1f))
                     thread.last?.let {
-                        Text(stamp(context, it.time), color = AppColors.muted, fontSize = 12.sp)
+                        Text(stamp(context, it.time), color = AppColors.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {

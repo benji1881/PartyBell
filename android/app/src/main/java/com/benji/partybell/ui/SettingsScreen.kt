@@ -95,7 +95,7 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
         modifier = modifier
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 14.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         ScreenHeader("Settings", onBack)
 
@@ -105,30 +105,36 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
             }
         }
 
-        Card {
-            if (paired) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Dot(statusColor(status))
-                    Spacer(Modifier.width(10.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(status.label, color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                        Text("${settings.hosts.joinToString(", ")} · port ${settings.port}", color = AppColors.muted, fontSize = 13.sp)
-                    }
-                    AppSwitch(checked = enabled, onCheckedChange = {
-                        enabled = it
-                        settings.enabled = it
-                        if (it) PartyService.start(context) else PartyService.stop(context)
-                    })
-                }
-                Divider()
-                NavRow("Pair a new PC", "", onClick = scan)
-            } else {
+        if (paired) {
+            Group(
+                "PC",
+                listOf(
+                    { row ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = row.fillMaxWidth().padding(horizontal = RowPadding, vertical = 10.dp)) {
+                            Dot(statusColor(status))
+                            Spacer(Modifier.width(10.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(status.label, color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("${settings.hosts.joinToString(", ")} · port ${settings.port}", color = AppColors.muted, fontSize = 13.sp)
+                            }
+                            AppSwitch(checked = enabled, onCheckedChange = {
+                                enabled = it
+                                settings.enabled = it
+                                if (it) PartyService.start(context) else PartyService.stop(context)
+                            })
+                        }
+                    },
+                    { row -> NavRow("Pair a new PC", "", row, RowPadding, onClick = scan) },
+                ),
+            )
+        } else {
+            Card {
                 Text("Not paired", color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Text("Type /partybell in game, press Pair a phone and scan the code.", color = AppColors.muted)
                 Button(onClick = scan) { Text("Scan pairing code") }
             }
-            scanError?.let { Text(it, color = AppColors.red) }
         }
+        scanError?.let { Text(it, color = AppColors.red, modifier = Modifier.padding(horizontal = 4.dp)) }
 
         update?.let { available ->
             Card {
@@ -141,22 +147,20 @@ fun SettingsScreen(settings: AppSettings, onBack: () -> Unit, modifier: Modifier
             }
         }
 
-        Text("Notifications", fontFamily = Fraunces, fontSize = 20.sp, color = AppColors.text, modifier = Modifier.padding(top = 8.dp, start = 2.dp))
-
         notifyGroups.forEach { (label, kinds) ->
-            Card {
-                Text(label, color = AppColors.muted, fontSize = 13.sp)
-                kinds.forEach { kind -> NotifyRow(settings, kind) }
-            }
+            Group("$label notifications", kinds.map { kind -> { row: Modifier -> NotifyRow(settings, kind, row) } })
         }
 
-        Card {
-            NavRow("Sound and vibration", "") {
-                context.startActivity(
-                    Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
-                )
-            }
-        }
+        Group(
+            null,
+            listOf { row ->
+                NavRow("Sound and vibration", "", row, RowPadding) {
+                    context.startActivity(
+                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName),
+                    )
+                }
+            },
+        )
 
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
             Text("PartyBell ${Updater.current(context)} · by benji1881", color = AppColors.muted, fontSize = 12.sp)
@@ -198,9 +202,9 @@ private fun BatteryWarning(onClick: () -> Unit) {
 }
 
 @Composable
-private fun NotifyRow(settings: AppSettings, kind: NotifyKind) {
+private fun NotifyRow(settings: AppSettings, kind: NotifyKind, modifier: Modifier) {
     var on by remember { mutableStateOf(settings.notifies(kind)) }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier.fillMaxWidth().padding(horizontal = RowPadding, vertical = 2.dp)) {
         Text(kind.label, color = AppColors.text, modifier = Modifier.weight(1f))
         AppSwitch(checked = on, onCheckedChange = {
             on = it
@@ -208,3 +212,14 @@ private fun NotifyRow(settings: AppSettings, kind: NotifyKind) {
         })
     }
 }
+
+/** A labelled grouped list, like the ones on the Chats and Friends tabs. Each row gets its place in the group as a modifier. */
+@Composable
+private fun Group(title: String?, rows: List<@Composable (Modifier) -> Unit>) {
+    Column {
+        title?.let { SectionLabel(it) }
+        rows.forEachIndexed { index, row -> row(Modifier.groupRow(index, rows.size)) }
+    }
+}
+
+private val RowPadding = 16.dp

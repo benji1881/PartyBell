@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -41,15 +40,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,7 +60,6 @@ import com.benji.partybell.JobIcons
 
 private const val PICK_DIM = 0.35f
 private val SheetPadding = 20.dp
-private val FadeWidth = 32.dp
 private val PICK_SIZE = 38.dp
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -178,7 +171,7 @@ private fun CategoryRow(category: Int, onCategory: (Int) -> Unit) {
         contentPadding = PaddingValues(horizontal = SheetPadding),
         modifier = Modifier
             .bleed(SheetPadding)
-            .fadeEdges(state, FadeWidth),
+            .fadeEdges(state.canScrollBackward, state.canScrollForward),
     ) {
         items(FinderCategory.all, key = { it.first }) { (id, label) ->
             Chip(label, id == category) { onCategory(id) }
@@ -192,17 +185,6 @@ private fun Modifier.bleed(horizontal: Dp) = layout { measurable, constraints ->
     layout(placeable.width - extra, placeable.height) { placeable.place(-extra / 2, 0) }
 }
 
-private fun Modifier.fadeEdges(state: LazyListState, width: Dp) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val fade = width.toPx()
-        if (state.canScrollBackward) {
-            drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), endX = fade), blendMode = BlendMode.DstIn)
-        }
-        if (state.canScrollForward) {
-            drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width), blendMode = BlendMode.DstIn)
-        }
-    }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

@@ -161,7 +161,7 @@ fun ChatFeed(
             state = state,
             reverseLayout = true,
             contentPadding = PaddingValues(vertical = 10.dp),
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().fadeEdges(start = state.canScrollForward, end = false, vertical = true),
         ) {
             items(lines, key = { it.key }, contentType = { it::class }) { line ->
                 when (line) {

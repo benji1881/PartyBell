@@ -24,6 +24,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -54,6 +55,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
@@ -86,7 +89,8 @@ import kotlinx.coroutines.delay
 private const val FRESH_MS = 60_000L
 private const val CLOCK_MS = 30_000L
 private const val LIFT = 1.03f
-private val SLOT_SIZE = 26.dp
+private val SLOT_SIZE = 22.dp
+private val STRIPE = 4.dp
 private val PracticeColor = Color(0xFF5E9A4E)
 private val CompletionColor = Color(0xFF4E82C4)
 private val LootColor = Color(0xFFD9853B)
@@ -160,19 +164,8 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     val active = listOf(jobFilter, beginners, goal != Goal.Any).count { it }
 
     Column(Modifier.fillMaxSize()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(top = 8.dp, bottom = 12.dp),
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Finder", fontFamily = Fraunces, fontSize = 28.sp, color = AppColors.text)
-                Text(updated(status, loaded, listings.time, now), color = AppColors.muted, fontSize = 13.sp)
-            }
-            CircleButton(Icons.Filled.Refresh, "Refresh", { PartyState.find(category) })
-            Spacer(Modifier.width(8.dp))
-            CircleButton(Icons.Filled.Settings, "Settings", onSettings)
+        Header("Finder", onSettings, onRefresh = { PartyState.find(category) }) {
+            Text(updated(status, loaded, listings.time, now), color = AppColors.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             PillField(query, "Search duty, leader or description", onChange = { query = it }, modifier = Modifier.weight(1f), icon = Icons.Filled.Search)
@@ -208,7 +201,12 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             onRefresh = { PartyState.find(category) },
             modifier = Modifier.weight(1f),
         ) {
-            LazyColumn(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val list = rememberLazyListState()
+            LazyColumn(
+                state = list,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+                modifier = Modifier.fillMaxSize().fadeEdges(start = list.canScrollBackward, end = false, vertical = true),
+            ) {
                 if (shown.isEmpty()) {
                     item { Empty(emptyText(status, finding, loaded, listings.list.isEmpty())) }
                 }
@@ -380,8 +378,9 @@ private fun ListingCard(listing: Listing, seconds: Int, matcher: WordMatcher, on
                     scaleX = lift
                     scaleY = lift
                 }
-                .background(AppColors.card, shape)
-                .background(objective?.copy(alpha = 0.12f) ?: Color.Transparent, shape)
+                .clip(shape)
+                .background(AppColors.card)
+                .drawBehind { objective?.let { drawRect(it, size = Size(STRIPE.toPx(), size.height)) } }
                 .border(1.dp, border, shape)
                 .pointerInput(listing.id) {
                     detectTapGestures(
@@ -392,7 +391,7 @@ private fun ListingCard(listing: Listing, seconds: Int, matcher: WordMatcher, on
                         },
                     )
                 }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(start = 14.dp, end = 12.dp, top = 10.dp, bottom = 10.dp),
         ) {
             if (listing.own) {
                 Text("YOUR LISTING", color = AppColors.accent, fontSize = 11.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
@@ -426,15 +425,14 @@ private fun ListingCard(listing: Listing, seconds: Int, matcher: WordMatcher, on
                         modifier = Modifier.padding(top = 3.dp, end = 4.dp).size(14.dp),
                     )
                 }
-                Text(remaining(seconds), color = AppColors.muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             val slots = listing.slots.sortedWith(compareBy({ roleRank(it.role) }, { !it.filled }))
             FlowRow(horizontalArrangement = Arrangement.spacedBy(5.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 slots.forEach { if (it.filled) JobTile(it.job, it.role, it.job, SLOT_SIZE) else RoleTile(it.role, SLOT_SIZE) }
             }
             if (listing.description.isNotBlank()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 val highlight = AppColors.yellow.copy(alpha = HIGHLIGHT_ALPHA)
                 val text = remember(listing.description, ranges, highlight) {
                     buildAnnotatedString {
@@ -444,7 +442,7 @@ private fun ListingCard(listing: Listing, seconds: Int, matcher: WordMatcher, on
                 }
                 Text(
                     text,
-                    color = AppColors.text,
+                    color = AppColors.muted,
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     maxLines = 4,
@@ -453,30 +451,34 @@ private fun ListingCard(listing: Listing, seconds: Int, matcher: WordMatcher, on
                         val end = layout.getLineEnd(layout.lineCount - 1, visibleEnd = true)
                         hidden = ranges.isNotEmpty() && ranges.none { it.last < end }
                     },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(AppColors.background.copy(alpha = 0.6f), RoundedCornerShape(10.dp))
-                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
             val tags = tags(listing)
             if (tags.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     tags.forEach { Tag(it) }
                 }
             }
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "${listing.leader} · ${listing.world}",
-                color = AppColors.accent,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable(enabled = !listing.own, onClick = onTell)
-                    .padding(vertical = 2.dp),
-            )
+            Spacer(Modifier.height(6.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(Modifier.weight(1f)) {
+                    Text(
+                        "${listing.leader} · ${listing.world}",
+                        color = AppColors.accent,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .clickable(enabled = !listing.own, onClick = onTell)
+                            .padding(vertical = 2.dp),
+                    )
+                }
+                Text(remaining(seconds), color = AppColors.muted, fontSize = 12.sp, modifier = Modifier.padding(start = 8.dp))
+            }
         }
         SpringMenu(
             expanded = menu,
