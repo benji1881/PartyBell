@@ -28,7 +28,6 @@ class MainActivity : ComponentActivity() {
         TellHistory.load(this)
         request.value = intent.getStringExtra(Notifier.EXTRA_OPEN)
         val settings = AppSettings(this)
-        PartyService.startIfEnabled(this)
 
         setContent {
             PartyBellTheme {

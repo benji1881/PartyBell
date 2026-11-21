@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.os.SystemClock
+import android.util.Log
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -58,11 +59,11 @@ class Connection(private val context: Context, private val settings: AppSettings
     private val network = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             wake.acquire(CONNECT_AWAKE_MS)
-            handler.post { moved(network) }
+            // A working connection is kept: Android closes sockets itself when their network goes away.
+            handler.post { nudge() }
         }
     }
     private var socket: WebSocket? = null
-    private var socketNetwork: Network? = null
     private var hostIndex = 0
     private var round = 0
     private var failingSince = 0L
@@ -144,13 +145,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         }
 
         if (PartyState.status.value !in waiting) PartyState.setStatus(Status.Connecting)
-        socketNetwork = connectivity.activeNetwork
         socket = client.newWebSocket(Request.Builder().url(url).build(), Listener(host, settings.phoneId, secret))
-    }
-
-    private fun moved(to: Network) {
-        val current = socket
-        if (current != null && to != socketNetwork) current.cancel() else nudge()
     }
 
     private fun retry(ws: WebSocket, status: Status, opened: Boolean, farewell: Boolean) {
@@ -308,9 +303,15 @@ class Connection(private val context: Context, private val settings: AppSettings
             webSocket.close(NORMAL_CLOSE, null)
         }
 
-        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) = done(webSocket)
+        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+            Log.i(TAG, "$host closed the connection: $code $reason")
+            done(webSocket)
+        }
 
-        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) = done(webSocket)
+        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+            Log.i(TAG, "Connection to $host failed: $t")
+            done(webSocket)
+        }
 
         private fun done(webSocket: WebSocket) {
             val status = closeStatus ?: Status.Connecting

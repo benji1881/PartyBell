@@ -17,10 +17,7 @@ class PartyService : Service() {
         fun start(context: Context) =
             ContextCompat.startForegroundService(context, Intent(context, PartyService::class.java))
 
-        fun startIfEnabled(context: Context) {
-            if (AppSettings(context).shouldConnect) start(context)
-        }
-
+        // Starts the service if it isn't running, without dropping a connection that is.
         fun nudgeIfEnabled(context: Context) {
             if (AppSettings(context).shouldConnect) nudge(context)
         }
