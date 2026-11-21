@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -48,6 +49,7 @@ internal sealed class MainWindow : Window
         ImGui.TextWrapped("Scan this with the PartyBell app. Keep it hidden while streaming.");
         ImGui.PushStyleColor(ImGuiCol.Text, MutedColor);
         ImGui.TextWrapped("If Windows asks to let the game use your network, allow it on private networks only.");
+        ImGui.TextWrapped($"On Linux or Mac with a firewall on, allow TCP and UDP port {config.Port} from your home network.");
         ImGui.PopStyleColor();
         ImGui.Spacing();
         qr.Draw(QrSize);
@@ -72,68 +74,15 @@ internal sealed class MainWindow : Window
             ApplyPort();
         ImGui.TextColored(MutedColor, "Pair your phones again after changing the port.");
 
-        var sendChat = config.SendChat;
-        if (ImGui.Checkbox("Send party chat", ref sendChat))
-        {
-            config.SendChat = sendChat;
-            config.Save();
-        }
-
-        var sendTells = config.SendTells;
-        if (ImGui.Checkbox("Send tells", ref sendTells))
-        {
-            config.SendTells = sendTells;
-            config.Save();
-        }
-
-        var sendFreeCompanyChat = config.SendFreeCompanyChat;
-        if (ImGui.Checkbox("Send Free Company chat", ref sendFreeCompanyChat))
-        {
-            config.SendFreeCompanyChat = sendFreeCompanyChat;
-            config.Save();
-        }
-
-        var sendFriends = config.SendFriends;
-        if (ImGui.Checkbox("Send friend list", ref sendFriends))
-        {
-            config.SendFriends = sendFriends;
-            config.Save();
-        }
-
-        var allowPhoneChat = config.AllowPhoneChat;
-        if (ImGui.Checkbox("Allow writing from phones", ref allowPhoneChat))
-        {
-            config.AllowPhoneChat = allowPhoneChat;
-            config.Save();
-        }
-
-        var allowPhoneReadyCheck = config.AllowPhoneReadyCheck;
-        if (ImGui.Checkbox("Allow answering ready checks from phones", ref allowPhoneReadyCheck))
-        {
-            config.AllowPhoneReadyCheck = allowPhoneReadyCheck;
-            config.Save();
-        }
-
-        var allowPhoneInvite = config.AllowPhoneInvite;
-        if (ImGui.Checkbox("Allow party invites from phones", ref allowPhoneInvite))
-        {
-            config.AllowPhoneInvite = allowPhoneInvite;
-            config.Save();
-        }
-
-        var allowPhoneJoin = config.AllowPhoneJoin;
-        if (ImGui.Checkbox("Allow joining listings from phones", ref allowPhoneJoin))
-        {
-            config.AllowPhoneJoin = allowPhoneJoin;
-            config.Save();
-        }
-
-        var allowPhoneDuty = config.AllowPhoneDuty;
-        if (ImGui.Checkbox("Allow accepting duties from phones", ref allowPhoneDuty))
-        {
-            config.AllowPhoneDuty = allowPhoneDuty;
-            config.Save();
-        }
+        Toggle("Send party chat", config.SendChat, on => config.SendChat = on);
+        Toggle("Send tells", config.SendTells, on => config.SendTells = on);
+        Toggle("Send Free Company chat", config.SendFreeCompanyChat, on => config.SendFreeCompanyChat = on);
+        Toggle("Send friend list", config.SendFriends, on => config.SendFriends = on);
+        Toggle("Allow writing from phones", config.AllowPhoneChat, on => config.AllowPhoneChat = on);
+        Toggle("Allow answering ready checks from phones", config.AllowPhoneReadyCheck, on => config.AllowPhoneReadyCheck = on);
+        Toggle("Allow party invites from phones", config.AllowPhoneInvite, on => config.AllowPhoneInvite = on);
+        Toggle("Allow joining listings from phones", config.AllowPhoneJoin, on => config.AllowPhoneJoin = on);
+        Toggle("Allow accepting duties from phones", config.AllowPhoneDuty, on => config.AllowPhoneDuty = on);
 
         ImGui.Separator();
         DrawPhones();
@@ -143,6 +92,14 @@ internal sealed class MainWindow : Window
             ImGui.TextColored(ErrorColor, $"Port {config.Port} is not available: {error}");
         else
             ImGui.TextUnformatted(feed.Count == 1 ? "1 phone connected" : $"{feed.Count} phones connected");
+    }
+
+    private void Toggle(string label, bool value, Action<bool> set)
+    {
+        if (!ImGui.Checkbox(label, ref value))
+            return;
+        set(value);
+        config.Save();
     }
 
     private void DrawPhones()
@@ -158,7 +115,7 @@ internal sealed class MainWindow : Window
             if (ImGui.SmallButton($"Forget##{phone.Id}"))
             {
                 config.RemovePhone(phone);
-                Restart();
+                server.Restart();
                 break;
             }
         }
@@ -189,14 +146,6 @@ internal sealed class MainWindow : Window
             server.Stop();
     }
 
-    private void Restart()
-    {
-        if (config.Phones.Count > 0)
-            server.Start();
-        else
-            server.Stop();
-    }
-
     private void ApplyPort()
     {
         if (port is < 1024 or > 65535)
@@ -209,6 +158,6 @@ internal sealed class MainWindow : Window
 
         config.Port = port;
         config.Save();
-        Restart();
+        server.Restart();
     }
 }

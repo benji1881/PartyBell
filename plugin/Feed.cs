@@ -106,6 +106,9 @@ internal sealed class Feed
     {
         lock (gate)
         {
+            // A phone that reconnects leaves its old connection behind when the network drops without a goodbye.
+            foreach (var old in clients.Keys.Where(c => c.Phone == client.Phone).ToList())
+                old.Drop();
             client.Send(party);
             client.Send(friends);
             client.Send(company);

@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -23,23 +22,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
@@ -47,10 +39,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,13 +54,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
@@ -86,16 +70,12 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.offset
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.AppSettings
 import com.benji.partybell.FinderCategory
-import com.benji.partybell.Job
 import com.benji.partybell.JobIcons
 import com.benji.partybell.Listing
 import com.benji.partybell.Listings
@@ -106,18 +86,13 @@ import kotlinx.coroutines.delay
 private const val FRESH_MS = 60_000L
 private const val CLOCK_MS = 30_000L
 private const val LIFT = 1.03f
-private val OpenSlot = Color(0xFFB9B4A8)
 private val SLOT_SIZE = 26.dp
 private val PracticeColor = Color(0xFF5E9A4E)
 private val CompletionColor = Color(0xFF4E82C4)
 private val LootColor = Color(0xFFD9853B)
-private const val BEGINNERS = "Beginners welcome"
+internal const val BEGINNERS = "Beginners welcome"
 private const val HIGHLIGHT_ALPHA = 0.4f
-private const val PICK_DIM = 0.35f
 private const val SHOWN_JOBS = 3
-private val SheetPadding = 20.dp
-private val FadeWidth = 32.dp
-private val PICK_SIZE = 38.dp
 private val HighlightIcon = ImageVector.Builder("Highlight", 24.dp, 24.dp, 24f, 24f)
     .addPath(
         PathParser().parsePathString(
@@ -129,13 +104,6 @@ private val HighlightIcon = ImageVector.Builder("Highlight", 24.dp, 24.dp, 24f, 
 private val Sliders = ImageVector.Builder("Sliders", 24.dp, 24.dp, 24f, 24f)
     .addPath(PathParser().parsePathString("M3,5h18v2H3zM3,11h18v2H3zM3,17h18v2H3zM14,3h2v6h-2zM6,9h2v6H6zM16,15h2v6h-2z").toNodes(), fill = SolidColor(Color.Black))
     .build()
-
-private enum class Goal(val label: String, val keeps: (Listing) -> Boolean) {
-    Any("Any", { true }),
-    Practice("Practice", { it.practice }),
-    Completion("Completion", { it.completion }),
-    Loot("Loot", { it.loot }),
-}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -285,308 +253,6 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FilterSheet(
-    category: Int,
-    goal: Goal,
-    fits: Boolean,
-    picks: Set<String>,
-    jobs: List<Job>,
-    beginners: Boolean,
-    blocked: Boolean,
-    words: List<String>,
-    count: Int,
-    onCategory: (Int) -> Unit,
-    onGoal: (Goal) -> Unit,
-    onJobs: (Boolean, Set<String>) -> Unit,
-    onBeginners: (Boolean) -> Unit,
-    onBlocked: (Boolean) -> Unit,
-    onWords: (List<String>) -> Unit,
-    onClear: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val sprout by JobIcons.sprout.collectAsStateWithLifecycle()
-    var jobsSheet by rememberSaveable { mutableStateOf(false) }
-    var wordsSheet by rememberSaveable { mutableStateOf(false) }
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = AppColors.background,
-    ) {
-        Column(Modifier.padding(start = SheetPadding, end = SheetPadding, bottom = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Filters", fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text, modifier = Modifier.weight(1f))
-                Text(
-                    "Clear all",
-                    color = AppColors.accent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onClear)
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                )
-            }
-            SheetLabel("Category")
-            CategoryRow(category, onCategory)
-            SheetLabel("Goal")
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .background(AppColors.card, RoundedCornerShape(50))
-                    .border(1.dp, AppColors.line, RoundedCornerShape(50))
-                    .padding(3.dp),
-            ) {
-                Goal.entries.forEach {
-                    val picked = it == goal
-                    Text(
-                        it.label,
-                        color = if (picked) AppColors.onAccent else AppColors.text,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        textAlign = TextAlign.Center,
-                        maxLines = 1,
-                        modifier = Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(50))
-                            .background(if (picked) AppColors.accent else Color.Transparent)
-                            .clickable { onGoal(it) }
-                            .padding(vertical = 7.dp),
-                    )
-                }
-            }
-            Spacer(Modifier.height(8.dp))
-            NavRow("Jobs", jobSummary(fits, picks, jobs).ifEmpty { "Any job" }) { jobsSheet = true }
-            Divider()
-            ToggleRow(BEGINNERS, beginners, onBeginners, sprout)
-            Divider()
-            ToggleRow("Show blocked recruiters", blocked, onBlocked)
-            Divider()
-            NavRow("Highlight words", words.joinToString(", ").ifEmpty { "None" }) { wordsSheet = true }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                if (count == 1) "Show 1 listing" else "Show $count listings",
-                color = AppColors.onAccent,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(50))
-                    .background(AppColors.accent)
-                    .clickable(onClick = onDismiss)
-                    .padding(vertical = 13.dp),
-            )
-        }
-    }
-    if (jobsSheet) JobsSheet(fits, picks, jobs, onJobs) { jobsSheet = false }
-    if (wordsSheet) WordsSheet(words, onWords) { wordsSheet = false }
-}
-
-@Composable
-private fun CategoryRow(category: Int, onCategory: (Int) -> Unit) {
-    val index = FinderCategory.all.indexOfFirst { it.first == category }
-    val state = rememberLazyListState(initialFirstVisibleItemIndex = (index - 1).coerceAtLeast(0))
-    LazyRow(
-        state = state,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-        contentPadding = PaddingValues(horizontal = SheetPadding),
-        modifier = Modifier
-            .bleed(SheetPadding)
-            .fadeEdges(state, FadeWidth),
-    ) {
-        items(FinderCategory.all, key = { it.first }) { (id, label) ->
-            Chip(label, id == category) { onCategory(id) }
-        }
-    }
-}
-
-private fun Modifier.bleed(horizontal: Dp) = layout { measurable, constraints ->
-    val extra = (horizontal * 2).roundToPx()
-    val placeable = measurable.measure(constraints.offset(horizontal = extra))
-    layout(placeable.width - extra, placeable.height) { placeable.place(-extra / 2, 0) }
-}
-
-private fun Modifier.fadeEdges(state: LazyListState, width: Dp) = graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val fade = width.toPx()
-        if (state.canScrollBackward) {
-            drawRect(Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), endX = fade), blendMode = BlendMode.DstIn)
-        }
-        if (state.canScrollForward) {
-            drawRect(Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width), blendMode = BlendMode.DstIn)
-        }
-    }
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SubSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        containerColor = AppColors.background,
-    ) {
-        Column(Modifier.padding(start = SheetPadding, end = SheetPadding, bottom = 24.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(title, fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text, modifier = Modifier.weight(1f))
-                Text(
-                    "Done",
-                    color = AppColors.accent,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(50))
-                        .clickable(onClick = onDismiss)
-                        .padding(horizontal = 6.dp, vertical = 4.dp),
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            content()
-        }
-    }
-}
-
-@Composable
-private fun JobsSheet(fits: Boolean, picks: Set<String>, jobs: List<Job>, onJobs: (Boolean, Set<String>) -> Unit, onDismiss: () -> Unit) {
-    SubSheet("Jobs", onDismiss) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Chip("Any job", !fits && picks.isEmpty()) { onJobs(false, emptySet()) }
-            Chip("My current job", fits) { onJobs(!fits, picks) }
-        }
-        if (jobs.isEmpty()) {
-            Text("Jobs show up here after the plugin connects", color = AppColors.muted, fontSize = 13.sp, modifier = Modifier.padding(top = 16.dp))
-        }
-        jobs.groupBy { roleName(it.role) }.toList().sortedBy { (_, group) -> roleRank(group.first().role) }.forEach { (role, group) ->
-            SheetLabel(roleTitle(role))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                group.forEach { job ->
-                    val picked = job.name in picks
-                    JobPick(job, picked) { onJobs(fits, if (picked) picks - job.name else picks + job.name) }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun JobPick(job: Job, picked: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(PICK_SIZE * 0.36f)
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .clip(shape)
-            .border(2.dp, if (picked) AppColors.accent else Color.Transparent, shape)
-            .selectable(selected = picked, onClick = onClick)
-            .padding(4.dp),
-    ) {
-        JobTile(job.name, job.role, job.name, PICK_SIZE, Modifier.alpha(if (picked) 1f else PICK_DIM))
-    }
-}
-
-@Composable
-private fun WordsSheet(words: List<String>, onWords: (List<String>) -> Unit, onDismiss: () -> Unit) {
-    var draft by rememberSaveable { mutableStateOf("") }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-    SubSheet("Highlight words", onDismiss) {
-        if (words.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                words.forEach { word -> Removable(word) { onWords(words - word) } }
-            }
-            Spacer(Modifier.height(12.dp))
-        }
-        PillField(
-            value = draft,
-            placeholder = "Add a word or phrase",
-            onChange = { draft = it },
-            modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            onDone = {
-                val word = draft.trim()
-                if (word.isNotEmpty() && words.none { it.equals(word, ignoreCase = true) }) onWords(words + word)
-                draft = ""
-            },
-        )
-    }
-}
-
-@Composable
-internal fun NavRow(label: String, value: String, onClick: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-    ) {
-        Text(label, color = AppColors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        Text(
-            value,
-            color = AppColors.muted,
-            fontSize = 14.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 180.dp),
-        )
-        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = AppColors.muted, modifier = Modifier.size(20.dp))
-    }
-}
-
-@Composable
-internal fun Divider() {
-    Box(Modifier.fillMaxWidth().height(1.dp).background(AppColors.line))
-}
-
-private fun keepsJobs(listing: Listing, fits: Boolean, picks: Set<String>) =
-    (!fits && picks.isEmpty()) || (fits && listing.fits) || listing.jobs.any { it in picks }
-
-private fun jobSummary(fits: Boolean, picks: Set<String>, jobs: List<Job>, shown: Int = Int.MAX_VALUE): String {
-    val order = jobs.map { it.name }
-    val names = listOfNotNull("My job".takeIf { fits }) + picks.sortedBy { order.indexOf(it).let { i -> if (i < 0) order.size else i } }
-    return if (names.size > shown) "${names.take(shown - 1).joinToString(", ")} +${names.size - shown + 1}" else names.joinToString(", ")
-}
-
-private class WordMatcher(words: List<String>) {
-    private val regex = words.takeIf { it.isNotEmpty() }
-        ?.sortedByDescending { it.length }
-        ?.joinToString("|", "(?<![\\p{L}\\p{N}])(?:", ")(?![\\p{L}\\p{N}])") { Regex.escape(it) }
-        ?.toRegex(RegexOption.IGNORE_CASE)
-
-    fun matches(text: String) = regex?.containsMatchIn(text) == true
-
-    fun ranges(text: String): List<IntRange> = regex?.findAll(text)?.map { it.range }?.toList().orEmpty()
-}
-
-@Composable
-private fun SheetLabel(text: String) {
-    Text(
-        text,
-        color = AppColors.muted,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold,
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
-    )
-}
-
-@Composable
-private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit, icon: ImageBitmap? = null) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onChange(!on) }
-            .padding(vertical = 6.dp),
-    ) {
-        if (icon != null) {
-            Image(icon, contentDescription = null, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-        }
-        Text(label, color = AppColors.text, fontSize = 15.sp, modifier = Modifier.weight(1f))
-        AppSwitch(checked = on, onCheckedChange = onChange)
-    }
-}
-
 @Composable
 private fun FilterButton(active: Int, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
@@ -608,28 +274,6 @@ private fun FilterButton(active: Int, onClick: () -> Unit) {
         }
     }
 }
-
-@Composable
-private fun Removable(label: String, onRemove: () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(AppColors.accent.copy(alpha = 0.14f))
-            .clickable(onClick = onRemove)
-            .padding(start = 12.dp, end = 9.dp, top = 7.dp, bottom = 7.dp),
-    ) {
-        Text(label, color = AppColors.accent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-        Spacer(Modifier.width(4.dp))
-        Icon(Icons.Filled.Close, contentDescription = "Remove", tint = AppColors.accent, modifier = Modifier.size(14.dp))
-    }
-}
-
-private fun matches(listing: Listing, query: String) =
-    listOf(listing.title, listing.description, listing.leader).any { it.contains(query, ignoreCase = true) } || codeMatches(listing.code, query)
-
-private fun codeMatches(code: String, query: String) =
-    code.startsWith(query, ignoreCase = true) && code.getOrNull(query.length)?.isDigit() != true && query.any { it.isDigit() }
 
 private fun updated(status: Status, loaded: Boolean, time: Long, now: Long): String = when {
     status != Status.Connected -> status.label
@@ -653,7 +297,7 @@ private fun remaining(seconds: Int): String = when {
 }
 
 @Composable
-private fun PillField(
+internal fun PillField(
     value: String,
     placeholder: String,
     onChange: (String) -> Unit,
@@ -691,7 +335,7 @@ private fun PillField(
 }
 
 @Composable
-private fun Chip(label: String, active: Boolean, modifier: Modifier = Modifier, trailing: ImageVector? = null, onClick: () -> Unit) {
+internal fun Chip(label: String, active: Boolean, modifier: Modifier = Modifier, trailing: ImageVector? = null, onClick: () -> Unit) {
     val shape = RoundedCornerShape(50)
     val color = if (active) AppColors.onAccent else AppColors.text
     Row(
@@ -920,20 +564,5 @@ private fun Tag(tag: TagInfo) {
             Spacer(Modifier.width(3.dp))
         }
         Text(tag.label, color = if (tag.color != null) Color.White else AppColors.muted, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-    }
-}
-
-@Composable
-fun SlotBars(filled: List<Int?>, modifier: Modifier = Modifier) {
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = modifier.fillMaxWidth()) {
-        filled.forEach { role ->
-            val color = if (role != null) roleColor(role) else OpenSlot.copy(alpha = 0.5f)
-            Box(
-                Modifier
-                    .weight(1f)
-                    .height(6.dp)
-                    .background(color, RoundedCornerShape(50)),
-            )
-        }
     }
 }

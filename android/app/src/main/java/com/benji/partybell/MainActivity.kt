@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         TellHistory.load(this)
         request.value = intent.getStringExtra(Notifier.EXTRA_OPEN)
         val settings = AppSettings(this)
-        if (settings.enabled && settings.isPaired) PartyService.start(this)
+        PartyService.startIfEnabled(this)
 
         setContent {
             PartyBellTheme {
@@ -40,8 +40,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         Updater.check(this)
-        val settings = AppSettings(this)
-        if (settings.enabled && settings.isPaired) PartyService.nudge(this)
+        PartyService.nudgeIfEnabled(this)
     }
 
     override fun onNewIntent(intent: Intent) {

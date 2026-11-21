@@ -133,22 +133,17 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
     fun answered(answer: Answered) = readyStatus(
         when {
             answer.ok -> if (answer.ready) "You're ready" else "You're not ready"
-            else -> "Couldn't answer: " + when (answer.reason) {
-                "disabled" -> "answering from phones is off in the plugin"
-                "no ready check" -> "the ready check is over"
-                "answered" -> "already answered in game"
-                "no prompt" -> "the ready check window isn't open"
-                "offline" -> "not connected"
-                else -> "the game refused it"
-            }
+            else -> couldNotAnswer(Reasons.readyCheck(answer.reason))
         }
     )
 
     fun dutying(action: String) = queueStatus(if (action == DutyAction.COMMENCE) "Commencing…" else "Withdrawing…")
 
     fun dutied(reply: DutyReply) {
-        if (!reply.ok) queueStatus("Couldn't answer: " + PartyState.dutyReason(reply.reason).replaceFirstChar(Char::lowercase))
+        if (!reply.ok) queueStatus(couldNotAnswer(Reasons.duty(reply.reason)))
     }
+
+    private fun couldNotAnswer(reason: String) = "Couldn't answer: " + reason.replaceFirstChar(Char::lowercase)
 
     fun dismiss(kind: String) = when (kind) {
         EventKind.Queue.key -> manager.cancel(QUEUE_ID)

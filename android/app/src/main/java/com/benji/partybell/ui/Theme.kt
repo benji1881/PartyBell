@@ -66,11 +66,6 @@ val AppColors: Palette
 
 val Cream = Color(0xFFF7F3EA)
 
-private const val ROLE_TANK = 1
-private const val ROLE_MELEE = 2
-private const val ROLE_RANGED = 3
-private const val ROLE_HEALER = 4
-
 fun roleColor(role: Int): Color = when (role) {
     ROLE_TANK -> Color(0xFF5B7DA8)
     ROLE_HEALER -> Color(0xFF5E8F62)
@@ -78,26 +73,8 @@ fun roleColor(role: Int): Color = when (role) {
     else -> Color(0xFF8A857C)
 }
 
-fun roleName(role: Int): String = when (role) {
-    ROLE_TANK -> "tank"
-    ROLE_HEALER -> "healer"
-    ROLE_MELEE, ROLE_RANGED -> "dps"
-    else -> "any"
-}
-
-private val RoleOrder = listOf(ROLE_TANK, ROLE_HEALER, ROLE_MELEE, ROLE_RANGED)
-
-fun roleRank(role: Int): Int = RoleOrder.indexOf(role).let { if (it < 0) RoleOrder.size else it }
-
 fun roleColor(name: String): Color? = RoleOrder.firstOrNull { roleName(it) == name }?.let(::roleColor)
 
-fun roleTitle(role: String) = when (role) {
-    "tank" -> "Tanks"
-    "healer" -> "Healers"
-    "dps" -> "DPS"
-    "players" -> "Players"
-    else -> "Other"
-}
 
 @OptIn(ExperimentalTextApi::class)
 private fun variable(resource: Int, weight: Int) =

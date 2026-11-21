@@ -227,21 +227,6 @@ private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
 }
 
 @Composable
-fun Badge(count: Int, modifier: Modifier = Modifier) {
-    Text(
-        if (count > 99) "99+" else count.toString(),
-        color = AppColors.onAccent,
-        fontSize = 11.sp,
-        fontWeight = FontWeight.Bold,
-        textAlign = TextAlign.Center,
-        modifier = modifier
-            .background(AppColors.accent, RoundedCornerShape(50))
-            .widthIn(min = 18.dp)
-            .padding(horizontal = 5.dp, vertical = 1.dp),
-    )
-}
-
-@Composable
 private fun PartyScreen(conversation: String, onBack: () -> Unit, onTell: (String) -> Unit) {
     val party by PartyState.party.collectAsStateWithLifecycle()
     val feed by PartyState.feed.collectAsStateWithLifecycle()
@@ -301,82 +286,6 @@ private fun shows(item: FeedItem, channel: String) = when (item) {
 }
 
 fun incoming(item: FeedItem, after: Long) = item is ChatItem && !item.self && item.time > after
-
-@Composable
-fun Empty(text: String, modifier: Modifier = Modifier) {
-    Box(modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        Text(text, color = AppColors.muted, fontSize = 14.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(24.dp))
-    }
-}
-
-@Composable
-fun Header(title: String, status: Status, onSettings: () -> Unit, onRefresh: (() -> Unit)? = null) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 12.dp),
-    ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontFamily = Fraunces, fontSize = 28.sp, color = AppColors.text)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Dot(statusColor(status))
-                Spacer(Modifier.width(6.dp))
-                Text(status.label, color = AppColors.muted, fontSize = 13.sp)
-            }
-        }
-        if (onRefresh != null) {
-            CircleButton(Icons.Filled.Refresh, "Refresh", onRefresh)
-            Spacer(Modifier.width(8.dp))
-        }
-        CircleButton(Icons.Filled.Settings, "Settings", onSettings)
-    }
-}
-
-@Composable
-fun TitleBar(title: String, onBack: () -> Unit, subtitle: @Composable () -> Unit) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 8.dp, bottom = 12.dp),
-    ) {
-        CircleButton(Icons.AutoMirrored.Filled.ArrowBack, "Back", onBack)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Text(title, fontFamily = Fraunces, fontSize = 24.sp, color = AppColors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically) { subtitle() }
-        }
-    }
-}
-
-@Composable
-fun CircleButton(icon: ImageVector, description: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = modifier
-            .size(44.dp)
-            .clip(CircleShape)
-            .background(AppColors.card)
-            .border(1.dp, AppColors.line, CircleShape)
-            .clickable(onClick = onClick),
-    ) {
-        Icon(icon, contentDescription = description, tint = AppColors.text, modifier = Modifier.size(22.dp))
-    }
-}
-
-@Composable
-fun Dot(color: Color, modifier: Modifier = Modifier) {
-    Box(modifier.size(8.dp).background(color, CircleShape))
-}
-
-@Composable
-internal fun statusColor(status: Status): Color = when (status) {
-    Status.Connected -> AppColors.accent
-    Status.Connecting -> AppColors.yellow
-    Status.Off -> AppColors.muted
-    Status.NotPaired, Status.UpdatePlugin, Status.UpdateApp -> AppColors.red
-}
 
 @Composable
 private fun Tabs(selected: String, onSelect: (String) -> Unit, unread: (String) -> Int) {

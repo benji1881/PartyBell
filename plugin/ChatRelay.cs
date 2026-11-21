@@ -83,13 +83,13 @@ internal sealed class ChatRelay : IDisposable
         if (sender.Payloads.OfType<PlayerPayload>().FirstOrDefault() is { } player)
         {
             var world = player.World.ValueNullable?.Name.ExtractText() is { Length: > 0 } listed ? listed : CurrentWorld;
-            return (player.PlayerName, $"{player.PlayerName}@{world}");
+            return (player.PlayerName, Member.KeyOf(player.PlayerName, world));
         }
         var text = string.Concat(sender.Payloads.Select(p => p is IconPayload { Icon: BitmapFontIcon.CrossWorld } ? CrossWorld : (p as ITextProvider)?.Text));
         var split = text.IndexOf(CrossWorld, StringComparison.Ordinal);
         var name = Letters(split < 0 ? text : text[..split]);
         var home = split < 0 ? CurrentWorld : Letters(text[(split + CrossWorld.Length)..]);
-        return (name, $"{name}@{home}");
+        return (name, Member.KeyOf(name, home));
     }
 
     private static string Letters(string text) =>

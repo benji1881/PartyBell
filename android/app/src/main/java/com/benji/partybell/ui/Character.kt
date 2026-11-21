@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.benji.partybell.Reasons
 import com.benji.partybell.AppSettings
 import com.benji.partybell.Currency
 import com.benji.partybell.GearPiece
@@ -136,7 +137,7 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Header("Character", status, onSettings)
         when {
-            status != Status.Connected -> Empty("Not connected", Modifier.weight(1f))
+            status != Status.Connected -> Empty(Reasons.NOT_CONNECTED, Modifier.weight(1f))
             current == null && idle -> Empty("Log in to a character in the game", Modifier.weight(1f))
             else -> Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),

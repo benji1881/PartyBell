@@ -1,22 +1,35 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.WebSockets;
 using System.Text;
+using System.Text.Json;
 using System.Threading;
 using System.Threading.Channels;
 using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder, DutyQueue queue)
+internal sealed class PhoneClient(PairedPhone phone, WebSocket socket, Sealer sealer, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder, DutyQueue queue)
 {
     private const int MaxMessageSize = 8192;
+    private const int MaxQueued = 1000;
+    private const string RefreshFriends = "friendsrefresh";
 
-    private readonly Channel<string> outbox = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<string> outbox = Channel.CreateBounded<string>(new BoundedChannelOptions(MaxQueued) { SingleReader = true });
 
     private Task sending = Task.CompletedTask;
 
-    public void Send(string json) => outbox.Writer.TryWrite(json);
+    public PairedPhone Phone => phone;
+
+    // A phone that stops reading would make the queue grow forever, so drop it instead.
+    public void Send(string json)
+    {
+        if (!outbox.Writer.TryWrite(json) && outbox.Reader.Count >= MaxQueued)
+            Drop();
+    }
+
+    public void Drop() => socket.Abort();
 
     public Task Goodbye()
     {
@@ -57,6 +70,7 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
         }
     }
 
+    // Requests are answered in the background so a receive is always waiting, which the keep-alive needs.
     private async Task ReceiveLoop(CancellationToken token)
     {
         var buffer = new byte[MaxMessageSize];
@@ -86,22 +100,8 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
                     await socket.CloseOutputAsync(WebSocketCloseStatus.PolicyViolation, null, token);
                     return;
                 }
-                if (Say.Parse(plain) is { } say)
-                    _ = Said(say);
-                else if (Answer.Parse(plain) is { } answer)
-                    Send(Messages.Answered(answer.Ready, await readyCheck.Answer(answer.Ready)));
-                else if (DutyAction.Parse(plain) is { } duty)
-                    Send(Messages.Duty(duty.Action, await queue.Act(duty.Action)));
-                else if (Invite.Parse(plain) is { } invite)
-                    Send(Messages.Invited(invite.Id, await inviter.Send(invite)));
-                else if (Finder.Parse(plain) is { } request)
-                    Send(Messages.Finding(await finder.Request(request)));
-                else if (OpenListing.Parse(plain) is { } open)
-                    Send(Messages.Opened(await finder.Open(open)));
-                else if (JoinListing.Parse(plain) is { } join)
-                    Send(Messages.Joining(await finder.Join(join)));
-                else if (RefreshFriends.Parse(plain) is not null)
-                    Send(Messages.Refreshing(await FriendList.Refresh()));
+                if (Route(plain) is { } reply)
+                    _ = Reply(reply);
             }
         }
         catch (Exception e) when (IsDisconnect(e))
@@ -109,7 +109,58 @@ internal sealed class PhoneClient(WebSocket socket, Sealer sealer, ChatSender ch
         }
     }
 
-    private async Task Said(Say say) => Send(Messages.Said(say.Id, await chat.Send(say)));
+    private Task<string>? Route(byte[] plain)
+    {
+        try
+        {
+            using var document = JsonDocument.Parse(plain);
+            var root = document.RootElement;
+            return root.GetProperty("type").GetString() switch
+            {
+                Say.Type => Said(Say.Read(root)),
+                Answer.Type => Answered(Answer.Read(root)),
+                DutyAction.Type => Dutied(DutyAction.Read(root)),
+                Invite.Type => Invited(Invite.Read(root)),
+                Finder.Type => Found(Finder.Read(root)),
+                OpenListing.Type => Opened(OpenListing.Read(root)),
+                JoinListing.Type => Joined(JoinListing.Read(root)),
+                RefreshFriends => Refreshed(),
+                _ => null,
+            };
+        }
+        catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or FormatException or OverflowException)
+        {
+            return null;
+        }
+    }
 
-    private static bool IsDisconnect(Exception e) => e is WebSocketException or IOException or OperationCanceledException;
+    private async Task Reply(Task<string> reply)
+    {
+        try
+        {
+            Send(await reply);
+        }
+        catch (Exception e)
+        {
+            Services.Log.Error(e, "A phone request failed.");
+        }
+    }
+
+    private async Task<string> Said(Say say) => Messages.Said(say.Id, await chat.Send(say));
+
+    private async Task<string> Answered(Answer answer) => Messages.Answered(answer.Ready, await readyCheck.Answer(answer.Ready));
+
+    private async Task<string> Dutied(DutyAction duty) => Messages.Duty(duty.Action, await queue.Act(duty.Action));
+
+    private async Task<string> Invited(Invite invite) => Messages.Invited(invite.Id, await inviter.Send(invite));
+
+    private async Task<string> Found(Finder request) => Messages.Finding(await finder.Request(request));
+
+    private async Task<string> Opened(OpenListing open) => Messages.Opened(await finder.Open(open));
+
+    private async Task<string> Joined(JoinListing join) => Messages.Joining(await finder.Join(join));
+
+    private static async Task<string> Refreshed() => Messages.Refreshing(await FriendList.Refresh());
+
+    private static bool IsDisconnect(Exception e) => e is WebSocketException or IOException or OperationCanceledException or ObjectDisposedException;
 }

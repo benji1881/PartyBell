@@ -14,10 +14,12 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
     private const int MaxHandshakes = 8;
     private static readonly TimeSpan HandshakeTimeout = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan KeepAlive = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan KeepAliveTimeout = TimeSpan.FromSeconds(30);
     private static readonly TimeSpan GoodbyeTimeout = TimeSpan.FromSeconds(1);
     private static readonly string Version = typeof(PhoneServer).Assembly.GetName().Version?.ToString(3) ?? "";
 
     private readonly SemaphoreSlim handshakes = new(MaxHandshakes);
+    private readonly Beacon beacon = new(config);
     private TcpListener? listener;
     private CancellationTokenSource? cancel;
 
@@ -43,8 +45,18 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
             return;
         }
 
+        beacon.Start(config.Port);
         cancel = new CancellationTokenSource();
         _ = AcceptLoop(listener, cancel.Token);
+    }
+
+    // Listens while any phone is paired. Restarting also drops phones that were just forgotten.
+    public void Restart()
+    {
+        if (config.Phones.Count > 0)
+            Start();
+        else
+            Stop();
     }
 
     public void Dispose() => Stop();
@@ -57,6 +69,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
         cancel = null;
         listener?.Stop();
         listener = null;
+        beacon.Stop();
         Error = null;
     }
 
@@ -90,10 +103,10 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
         using var connection = tcp;
         try
         {
-            if (tcp.Client.RemoteEndPoint is not IPEndPoint { Address: var address } || !Network.IsLocal(address))
+            if (tcp.Client.RemoteEndPoint is not IPEndPoint { Address: var remote } || tcp.Client.LocalEndPoint is not IPEndPoint { Address: var local } || !Network.IsLocal(remote, local))
                 return;
             var stream = tcp.GetStream();
-            using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true, KeepAliveInterval = KeepAlive });
+            using var socket = WebSocket.CreateFromStream(stream, new WebSocketCreationOptions { IsServer = true, KeepAliveInterval = KeepAlive, KeepAliveTimeout = KeepAliveTimeout });
             if (!handshakes.Wait(0))
                 return;
             var pending = Pending;
@@ -118,7 +131,7 @@ internal sealed class PhoneServer(Feed feed, Configuration config, ChatSender ch
                 _ = Services.Framework.RunOnFrameworkThread(() => Paired(phone));
 
             using var sealer = new Sealer(session);
-            var client = new PhoneClient(socket, sealer, chat, readyCheck, inviter, finder, queue);
+            var client = new PhoneClient(phone, socket, sealer, chat, readyCheck, inviter, finder, queue);
             feed.Join(client, phone.PairedAt);
             client.Send(Messages.Plugin(Version));
             if (session.Icons != JobIcons.Version)

@@ -571,4 +571,3 @@ private fun copy(context: Context, text: String) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
 }
 
-private fun clock(context: Context, time: Long): String = DateFormat.getTimeFormat(context).format(time)

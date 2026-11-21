@@ -4,6 +4,8 @@ namespace PartyBell;
 
 internal static unsafe class Addons
 {
+    public const string YesNo = "SelectYesno";
+
     public static AtkUnitBase* Ready(string name)
     {
         var addon = (AtkUnitBase*)Services.GameGui.GetAddonByName(name, 1).Address;

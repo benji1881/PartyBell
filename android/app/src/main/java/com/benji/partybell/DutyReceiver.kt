@@ -8,6 +8,6 @@ class DutyReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         val action = intent.getStringExtra(Notifier.EXTRA_DUTY) ?: return
         val notifier = Notifier(context, AppSettings(context))
-        if (PartyState.duty(action)) notifier.dutying(action) else notifier.dutied(DutyReply(action, false, "offline"))
+        if (PartyState.duty(action)) notifier.dutying(action) else notifier.dutied(DutyReply(action, false, Reasons.OFFLINE))
     }
 }

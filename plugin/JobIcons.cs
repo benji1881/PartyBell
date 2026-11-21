@@ -78,7 +78,7 @@ internal static class JobIcons
         var jobs = Services.DataManager.GetExcelSheet<ClassJob>()
             .Where(job => job.JobIndex > 0 && job.Role != 0)
             .OrderBy(job => job.UIPriority)
-            .Select(job => new Job(job.Abbreviation.ExtractText(), PartyFinder.Role(job.Role)))
+            .Select(job => new Job(job.Abbreviation.ExtractText(), JobRole.Grouped(job.Role)))
             .ToList();
         foreach (var job in jobs)
             hash.AppendData(Encoding.UTF8.GetBytes($"{job.Name}:{job.Role}"));

@@ -20,11 +20,11 @@ internal static unsafe class FriendList
     private static string? Ask()
     {
         if (GameState.NotReady() || Services.ClientState.IsGPosing)
-            return "not ready";
+            return Reason.NotReady;
         if (Services.GameGui.GetAddonByName(Window, 1).Address != IntPtr.Zero)
-            return "window open";
+            return Reason.WindowOpen;
         var proxy = InfoProxyFriendList.Instance();
-        return proxy != null && proxy->RequestData() ? null : "refused";
+        return proxy != null && proxy->RequestData() ? null : Reason.Refused;
     }
 
     public static List<Friend>? Read()

@@ -1,6 +1,7 @@
 using System;
 using System.Buffers.Text;
 using System.Security.Cryptography;
+using Newtonsoft.Json;
 
 namespace PartyBell;
 
@@ -10,8 +11,19 @@ public sealed class PairedPhone
 
     public string Id { get; set; } = "";
     public string Name { get; set; } = "";
+
+    [JsonIgnore]
     public string Secret { get; set; } = "";
+
     public DateTime PairedAt { get; set; }
+
+    // The config keeps the old name, so phones paired before encryption still load.
+    [JsonProperty(nameof(Secret))]
+    private string SavedSecret
+    {
+        get => SecretStore.Protect(Secret);
+        set => Secret = SecretStore.Unprotect(value);
+    }
 
     public static PairedPhone Create() => new()
     {

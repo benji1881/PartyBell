@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Only the paired PC may be reached without TLS, because the PartyBell protocol encrypts
+    everything itself. The PC is reached by IP, which this file can't list, so PcAddress.kt
+    puts the IP inside a made-up name under partybell.invalid and resolves it itself.
+    The .invalid domain never resolves through real DNS, so nothing else can use this exception.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">partybell.invalid</domain>
+    </domain-config>
+</network-security-config>

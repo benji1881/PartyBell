@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin;
@@ -46,8 +45,7 @@ public sealed class Plugin : IDalamudPlugin
         chat = new ChatRelay(config, feed, tracker, sender);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
-        if (config.Phones.Count > 0)
-            server.Start();
+        server.Restart();
 
         pluginInterface.UiBuilder.Draw += windows.Draw;
         pluginInterface.UiBuilder.OpenMainUi += window.Toggle;
@@ -98,7 +96,7 @@ public sealed class Plugin : IDalamudPlugin
             return;
         }
         loggedIn = true;
-        if (Services.Condition[ConditionFlag.BetweenAreas] || Services.Condition[ConditionFlag.BetweenAreas51])
+        if (GameState.BetweenAreas)
         {
             zonedAt = now;
             return;
@@ -115,7 +113,7 @@ public sealed class Plugin : IDalamudPlugin
         if (Services.PlayerState.HomeWorld.ValueNullable is not { } home)
             return;
         events.Clear();
-        var selfKey = $"{Services.PlayerState.CharacterName}@{home.Name.ExtractText()}";
+        var selfKey = Member.KeyOf(Services.PlayerState.CharacterName, home.Name.ExtractText());
         var before = tracker.Current;
         if (!tracker.Update(PartyReader.Read(), selfKey, now, now - zonedAt < ZoneGrace, DutyQueue.Matched, events))
             return;

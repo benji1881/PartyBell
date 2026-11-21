@@ -84,12 +84,20 @@ class AppSettings(context: Context) {
     val isPaired: Boolean
         get() = hosts.isNotEmpty() && phoneId.isNotEmpty() && key.isNotEmpty()
 
+    val shouldConnect: Boolean
+        get() = enabled && isPaired
+
     fun pair(pairing: Pairing) = prefs.edit {
         putString("hosts", pairing.hosts.joinToString(","))
         putInt("port", pairing.port)
         putString("phone_id", pairing.id)
         putString("key", Vault.seal(pairing.key))
         putBoolean("enabled", true)
+    }
+
+    // Discovery only finds home-network addresses, so the found one replaces the stale LAN ones and the tunnel address, which doesn't change, stays.
+    fun remember(found: String) = prefs.edit {
+        putString("hosts", (listOf(found) + hosts.filter(PcAddress::isTunnel)).distinct().joinToString(","))
     }
 
     fun notifies(kind: NotifyKind) = prefs.getBoolean(kind.key, kind.default)

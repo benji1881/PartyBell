@@ -1,6 +1,10 @@
+using System.Text.Json;
+
 namespace PartyBell;
 
 internal sealed record JoinListing(ulong Id)
 {
-    public static JoinListing? Parse(byte[] json) => Request.Parse(json, "join", root => new JoinListing(ulong.Parse(root.GetProperty("id").GetString() ?? "")));
+    public const string Type = "join";
+
+    public static JoinListing Read(JsonElement root) => new(ulong.Parse(root.GetProperty("id").GetString() ?? ""));
 }

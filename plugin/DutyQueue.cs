@@ -34,38 +34,36 @@ internal sealed unsafe class DutyQueue(Feed feed, Configuration config)
         if (ready)
             feed.Publish(Messages.Queue(Name(finder->QueueInfo.PoppedQueueEntry)));
         else
-            feed.Broadcast(Messages.Dismiss("queue"));
+            feed.Broadcast(Messages.Dismiss(AlertKind.Queue));
     }
 
-    public Task<string?> Act(string action) => config.AllowPhoneDuty
-        ? Services.Framework.RunOnFrameworkThread(() => Run(action))
-        : Task.FromResult<string?>("disabled");
+    public Task<string?> Act(string action) => PhoneGate.Run(config.AllowPhoneDuty, () => Run(action));
 
     private static string? Run(string action)
     {
         var finder = ContentsFinder.Instance();
         if (finder == null)
-            return "not queued";
+            return Reason.NotQueued;
         var state = finder->QueueInfo.QueueState;
         if (action == DutyAction.Leave)
         {
             if (state is not (ContentsFinderQueueState.Pending or ContentsFinderQueueState.Queued))
-                return "not queued";
+                return Reason.NotQueued;
             finder->QueueInfo.CancelQueue();
             return null;
         }
         if (state != ContentsFinderQueueState.Ready)
-            return "not ready";
+            return Reason.NotReady;
         var addon = (AddonContentsFinderConfirm*)Addons.Ready(Confirm);
         if (addon == null)
-            return "no window";
+            return Reason.NoWindow;
         var button = action switch
         {
             DutyAction.Commence => addon->CommenceButton,
             DutyAction.Withdraw => addon->WithdrawButton,
             _ => null,
         };
-        return button != null && Addons.Click(&addon->AtkUnitBase, button) ? null : "failed";
+        return button != null && Addons.Click(&addon->AtkUnitBase, button) ? null : Reason.Failed;
     }
 
     public void Reset()
@@ -74,7 +72,7 @@ internal sealed unsafe class DutyQueue(Feed feed, Configuration config)
         if (!popped)
             return;
         popped = false;
-        feed.Broadcast(Messages.Dismiss("queue"));
+        feed.Broadcast(Messages.Dismiss(AlertKind.Queue));
     }
 
     public static string Name(ContentsId duty)
@@ -85,8 +83,6 @@ internal sealed unsafe class DutyQueue(Feed feed, Configuration config)
             ContentsType.Regular => Services.DataManager.GetExcelSheet<Sheets.ContentFinderCondition>().GetRowOrDefault(duty.Id)?.Name.ExtractText(),
             _ => null,
         };
-        return Capitalised(name) ?? Fallback;
+        return GameText.Capitalised(name) ?? Fallback;
     }
-
-    public static string? Capitalised(string? name) => string.IsNullOrWhiteSpace(name) ? null : char.ToUpperInvariant(name[0]) + name[1..];
 }

@@ -26,7 +26,7 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
     public async Task<string?> Send(Say say)
     {
         if (!config.AllowPhoneChat)
-            return "disabled";
+            return Reason.Disabled;
 
         var prefix = say.Channel switch
         {
@@ -38,13 +38,13 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
         };
         var text = say.Text.Trim();
         if (prefix == null || text.Length == 0 || text.Any(char.IsControl))
-            return "invalid";
+            return Reason.Invalid;
         if (text.StartsWith('/'))
-            return "command";
+            return Reason.Command;
 
         var line = prefix + text;
         if (Encoding.UTF8.GetByteCount(line) > MaxBytes)
-            return "too long";
+            return Reason.TooLong;
 
         if (say.Channel != Tell)
             return await Services.Framework.RunOnFrameworkThread(() => Post(say.Channel, line));
@@ -58,7 +58,7 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
         if (reason == null && await Task.WhenAny(delivery.Task, Task.Delay(DeliveryTimeout)) == delivery.Task)
             return null;
         await Services.Framework.RunOnFrameworkThread(() => undelivered.RemoveAll(t => t.Done == delivery));
-        return reason ?? "not delivered";
+        return reason ?? Reason.NotDelivered;
     }
 
     public void Delivered(string text)
@@ -73,15 +73,15 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
     private unsafe string? Post(string channel, string line)
     {
         if (!Services.PlayerState.IsLoaded)
-            return "not ready";
+            return Reason.NotReady;
 
         var party = tracker.Current;
         if (channel == Alliance && party is not { Capacity: > PartyReader.GroupSize })
-            return "no alliance";
+            return Reason.NoAlliance;
         if (channel == Party && party is not { Members.Count: > 1 })
-            return "no party";
+            return Reason.NoParty;
         if (channel == FreeCompany && !Company.IsMember)
-            return "no fc";
+            return Reason.NoFreeCompany;
 
         var message = Utf8String.FromString(line);
         try
@@ -91,7 +91,7 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
                 AllowedEntities.SpecialCharacters | AllowedEntities.CharacterList | AllowedEntities.OtherCharacters |
                 AllowedEntities.Payloads | AllowedEntities.Unknown9);
             if (message->ToString() != line)
-                return "unsupported";
+                return Reason.Unsupported;
             UIModule.Instance()->ProcessChatBoxEntry(message);
             return null;
         }

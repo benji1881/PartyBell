@@ -1,6 +1,7 @@
 package com.benji.partybell
 
 import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
@@ -17,9 +18,11 @@ import okhttp3.WebSocketListener
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import java.util.concurrent.TimeUnit
+import kotlin.concurrent.thread
 import kotlin.math.min
 
-class Connection(private val context: Context, private val settings: AppSettings, private val notifier: Notifier) {
+// wakeUp is fired by an alarm that still runs in Doze, to try again after the PC has been off for a while.
+class Connection(private val context: Context, private val settings: AppSettings, private val notifier: Notifier, private val wakeUp: PendingIntent) {
     private companion object {
         const val BASE_DELAY_MS = 1_000L
         const val MAX_DELAY_MS = 30_000L
@@ -38,6 +41,7 @@ class Connection(private val context: Context, private val settings: AppSettings
     }
 
     private val client = OkHttpClient.Builder()
+        .dns(PcAddress)
         .connectTimeout(5, TimeUnit.SECONDS)
         .pingInterval(20, TimeUnit.SECONDS)
         .build()
@@ -49,10 +53,6 @@ class Connection(private val context: Context, private val settings: AppSettings
         .apply { setReferenceCounted(false) }
     private val lost = Runnable { notifier.lost() }
     private val reconnect = Runnable { connect() }
-    private val wakeUp = AlarmManager.OnAlarmListener {
-        wake.acquire(CONNECT_AWAKE_MS)
-        connect()
-    }
     private val network = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
             wake.acquire(CONNECT_AWAKE_MS)
@@ -67,11 +67,23 @@ class Connection(private val context: Context, private val settings: AppSettings
     private var running = false
     private var listening = false
     private var secret: ByteArray? = null
+    // Only tried, not saved, until a handshake through it succeeds, so a spoofed discovery reply is never kept.
+    private var discovered: String? = null
+    private var discovering = false
+
+    private val targets: List<String>
+        get() = listOfNotNull(discovered) + settings.hosts.filter { it != discovered }
 
     fun restart() {
         stop()
         running = true
         listening = runCatching { connectivity.registerDefaultNetworkCallback(network) }.isSuccess
+        connect()
+    }
+
+    fun wake() {
+        if (!running || socket != null) return
+        wake.acquire(CONNECT_AWAKE_MS)
         connect()
     }
 
@@ -95,6 +107,9 @@ class Connection(private val context: Context, private val settings: AppSettings
         socket?.close(NORMAL_CLOSE, null)
         socket = null
         secret = null
+        discovered = null
+        // Its result may have been dropped with the handler's messages.
+        discovering = false
         round = 0
         failingSince = 0L
         PartyState.setLink(Link.Ok)
@@ -104,7 +119,7 @@ class Connection(private val context: Context, private val settings: AppSettings
     }
 
     private fun connect() {
-        val hosts = settings.hosts
+        val hosts = targets
         if (!running || hosts.isEmpty()) return
         val secret = secret ?: Pairing.secret(settings.key)?.takeIf { it.isNotEmpty() }?.also { secret = it }
         if (secret == null) {
@@ -113,10 +128,12 @@ class Connection(private val context: Context, private val settings: AppSettings
             return
         }
 
+        val host = hosts[hostIndex % hosts.size]
+        // Unencrypted traffic is only allowed to PcAddress names, so the PC is reached through one.
         val url = try {
             HttpUrl.Builder()
                 .scheme("http")
-                .host(hosts[hostIndex % hosts.size])
+                .host(PcAddress.name(host) ?: throw IllegalArgumentException(host))
                 .port(settings.port)
                 .build()
         } catch (_: IllegalArgumentException) {
@@ -126,7 +143,7 @@ class Connection(private val context: Context, private val settings: AppSettings
 
         if (PartyState.status.value !in waiting) PartyState.setStatus(Status.Connecting)
         socketNetwork = connectivity.activeNetwork
-        socket = client.newWebSocket(Request.Builder().url(url).build(), Listener(settings.phoneId, secret))
+        socket = client.newWebSocket(Request.Builder().url(url).build(), Listener(host, settings.phoneId, secret))
     }
 
     private fun moved(to: Network) {
@@ -141,9 +158,32 @@ class Connection(private val context: Context, private val settings: AppSettings
         PartyState.disconnected()
         if (!opened) {
             hostIndex++
-            if (hostIndex % settings.hosts.size.coerceAtLeast(1) == 0) round++
+            if (hostIndex % targets.size.coerceAtLeast(1) == 0) {
+                round++
+                discover()
+            }
         }
         schedule(status)
+    }
+
+    // Every address failed, so the PC's LAN address may have changed since pairing.
+    private fun discover() {
+        if (discovering) return
+        discovering = true
+        val port = settings.port
+        val phoneId = settings.phoneId
+        thread(name = TAG) {
+            val host = Discovery.find(connectivity, port, phoneId)
+            handler.post { found(host) }
+        }
+    }
+
+    private fun found(host: String?) {
+        discovering = false
+        if (!running || host == null || host in targets) return
+        discovered = host
+        hostIndex = 0
+        if (socket == null) nudge()
     }
 
     private fun schedule(status: Status) {
@@ -160,7 +200,7 @@ class Connection(private val context: Context, private val settings: AppSettings
         PartyState.setLink(if (!searching) Link.Ok else if (idle) Link.Failed else Link.Searching)
         if (idle) {
             wake.release()
-            alarms.set(AlarmManager.ELAPSED_REALTIME_WAKEUP, now + IDLE_DELAY_MS, TAG, wakeUp, handler)
+            alarms.setAndAllowWhileIdle(AlarmManager.ELAPSED_REALTIME_WAKEUP, now + IDLE_DELAY_MS, wakeUp)
         } else {
             val delay = min(MAX_DELAY_MS, BASE_DELAY_MS shl min(round, MAX_BACKOFF_STEPS))
             wake.acquire(delay + CONNECT_AWAKE_MS)
@@ -170,7 +210,7 @@ class Connection(private val context: Context, private val settings: AppSettings
 
     private fun versionStatus(theirs: Int) = if (theirs < Protocol.VERSION) Status.UpdatePlugin else Status.UpdateApp
 
-    private inner class Listener(private val phoneId: String, private val secret: ByteArray) : WebSocketListener() {
+    private inner class Listener(private val host: String, private val phoneId: String, private val secret: ByteArray) : WebSocketListener() {
         private var sealer: Sealer? = null
         private var closeStatus: Status? = null
         private var opened = false
@@ -229,6 +269,10 @@ class Connection(private val context: Context, private val settings: AppSettings
                         webSocket === socket && webSocket.send(sealer.seal(json.encodeToByteArray()).toByteString())
                     }
                     PartyState.setStatus(Status.Connected)
+                    if (host == discovered) {
+                        settings.remember(host)
+                        discovered = null
+                    }
                     Updater.check(context)
                 }
                 if (message != null) {

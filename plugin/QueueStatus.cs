@@ -86,5 +86,5 @@ internal sealed record QueueStatus(string State, string Job, IReadOnlyList<strin
     }
 
     private static string JobName(uint id) =>
-        DutyQueue.Capitalised(Services.DataManager.GetExcelSheet<Sheets.ClassJob>().GetRowOrDefault(id)?.Name.ExtractText()) ?? "";
+        GameText.Capitalised(Services.DataManager.GetExcelSheet<Sheets.ClassJob>().GetRowOrDefault(id)?.Name.ExtractText()) ?? "";
 }

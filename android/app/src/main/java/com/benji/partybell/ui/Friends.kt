@@ -45,6 +45,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.benji.partybell.Reasons
 import com.benji.partybell.Friend
 import com.benji.partybell.FriendStatus
 import com.benji.partybell.PartyState
@@ -80,7 +81,7 @@ fun FriendsScreen(onSettings: () -> Unit, onMessage: (Friend) -> Unit) {
     Column(Modifier.fillMaxSize()) {
         Header("Friends", status, onSettings, onRefresh = { PartyState.refreshFriends() })
         when {
-            status != Status.Connected -> Empty("Not connected", Modifier.weight(1f))
+            status != Status.Connected -> Empty(Reasons.NOT_CONNECTED, Modifier.weight(1f))
             !friends.loaded && refreshing -> Empty("Loading friends…", Modifier.weight(1f))
             !friends.loaded -> Empty("Open your friend list in game once", Modifier.weight(1f))
             else -> {

@@ -55,9 +55,9 @@ object PartyState {
     fun clean(text: String): String = GameText.fromEmoji(text).replace(whitespace, " ").trim()
 
     fun problem(text: String, channel: String, to: String = ""): String? = when {
-        text.startsWith("/") -> "Commands can't be sent from the phone"
+        text.startsWith("/") -> Reasons.COMMAND
         GameText.hasEmoji(text) -> "Emoji can't be sent to the game chat"
-        text.encodeToByteArray().size > MAX_BYTES - prefixBytes(channel, to) -> "Too long for the game chat"
+        text.encodeToByteArray().size > MAX_BYTES - prefixBytes(channel, to) -> Reasons.TOO_LONG
         else -> null
     }
 
@@ -86,7 +86,7 @@ object PartyState {
                 (item as? ChatItem)?.takeIf { it.self }?.let(::echoed)
             }
             is Said -> update(incoming.id) {
-                if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = reason(incoming.reason))
+                if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = Reasons.chat(incoming.reason))
             }
             is FriendsUpdate -> {
                 friendsFlow.value = incoming.friends
@@ -94,7 +94,7 @@ object PartyState {
             }
             is CompanyUpdate -> companyFlow.value = incoming.member
             is Invited -> invites.remove(incoming.id)?.let { friend ->
-                noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else inviteReason(incoming.reason))
+                noticesFlow.tryEmit(if (incoming.ok) "Invited ${friend.name}" else Reasons.invite(incoming.reason))
             }
             is ListingsUpdate -> {
                 val update = incoming.listings
@@ -103,20 +103,20 @@ object PartyState {
             }
             is Finding -> if (!incoming.ok) {
                 findingFlow.value = false
-                noticesFlow.tryEmit(findReason(incoming.reason))
+                noticesFlow.tryEmit(Reasons.find(incoming.reason))
             }
             is Refreshing -> if (!incoming.ok) {
                 refreshingFriendsFlow.value = false
-                if (!quietRefresh) noticesFlow.tryEmit(friendsReason(incoming.reason))
+                if (!quietRefresh) noticesFlow.tryEmit(Reasons.friends(incoming.reason))
             } else if (friendsFlow.value.loaded) {
                 refreshingFriendsFlow.value = false
             }
-            is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else openReason(incoming.reason))
-            is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else joinReason(incoming.reason))
+            is Opened -> noticesFlow.tryEmit(if (incoming.ok) "Opened in the game" else Reasons.open(incoming.reason))
+            is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else Reasons.join(incoming.reason))
             is QueueUpdate -> queueFlow.value = incoming.status
             is CharacterUpdate -> characterFlow.value = incoming.profile
             is DutyReply -> when {
-                !incoming.ok -> noticesFlow.tryEmit(dutyReason(incoming.reason))
+                !incoming.ok -> noticesFlow.tryEmit(Reasons.duty(incoming.reason))
                 incoming.action == DutyAction.LEAVE -> noticesFlow.tryEmit("Left the queue")
             }
             Bye -> {
@@ -139,7 +139,7 @@ object PartyState {
             channel = channel,
             text = message,
             state = if (sent) SendState.Sending else SendState.Failed,
-            reason = problem ?: if (sent) "" else "Not connected",
+            reason = problem ?: if (sent) "" else Reasons.NOT_CONNECTED,
             time = System.currentTimeMillis(),
             to = to,
         )
@@ -148,19 +148,11 @@ object PartyState {
 
     fun invite(friend: Friend) {
         val id = nextId++
-        if (sender?.invoke(Protocol.invite(id, friend)) == true) {
-            invites[id] = friend
-        } else {
-            noticesFlow.tryEmit("Not connected")
-        }
+        if (request(Protocol.invite(id, friend))) invites[id] = friend
     }
 
     fun find(category: Int) {
-        if (sender?.invoke(Protocol.finder(category)) == true) {
-            findingFlow.value = true
-        } else {
-            noticesFlow.tryEmit("Not connected")
-        }
+        if (request(Protocol.finder(category))) findingFlow.value = true
     }
 
     fun refreshFriends(quiet: Boolean = false) {
@@ -169,7 +161,7 @@ object PartyState {
             quietRefresh = quiet
             refreshingFriendsFlow.value = true
         } else if (!quiet) {
-            noticesFlow.tryEmit("Not connected")
+            noticesFlow.tryEmit(Reasons.NOT_CONNECTED)
         }
     }
 
@@ -180,29 +172,16 @@ object PartyState {
     }
 
     fun open(listing: Listing) {
-        if (sender?.invoke(Protocol.open(listing.id)) != true) noticesFlow.tryEmit("Not connected")
+        request(Protocol.open(listing.id))
     }
 
     fun join(listing: Listing) {
-        if (sender?.invoke(Protocol.join(listing.id)) != true) noticesFlow.tryEmit("Not connected")
+        request(Protocol.join(listing.id))
     }
 
     fun answer(ready: Boolean): Boolean = sender?.invoke(Protocol.answer(ready)) == true
 
-    fun duty(action: String): Boolean {
-        val sent = sender?.invoke(Protocol.duty(action)) == true
-        if (!sent) noticesFlow.tryEmit("Not connected")
-        return sent
-    }
-
-    fun dutyReason(code: String) = when (code) {
-        "disabled" -> "Accepting duties from phones is off in the plugin"
-        "not queued" -> "You're not in the queue"
-        "not ready" -> "The duty isn't waiting for you"
-        "no window" -> "The duty window isn't open in the game"
-        "offline" -> "Not connected"
-        else -> "The game refused it"
-    }
+    fun duty(action: String): Boolean = request(Protocol.duty(action))
 
     fun retry(item: OutgoingItem) {
         outboxFlow.value = outboxFlow.value.filter { it.id != item.id }
@@ -229,7 +208,7 @@ object PartyState {
         friendsAskedAt = 0L
         friendsFlow.value = Friends()
         outboxFlow.value = outboxFlow.value.map {
-            if (it.state == SendState.Sending) it.copy(state = SendState.Failed, reason = "Not connected") else it
+            if (it.state == SendState.Sending) it.copy(state = SendState.Failed, reason = Reasons.NOT_CONNECTED) else it
         }
     }
 
@@ -263,59 +242,14 @@ object PartyState {
         outboxFlow.value = outboxFlow.value.filter { it.id != match.id }
     }
 
+    // Sends a request to the plugin, or tells the user the phone isn't connected.
+    private fun request(json: String): Boolean {
+        val sent = sender?.invoke(json) == true
+        if (!sent) noticesFlow.tryEmit(Reasons.NOT_CONNECTED)
+        return sent
+    }
+
     private fun update(id: Long, change: (OutgoingItem) -> OutgoingItem) {
         outboxFlow.value = outboxFlow.value.map { if (it.id == id) change(it) else it }
-    }
-
-    private fun reason(code: String) = when (code) {
-        "disabled" -> "Writing from phones is off in the plugin"
-        "too long" -> "Too long for the game chat"
-        "command" -> "Commands can't be sent from the phone"
-        "no party" -> "You're not in a party"
-        "no alliance" -> "You're not in an alliance"
-        "no fc" -> "You're not in a Free Company"
-        "not ready" -> "The game isn't ready"
-        "invalid" -> "Not a valid name"
-        "unsupported" -> "The game can't show some of these characters"
-        "not delivered" -> "The game couldn't deliver the tell"
-        else -> "The game refused it"
-    }
-
-    private fun findReason(code: String) = when (code) {
-        "not ready" -> "The game isn't ready"
-        "in duty" -> "The Party Finder can't be read in a duty"
-        "window open" -> "The Party Finder is open in the game"
-        else -> "The game refused the request"
-    }
-
-    private fun friendsReason(code: String) = when (code) {
-        "not ready" -> "The game isn't ready"
-        "window open" -> "Your friend list is open in the game"
-        else -> "The game refused the request"
-    }
-
-    private fun openReason(code: String) = when (code) {
-        "not ready" -> "The game isn't ready"
-        "in duty" -> "The Party Finder can't be opened in a duty"
-        else -> "The game couldn't open the listing"
-    }
-
-    private fun joinReason(code: String) = when (code) {
-        "disabled" -> "Joining listings from phones is off in the plugin"
-        "not ready" -> "The game isn't ready"
-        "in duty" -> "You can't join a party in a duty"
-        "busy" -> "Already joining a party"
-        "timeout" -> "The game didn't let you join"
-        else -> "The game couldn't join the party"
-    }
-
-    private fun inviteReason(code: String) = when (code) {
-        "disabled" -> "Party invites from phones are off in the plugin"
-        "party full" -> "Your party is full"
-        "not leader" -> "Only the party leader can invite"
-        "not found" -> "Not on your friend list"
-        "offline" -> "They're offline"
-        "not ready" -> "The game isn't ready"
-        else -> "The game refused the invite"
     }
 }

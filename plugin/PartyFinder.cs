@@ -1,33 +1,27 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Numerics;
 using System.Threading.Tasks;
-using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Gui.PartyFinder.Types;
 using Dalamud.Hooking;
 using FFXIVClientStructs.FFXIV.Client.Game.Network;
 using FFXIVClientStructs.FFXIV.Client.UI.Agent;
 using FFXIVClientStructs.FFXIV.Client.UI.Info;
-using Sheets = Lumina.Excel.Sheets;
 
 namespace PartyBell;
 
+// Collects Party Finder listings for the phone and hides listings from blocked players.
 internal sealed unsafe class PartyFinder : IDisposable
 {
-    private const byte Other = 16;
     private const byte DataCenter = 0;
     private const string Window = "LookingForGroup";
-    private const string Detail = "LookingForGroupDetail";
-    private const string Confirm = "SelectYesno";
-    private const uint JoinButton = 109;
-    private const int Yes = 0;
     private static readonly TimeSpan Quiet = TimeSpan.FromMilliseconds(750);
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan NoReply = TimeSpan.FromSeconds(2);
 
     private readonly Feed feed;
     private readonly Configuration config;
+    private readonly ListingWindow window = new();
     private readonly object gate = new();
     private readonly Dictionary<string, Listing> listings = [];
     private readonly HashSet<ulong> blocked = [];
@@ -41,10 +35,6 @@ internal sealed unsafe class PartyFinder : IDisposable
     private bool retried;
     private DateTime changedAt;
     private DateTime? requestedAt;
-    private TaskCompletionSource<string?>? joining;
-    private bool joinPressed;
-    private DateTime joinBy;
-    private DateTime? centreBy;
 
     public PartyFinder(Feed feed, Configuration config)
     {
@@ -70,15 +60,15 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     public Task<string?> Request(Finder finder) => Services.Framework.RunOnFrameworkThread(() => Send(finder.Category));
 
-    public Task<string?> Open(OpenListing open) => Services.Framework.RunOnFrameworkThread(() => Show(open.Id));
+    public Task<string?> Open(OpenListing open) => Services.Framework.RunOnFrameworkThread(() => window.Open(open.Id));
 
-    public Task<string?> Join(JoinListing join) => config.AllowPhoneJoin
-        ? Services.Framework.RunOnFrameworkThread<Task<string?>>(() => StartJoin(join.Id)).Unwrap()
-        : Task.FromResult<string?>("disabled");
+    public Task<string?> Join(JoinListing join) => PhoneGate.Run(config.AllowPhoneJoin, () => window.Join(join.Id));
+
+    public void Centre(DateTime now) => window.Centre(now);
 
     public void Update(DateTime now)
     {
-        StepJoin(now);
+        window.Step(now);
         lock (gate)
         {
             if (dirty && (complete || now - changedAt >= Quiet))
@@ -93,7 +83,7 @@ internal sealed unsafe class PartyFinder : IDisposable
             {
                 if (!emptySent && now - at >= NoReply)
                 {
-                    if (!answered && !retried && Blocked() == null && !WindowOpen() && Ask((byte)category))
+                    if (!answered && !retried && GameState.FinderBlocked() == null && !WindowOpen() && Ask((byte)category))
                     {
                         retried = true;
                         requestedAt = now;
@@ -110,8 +100,7 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     public void Reset()
     {
-        FinishJoin("not ready");
-        centreBy = null;
+        window.Reset();
         answered = false;
         Clear();
     }
@@ -133,14 +122,14 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     private string? Send(byte wanted)
     {
-        if (wanted is < 1 or > Other)
-            return "invalid";
-        if (Blocked() is { } reason)
+        if (wanted is < 1 or > ListingMap.Other)
+            return Reason.Invalid;
+        if (GameState.FinderBlocked() is { } reason)
             return reason;
         if (WindowOpen())
-            return "window open";
+            return Reason.WindowOpen;
         if (!Ask(wanted))
-            return "refused";
+            return Reason.Refused;
         lock (gate)
         {
             Clear();
@@ -162,88 +151,10 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     private static bool WindowOpen() => Services.GameGui.GetAddonByName(Window, 1).Address != IntPtr.Zero;
 
-    private string? Show(ulong id)
-    {
-        if (Blocked() is { } reason)
-            return reason;
-        var agent = AgentLookingForGroup.Instance();
-        if (agent == null || !agent->OpenListing(id))
-            return "refused";
-        centreBy = DateTime.UtcNow + Timeout;
-        return null;
-    }
-
-    public void Centre(DateTime now)
-    {
-        if (centreBy is not { } by)
-            return;
-        var detail = Addons.Ready(Detail);
-        if (detail != null)
-            Addons.Centre(detail);
-        else if (now <= by)
-            return;
-        centreBy = null;
-    }
-
-    private Task<string?> StartJoin(ulong id)
-    {
-        if (joining != null)
-            return Task.FromResult<string?>("busy");
-        if (Show(id) is { } reason)
-            return Task.FromResult<string?>(reason);
-        joining = new TaskCompletionSource<string?>();
-        joinPressed = false;
-        joinBy = DateTime.UtcNow + Timeout;
-        return joining.Task;
-    }
-
-    private void StepJoin(DateTime now)
-    {
-        if (joining == null)
-            return;
-        if (now > joinBy)
-        {
-            FinishJoin("timeout");
-            return;
-        }
-        if (!joinPressed)
-        {
-            var detail = Addons.Ready(Detail);
-            var button = detail == null ? null : detail->GetComponentButtonById(JoinButton);
-            if (button == null || !button->IsEnabled)
-                return;
-            detail->FireCallbackInt(Yes);
-            joinPressed = true;
-            return;
-        }
-        var confirm = Addons.Ready(Confirm);
-        if (confirm != null)
-        {
-            confirm->FireCallbackInt(Yes);
-            FinishJoin(null);
-        }
-    }
-
-    private void FinishJoin(string? reason)
-    {
-        var task = joining;
-        joining = null;
-        task?.TrySetResult(reason);
-    }
-
-    private static string? Blocked()
-    {
-        if (GameState.NotReady())
-            return "not ready";
-        if (Services.Condition[ConditionFlag.BoundByDuty] || Services.Condition[ConditionFlag.BoundByDuty56] || Services.Condition[ConditionFlag.BoundByDuty95])
-            return "in duty";
-        return null;
-    }
-
     private void OnListing(IPartyFinderListing listing, IPartyFinderListingEventArgs args)
     {
-        var item = Map(listing, Gear.ItemLevel());
-        var hidden = !item.Own && DutyLocked(listing);
+        var item = ListingMap.From(listing, Gear.ItemLevel());
+        var hidden = !item.Own && ListingMap.DutyLocked(listing);
         if (!item.Own && IsBlocked(listing.Id))
             item = item with { Blocked = true };
         var now = DateTime.UtcNow;
@@ -298,79 +209,6 @@ internal sealed unsafe class PartyFinder : IDisposable
     private static int? Tab()
     {
         var agent = AgentLookingForGroup.Instance();
-        return agent != null && agent->CategoryTab is >= 1 and <= Other ? agent->CategoryTab : null;
+        return agent != null && agent->CategoryTab is >= 1 and <= ListingMap.Other ? agent->CategoryTab : null;
     }
-
-    private static Listing Map(IPartyFinderListing listing, int itemLevel)
-    {
-        var job = Services.PlayerState.ClassJob.RowId;
-        var present = listing.RawJobsPresent.ToList();
-        var jobs = Services.DataManager.GetExcelSheet<Sheets.ClassJob>();
-        var slots = new List<Slot>();
-        var open = new SortedSet<string>(StringComparer.Ordinal);
-        var oneEach = listing[SearchAreaFlags.OnePlayerPerJob];
-        var fits = false;
-        var index = 0;
-        foreach (var slot in listing.Slots.Take(listing.SlotsAvailable))
-        {
-            var filled = index < present.Count ? present[index] : (byte)0;
-            index++;
-            if (filled != 0)
-            {
-                var member = jobs.GetRowOrDefault(filled);
-                slots.Add(new Slot(member?.Abbreviation.ExtractText() ?? "", Role(member?.Role ?? 0)));
-                continue;
-            }
-            var accepted = slot.Accepting.Select(f => f.ClassJob(Services.DataManager)).ToList();
-            fits |= accepted.Any(j => j?.RowId == job);
-            foreach (var accepting in accepted)
-            {
-                if (accepting is { } row && !(oneEach && present.Contains((byte)row.RowId)))
-                    open.Add(row.Abbreviation.ExtractText());
-            }
-            var roles = accepted.Select(j => Role(j?.Role ?? 0)).Distinct().ToList();
-            slots.Add(new Slot("", roles.Count == 1 ? roles[0] : 0));
-        }
-        fits &= itemLevel >= listing.MinimumItemLevel;
-        fits &= !oneEach || !present.Contains((byte)job);
-
-        return new Listing(
-            listing.Id.ToString(),
-            DutyName(listing),
-            listing.DutyType == DutyType.Normal ? DutyCodes.Of(listing.RawDuty) : "",
-            CategoryOf(listing.Category),
-            listing.Description.TextValue,
-            listing.Name.TextValue,
-            listing.HomeWorld.ValueNullable?.Name.ExtractText() ?? "",
-            listing.SecondsRemaining,
-            listing.MinimumItemLevel,
-            slots,
-            open.ToList(),
-            fits,
-            listing.ContentId == Services.PlayerState.ContentId,
-            listing[SearchAreaFlags.Private],
-            listing[ObjectiveFlags.Practice],
-            listing[ObjectiveFlags.Loot],
-            listing[ObjectiveFlags.DutyCompletion],
-            listing[ConditionFlags.DutyComplete],
-            listing.BeginnersWelcome,
-            false);
-    }
-
-    internal static int Role(byte role) => role == 3 ? 2 : role;
-
-    private static bool DutyLocked(IPartyFinderListing listing) =>
-        listing.DutyType == DutyType.Normal
-        && listing.Duty.ValueNullable is { ContentLinkType: 1 } duty
-        && duty.Content.TryGetValue<Sheets.InstanceContent>(out var content)
-        && !Services.UnlockState.IsInstanceContentUnlocked(content);
-
-    private static int CategoryOf(DutyCategory category) => category == DutyCategory.None ? Other : BitOperations.Log2((uint)category);
-
-    private static string DutyName(IPartyFinderListing listing) => DutyQueue.Capitalised(listing.DutyType switch
-    {
-        DutyType.Roulette => Services.DataManager.GetExcelSheet<Sheets.ContentRoulette>().GetRowOrDefault(listing.RawDuty)?.Name.ExtractText(),
-        DutyType.Normal => listing.Duty.ValueNullable?.Name.ExtractText(),
-        _ => null,
-    }) ?? "";
 }

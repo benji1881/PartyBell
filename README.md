@@ -13,10 +13,16 @@ The plugin and the app pair with a QR code. Everything between them is encrypted
 3. Install PartyBell
 4. Install `PartyBell-<version>.apk` from the [latest release](https://github.com/benji1881/PartyBell/releases/latest) on your phone
 5. Type `/partybell` in game and press Pair a phone
-6. When Windows asks, allow the game on private networks only
+6. When Windows asks, allow the game on private networks only. On Linux or Mac with a firewall on, allow TCP and UDP port 4747 from your home network
 7. In the app, press Scan pairing code
 
 The plugin updates through Dalamud. The app checks GitHub for a new release and shows a silent notification and an Updates card in Settings. Press Download update and open the downloaded APK to install it.
+
+## Staying connected
+
+The app keeps a silent notification while it is connected and reconnects by itself after the phone restarts or the app updates. For alerts to arrive on time with the screen off, press Turn off battery optimisation in the app's Settings and choose Don't optimise for PartyBell.
+
+If your PC gets a new address on your home network, the app finds it again by itself, so you don't have to pair again.
 
 ## Away from home
 
@@ -24,7 +30,7 @@ Install [Tailscale](https://tailscale.com) on your PC and phone, sign in with th
 
 ## Privacy
 
-Your party, chat, friend list and Party Finder listings go only from the plugin to your paired phone, encrypted. The app saves the last 1,000 tells with each person on your phone, until you delete the conversation. There is no PartyBell server and no analytics. The app contacts GitHub to check for updates, and the QR scanner comes from Google Play services.
+Your party, chat, friend list and Party Finder listings go only from the plugin to your paired phone, encrypted. The app saves the last 1,000 tells with each person on your phone, until you delete the conversation. The plugin saves each phone's key encrypted for your user account, and the app only allows unencrypted network traffic to your PC, whose messages PartyBell encrypts itself. There is no PartyBell server and no analytics. The app contacts GitHub to check for updates, and the QR scanner comes from Google Play services.
 
 ## License
 

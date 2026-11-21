@@ -280,7 +280,7 @@ private fun ThreadRow(
                     )
                     if (muted) {
                         Text(
-                            if (mutedUntil > 0) "Muted · until ${DateFormat.getTimeFormat(context).format(mutedUntil)}" else "Muted",
+                            if (mutedUntil > 0) "Muted · until ${clock(context, mutedUntil)}" else "Muted",
                             color = AppColors.muted,
                             fontSize = 11.sp,
                             modifier = Modifier.padding(start = 6.dp),
@@ -365,7 +365,7 @@ private fun preview(item: FeedItem?, conversation: String): String = when (item)
 
 private fun stamp(context: Context, time: Long): String =
     if (DateUtils.isToday(time)) {
-        DateFormat.getTimeFormat(context).format(time)
+        clock(context, time)
     } else {
         DateUtils.formatDateTime(context, time, DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_ABBREV_ALL)
     }

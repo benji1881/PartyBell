@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.benji.partybell.Reasons
 import com.benji.partybell.PartyState
 import com.benji.partybell.QUICK_REPLIES
 
@@ -99,7 +100,7 @@ fun Composer(placeholder: String, channel: String, enabled: Boolean, modifier: M
                     Box {
                         if (text.isEmpty()) {
                             Text(
-                                if (enabled) placeholder else "Not connected",
+                                if (enabled) placeholder else Reasons.NOT_CONNECTED,
                                 color = AppColors.muted,
                                 fontSize = 15.sp,
                             )

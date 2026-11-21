@@ -6,34 +6,32 @@ namespace PartyBell;
 
 internal sealed class Inviter(Configuration config, PartyTracker tracker)
 {
-    public Task<string?> Send(Invite invite) => config.AllowPhoneInvite
-        ? Services.Framework.RunOnFrameworkThread(() => Post(invite))
-        : Task.FromResult<string?>("disabled");
+    public Task<string?> Send(Invite invite) => PhoneGate.Run(config.AllowPhoneInvite, () => Post(invite));
 
     private unsafe string? Post(Invite invite)
     {
         if (!Services.PlayerState.IsLoaded)
-            return "not ready";
+            return Reason.NotReady;
 
         var party = tracker.Current;
         if (party is { Members.Count: > 1 })
         {
             if (party.Members.Count >= PartyReader.GroupSize)
-                return "party full";
+                return Reason.PartyFull;
             if (!party.Members.Any(m => m.Leader && m.Name == Services.PlayerState.CharacterName))
-                return "not leader";
+                return Reason.NotLeader;
         }
 
         var friend = FriendList.Find(invite.Name, invite.World);
         if (friend == null)
-            return "not found";
+            return Reason.NotFound;
         if (!FriendList.IsOnline(friend->State))
-            return "offline";
+            return Reason.Offline;
 
         var proxy = InfoProxyPartyInvite.Instance();
         var sent = friend->CurrentWorld == Services.PlayerState.CurrentWorld.RowId
             ? proxy->InviteToParty(friend->ContentId, invite.Name, friend->HomeWorld)
             : proxy->InviteToPartyContentId(friend->ContentId, friend->HomeWorld);
-        return sent ? null : "failed";
+        return sent ? null : Reason.Failed;
     }
 }

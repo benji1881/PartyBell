@@ -1,6 +1,10 @@
+using System.Text.Json;
+
 namespace PartyBell;
 
 internal sealed record Answer(bool Ready)
 {
-    public static Answer? Parse(byte[] json) => Request.Parse(json, "answer", root => new Answer(root.GetProperty("ready").GetBoolean()));
+    public const string Type = "answer";
+
+    public static Answer Read(JsonElement root) => new(root.GetProperty("ready").GetBoolean());
 }

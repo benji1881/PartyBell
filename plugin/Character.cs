@@ -38,7 +38,7 @@ internal sealed record Character(
             home.Name.ExtractText(),
             Services.DataManager.GetExcelSheet<Sheets.WorldDCGroupType>().GetRowOrDefault(home.Unknown0)?.Name.ExtractText() ?? "",
             job.Abbreviation.ExtractText(),
-            DutyQueue.Capitalised(job.Name.ExtractText()) ?? "",
+            GameText.Capitalised(job.Name.ExtractText()) ?? "",
             job.Role,
             player->CurrentLevel,
             player->CurrentLevel >= player->GetCurrentClassJobMaxLevel(),

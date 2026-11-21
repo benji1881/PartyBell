@@ -9,7 +9,6 @@ namespace PartyBell;
 
 internal sealed unsafe class ReadyCheck : IDisposable
 {
-    private const string Prompt = "SelectYesno";
     private const int PromptSlots = 4;
     private static readonly TimeSpan MaxDuration = TimeSpan.FromSeconds(35);
     private static readonly TimeSpan StartDelay = TimeSpan.FromMilliseconds(500);
@@ -88,12 +87,10 @@ internal sealed unsafe class ReadyCheck : IDisposable
             return;
         started = false;
         running = false;
-        feed.Broadcast(Messages.Dismiss("readycheck"));
+        feed.Broadcast(Messages.Dismiss(AlertKind.ReadyCheck));
     }
 
-    public Task<string?> Answer(bool ready) => config.AllowPhoneReadyCheck
-        ? Services.Framework.RunOnFrameworkThread(() => Click(ready))
-        : Task.FromResult<string?>("disabled");
+    public Task<string?> Answer(bool ready) => PhoneGate.Run(config.AllowPhoneReadyCheck, () => Click(ready));
 
     private void OnStart(AgentReadyCheck* agent)
     {
@@ -117,7 +114,7 @@ internal sealed unsafe class ReadyCheck : IDisposable
         running = false;
         if (!InParty || Members() < MinMembers)
         {
-            feed.Broadcast(Messages.Dismiss("readycheck"));
+            feed.Broadcast(Messages.Dismiss(AlertKind.ReadyCheck));
             return;
         }
         var notReady = 0;
@@ -132,12 +129,12 @@ internal sealed unsafe class ReadyCheck : IDisposable
     private string? Click(bool ready)
     {
         if (!running)
-            return "no ready check";
+            return Reason.NoReadyCheck;
         if (OwnStatus() != ReadyCheckStatus.AwaitingResponse)
-            return "answered";
+            return Reason.Answered;
         var prompt = FindPrompt();
         if (prompt == null)
-            return "no prompt";
+            return Reason.NoPrompt;
 
         var value = new AtkValue { Type = AtkValueType.Int, Int = ready ? 0 : 1 };
         prompt->FireCallback(1, &value, true);
@@ -171,7 +168,7 @@ internal sealed unsafe class ReadyCheck : IDisposable
         var agent = AgentModule.Instance()->GetAgentByInternalId(AgentId.ReadyCheck);
         for (var i = 1; i <= PromptSlots; i++)
         {
-            var addon = Services.GameGui.GetAddonByName<AtkUnitBase>(Prompt, i);
+            var addon = Services.GameGui.GetAddonByName<AtkUnitBase>(Addons.YesNo, i);
             if (addon == null || !addon->IsVisible)
                 continue;
             var id = addon->ParentId == 0 ? addon->Id : addon->ParentId;
