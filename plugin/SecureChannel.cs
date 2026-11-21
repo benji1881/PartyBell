@@ -14,7 +14,7 @@ internal sealed record Session(PairedPhone Phone, byte[] SendKey, byte[] Receive
 
 internal static class SecureChannel
 {
-    public const int Version = 6;
+    public const int Version = 7;
     public const WebSocketCloseStatus NotPaired = (WebSocketCloseStatus)4001;
     public const WebSocketCloseStatus UpdateNeeded = (WebSocketCloseStatus)4002;
     private const int NonceSize = 16;

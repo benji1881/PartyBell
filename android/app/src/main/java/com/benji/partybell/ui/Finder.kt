@@ -46,7 +46,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -84,7 +83,6 @@ import com.benji.partybell.Listing
 import com.benji.partybell.Listings
 import com.benji.partybell.PartyState
 import com.benji.partybell.Status
-import kotlinx.coroutines.delay
 
 private const val FRESH_MS = 60_000L
 private const val CLOCK_MS = 30_000L
@@ -125,14 +123,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     var goal by rememberSaveable { mutableStateOf(Goal.entries.getOrElse(settings.finderGoal) { Goal.Any }) }
     var sheet by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(CLOCK_MS)
-        }
-    }
+    val now = rememberNow(CLOCK_MS)
     LaunchedEffect(category, status) {
         val current = PartyState.listings.value[category]
         val stale = current == null || System.currentTimeMillis() - current.time > FRESH_MS

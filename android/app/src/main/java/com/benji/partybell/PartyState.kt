@@ -200,6 +200,7 @@ object PartyState {
 
     fun disconnected() {
         sender = null
+        ItemIcons.forget()
         invites.clear()
         findingFlow.value = false
         refreshingFriendsFlow.value = false

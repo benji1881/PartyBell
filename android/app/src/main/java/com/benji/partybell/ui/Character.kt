@@ -70,6 +70,7 @@ import com.benji.partybell.AppSettings
 import com.benji.partybell.Currency
 import com.benji.partybell.GearPiece
 import com.benji.partybell.ItemStat
+import com.benji.partybell.ItemIcons
 import com.benji.partybell.JobIcons
 import com.benji.partybell.PartyState
 import com.benji.partybell.Profile
@@ -340,11 +341,11 @@ private fun SlotColumn(slots: List<SlotInfo>, character: Profile?, onSlot: (Int)
 @Composable
 private fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: Dp, surface: Color, modifier: Modifier = Modifier) {
     val symbols by JobIcons.symbols.collectAsStateWithLifecycle()
-    val items by JobIcons.items.collectAsStateWithLifecycle()
+    val items by ItemIcons.icons.collectAsStateWithLifecycle()
     val progress = animated((piece?.condition ?: 0).coerceIn(0, FULL) / FULL.toFloat(), RING_MS)
     val fade = animated(if (loaded) 1f else 0f, FADE_MS)
     val color = if (piece != null && piece.condition < REPAIR_BELOW) AppColors.red else AppColors.accent
-    val icon = piece?.let { items[it.icon.toString()] }
+    val icon = piece?.let { items[it.icon] }
     Box(Modifier.size(size)) {
         Ring(progress, color, size, Modifier.clip(CircleShape).then(modifier)) {
             if (icon != null) {

@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
+import android.net.NetworkCapabilities
 import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
@@ -32,10 +33,11 @@ class Connection(private val context: Context, private val settings: AppSettings
         const val NOT_PAIRED = 4001
         const val UPDATE_NEEDED = 4002
         const val LOST_DELAY_MS = 60_000L
-        const val IDLE_AFTER_MS = 10 * 60_000L
+        // Quick retries keep the phone awake, so they only cover short drops like a Wi-Fi blip.
+        const val IDLE_AFTER_MS = 2 * 60_000L
         const val IDLE_DELAY_MS = 5 * 60_000L
         const val CONNECT_AWAKE_MS = 15_000L
-        const val MESSAGE_AWAKE_MS = 5_000L
+        const val MESSAGE_AWAKE_MS = 1_000L
         const val TAG = "PartyBell:connection"
         val waiting = setOf(Status.NotPaired, Status.UpdatePlugin, Status.UpdateApp)
     }
@@ -160,10 +162,11 @@ class Connection(private val context: Context, private val settings: AppSettings
             hostIndex++
             if (hostIndex % targets.size.coerceAtLeast(1) == 0) {
                 round++
-                discover()
+                if (reachable()) discover()
             }
         }
-        schedule(status)
+        // A goodbye means the game or plugin was closed on purpose, so it is unlikely to be back within the quick retries.
+        schedule(status, quick = !farewell)
     }
 
     // Every address failed, so the PC's LAN address may have changed since pairing.
@@ -186,17 +189,18 @@ class Connection(private val context: Context, private val settings: AppSettings
         if (socket == null) nudge()
     }
 
-    private fun schedule(status: Status) {
+    private fun schedule(status: Status, quick: Boolean = true) {
         PartyState.setStatus(status)
         val searching = status == Status.Connecting
-        if (listening && connectivity.activeNetwork == null) {
+        // The network callback nudges the connection once there is a network that can reach the PC again.
+        if (listening && !reachable()) {
             PartyState.setLink(if (searching) Link.Failed else Link.Ok)
             wake.release()
             return
         }
         val now = SystemClock.elapsedRealtime()
         if (failingSince == 0L) failingSince = now
-        val idle = now - failingSince >= IDLE_AFTER_MS
+        val idle = !quick || now - failingSince >= IDLE_AFTER_MS
         PartyState.setLink(if (!searching) Link.Ok else if (idle) Link.Failed else Link.Searching)
         if (idle) {
             wake.release()
@@ -206,6 +210,12 @@ class Connection(private val context: Context, private val settings: AppSettings
             wake.acquire(delay + CONNECT_AWAKE_MS)
             handler.postDelayed(reconnect, delay)
         }
+    }
+
+    // The PC is only reachable on a home network or through a VPN like Tailscale, so plain mobile data can't reach it.
+    private fun reachable(): Boolean {
+        val capabilities = connectivity.activeNetwork?.let(connectivity::getNetworkCapabilities) ?: return false
+        return !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
     }
 
     private fun versionStatus(theirs: Int) = if (theirs < Protocol.VERSION) Status.UpdatePlugin else Status.UpdateApp
@@ -252,9 +262,11 @@ class Connection(private val context: Context, private val settings: AppSettings
                 return
             }
             if (message is ItemIconsUpdate) {
-                JobIcons.items(message.text)
+                ItemIcons.save(context, message.text)
                 return
             }
+            // Read from disk here rather than on the main thread.
+            val missingIcons = (message as? CharacterUpdate)?.profile?.let { profile -> ItemIcons.missing(context, profile.gear.map { it.icon }.toSet()) }
             if (message == Bye) farewell = true
             wake.acquire(MESSAGE_AWAKE_MS)
             handler.post {
@@ -275,6 +287,7 @@ class Connection(private val context: Context, private val settings: AppSettings
                     }
                     Updater.check(context)
                 }
+                if (!missingIcons.isNullOrEmpty()) PartyState.sender?.invoke(Protocol.itemIcons(missingIcons))
                 if (message != null) {
                     PartyState.apply(message)
                     if (message is Live) notifier.notify(message.item)

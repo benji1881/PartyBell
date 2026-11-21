@@ -25,7 +25,6 @@ public sealed class Plugin : IDalamudPlugin
     private readonly PartyFinder finder;
     private readonly MainWindow window;
     private readonly Configuration config;
-    private readonly ItemIcons itemIcons = new();
     private DateTime nextRead;
     private DateTime zonedAt;
     private DateTime nextFriends;
@@ -126,9 +125,5 @@ public sealed class Plugin : IDalamudPlugin
             feed.Publish(Messages.Event(e));
     }
 
-    private void SetCharacter(Character? character)
-    {
-        feed.SetItemIcons(itemIcons.Message(character?.Gear));
-        feed.SetCharacter(Messages.Character(character));
-    }
+    private void SetCharacter(Character? character) => feed.SetCharacter(Messages.Character(character));
 }

@@ -33,9 +33,7 @@ import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -60,7 +58,6 @@ import com.benji.partybell.DutyAction
 import com.benji.partybell.PartyState
 import com.benji.partybell.QueueState
 import com.benji.partybell.QueueStatus
-import kotlinx.coroutines.delay
 
 private const val CLOCK_MS = 1_000L
 private const val MINUTE_MS = 60_000L
@@ -93,13 +90,7 @@ fun QueueBar(modifier: Modifier = Modifier) {
 private fun QueueCard(status: QueueStatus, modifier: Modifier) {
     var expanded by rememberSaveable { mutableStateOf(false) }
     var leaving by remember { mutableStateOf(false) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = System.currentTimeMillis()
-            delay(CLOCK_MS)
-        }
-    }
+    val now = rememberNow(CLOCK_MS)
     val ready = status.state.popped
     val tone = if (ready) AppColors.yellow else AppColors.accent
     val elapsed = (if (ready) status.ready else now) - status.entered

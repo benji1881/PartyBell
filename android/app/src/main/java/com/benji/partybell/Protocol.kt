@@ -54,7 +54,7 @@ data class SavedTells(val tells: List<ChatItem>, val viewed: Map<String, Long>)
 data class Challenge(val version: Int, val nonce: ByteArray, val ephemeral: ByteArray)
 
 object Protocol {
-    const val VERSION = 6
+    const val VERSION = 7
 
     fun parse(text: String): Incoming? = try {
         val json = JSONObject(text)
@@ -138,6 +138,11 @@ object Protocol {
     fun finder(category: Int): String = JSONObject()
         .put("type", "finder")
         .put("category", category)
+        .toString()
+
+    fun itemIcons(ids: List<Long>): String = JSONObject()
+        .put("type", "itemicons")
+        .put("ids", JSONArray(ids))
         .toString()
 
     fun refreshFriends(): String = JSONObject()

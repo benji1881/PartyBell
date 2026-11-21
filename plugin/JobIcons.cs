@@ -9,10 +9,7 @@ using Lumina.Excel.Sheets;
 
 namespace PartyBell;
 
-internal sealed record IconSet(int Size, IReadOnlyDictionary<string, string> Icons)
-{
-    public static readonly IconSet None = new(0, new Dictionary<string, string>());
-}
+internal sealed record IconSet(int Size, IReadOnlyDictionary<string, string> Icons);
 
 internal static class JobIcons
 {
