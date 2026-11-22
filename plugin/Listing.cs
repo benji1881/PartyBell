@@ -7,6 +7,7 @@ public sealed record Listing(
     string Duty,
     string Code,
     int Category,
+    string Tier,
     string Description,
     string Leader,
     string World,

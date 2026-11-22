@@ -1,7 +1,9 @@
 package com.benji.partybell.ui
 
+import com.benji.partybell.FinderCategory
 import com.benji.partybell.Job
 import com.benji.partybell.Listing
+import com.benji.partybell.Tier
 
 // Decides which Party Finder listings the filters keep and which words to highlight.
 
@@ -10,6 +12,15 @@ internal enum class Goal(val label: String, val keeps: (Listing) -> Boolean) {
     Practice("Practice", { it.practice }),
     Completion("Completion", { it.completion }),
     Loot("Loot", { it.loot }),
+}
+
+// Listings outside the High-end tab have no tier.
+internal fun keepsTier(listing: Listing, tiers: Set<String>) = listing.tier.isEmpty() || listing.tier in tiers
+
+internal fun categoryLabel(category: Int, tiers: Set<String>): String {
+    val label = FinderCategory.label(category)
+    if (category != FinderCategory.HIGH_END || tiers.size == Tier.entries.size) return label
+    return "$label · " + Tier.entries.filter { it.key in tiers }.joinToString(", ") { it.label }
 }
 
 internal fun keepsJobs(listing: Listing, fits: Boolean, picks: Set<String>) =

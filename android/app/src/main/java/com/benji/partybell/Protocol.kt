@@ -54,7 +54,7 @@ data class SavedTells(val tells: List<ChatItem>, val viewed: Map<String, Long>)
 data class Challenge(val version: Int, val nonce: ByteArray, val ephemeral: ByteArray)
 
 object Protocol {
-    const val VERSION = 7
+    const val VERSION = 8
 
     fun parse(text: String): Incoming? = try {
         val json = JSONObject(text)
@@ -206,6 +206,7 @@ object Protocol {
                 duty = it.optString("duty"),
                 code = it.optString("code"),
                 category = it.optInt("category"),
+                tier = it.optString("tier"),
                 description = GameText.clean(it.optString("description")),
                 leader = it.optString("leader"),
                 world = it.optString("world"),

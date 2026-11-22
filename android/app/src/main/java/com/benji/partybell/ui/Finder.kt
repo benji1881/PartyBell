@@ -116,6 +116,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     var category by rememberSaveable { mutableIntStateOf(settings.finderCategory) }
     var fits by rememberSaveable { mutableStateOf(settings.finderFits) }
     var picks by rememberSaveable { mutableStateOf(settings.finderJobs) }
+    var tiers by rememberSaveable { mutableStateOf(settings.finderTiers) }
     var words by rememberSaveable { mutableStateOf(settings.finderWords) }
     val jobs by JobIcons.jobs.collectAsStateWithLifecycle()
     var beginners by rememberSaveable { mutableStateOf(settings.finderBeginners) }
@@ -133,9 +134,9 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     val listings = all[category] ?: Listings()
     val loaded = listings.time > 0L
     val matcher = remember(words) { WordMatcher(words) }
-    val shown = remember(listings, fits, picks, beginners, blocked, goal, query, matcher) {
+    val shown = remember(listings, tiers, fits, picks, beginners, blocked, goal, query, matcher) {
         listings.list
-            .filter { it.own || (keepsJobs(it, fits, picks) && (!beginners || it.beginners) && (blocked || !it.blocked) && goal.keeps(it)) }
+            .filter { it.own || (keepsTier(it, tiers) && keepsJobs(it, fits, picks) && (!beginners || it.beginners) && (blocked || !it.blocked) && goal.keeps(it)) }
             .filter { query.isBlank() || matches(it, query.trim()) }
             .sortedWith(compareByDescending<Listing> { it.own }.thenByDescending { matcher.matches(it.description) })
     }
@@ -146,6 +147,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
         settings.finderFits = mine
         settings.finderJobs = picked
     }
+    val setTiers = { picked: Set<String> -> tiers = picked; settings.finderTiers = picked }
     val setWords = { list: List<String> -> words = list; settings.finderWords = list }
     val setBeginners = { on: Boolean -> beginners = on; settings.finderBeginners = on }
     val setBlocked = { on: Boolean -> blocked = on; settings.finderBlocked = on }
@@ -169,7 +171,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             verticalArrangement = Arrangement.spacedBy(6.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
-            Chip(FinderCategory.label(category), true, trailing = Icons.Filled.ArrowDropDown) { sheet = true }
+            Chip(categoryLabel(category, tiers), true, trailing = Icons.Filled.ArrowDropDown) { sheet = true }
             if (jobFilter) Removable(jobSummary(fits, picks, jobs, SHOWN_JOBS)) { setJobs(false, emptySet()) }
             if (beginners) Removable(BEGINNERS) { setBeginners(false) }
             if (goal != Goal.Any) Removable(goal.label) { setGoal(Goal.Any) }
@@ -219,6 +221,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     if (sheet) {
         FilterSheet(
             category = category,
+            tiers = tiers,
             goal = goal,
             fits = fits,
             picks = picks,
@@ -231,6 +234,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                 category = it
                 settings.finderCategory = it
             },
+            onTiers = setTiers,
             onGoal = setGoal,
             onJobs = setJobs,
             onBeginners = setBeginners,

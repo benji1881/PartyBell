@@ -69,6 +69,10 @@ class AppSettings(context: Context) {
         get() = prefs.getInt("finder_goal", 0)
         set(value) = prefs.edit { putInt("finder_goal", value) }
 
+    var finderTiers: Set<String>
+        get() = prefs.getStringSet("finder_tiers", Tier.DEFAULT).orEmpty().toSet()
+        set(value) = prefs.edit { putStringSet("finder_tiers", value) }
+
     var finderJobs: Set<String>
         get() = prefs.getStringSet("finder_jobs", emptySet()).orEmpty().toSet()
         set(value) = prefs.edit { putStringSet("finder_jobs", value) }

@@ -23,6 +23,7 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -55,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.FinderCategory
 import com.benji.partybell.Job
 import com.benji.partybell.JobIcons
+import com.benji.partybell.Tier
 
 // The Party Finder filter sheets.
 
@@ -66,6 +68,7 @@ private val PICK_SIZE = 38.dp
 @Composable
 internal fun FilterSheet(
     category: Int,
+    tiers: Set<String>,
     goal: Goal,
     fits: Boolean,
     picks: Set<String>,
@@ -75,6 +78,7 @@ internal fun FilterSheet(
     words: List<String>,
     count: Int,
     onCategory: (Int) -> Unit,
+    onTiers: (Set<String>) -> Unit,
     onGoal: (Goal) -> Unit,
     onJobs: (Boolean, Set<String>) -> Unit,
     onBeginners: (Boolean) -> Unit,
@@ -107,6 +111,7 @@ internal fun FilterSheet(
             }
             SheetLabel("Category")
             CategoryRow(category, onCategory)
+            if (category == FinderCategory.HIGH_END) TierRow(tiers, onTiers)
             SheetLabel("Goal")
             Row(
                 Modifier
@@ -175,6 +180,19 @@ private fun CategoryRow(category: Int, onCategory: (Int) -> Unit) {
     ) {
         items(FinderCategory.all, key = { it.first }) { (id, label) ->
             Chip(label, id == category) { onCategory(id) }
+        }
+    }
+}
+
+// Any mix of tiers can be shown, but not none.
+@Composable
+private fun TierRow(tiers: Set<String>, onTiers: (Set<String>) -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
+        Tier.entries.forEach {
+            val picked = it.key in tiers
+            Chip(it.label, picked, trailing = Icons.Filled.Check.takeIf { picked }) {
+                if (!picked) onTiers(tiers + it.key) else if (tiers.size > 1) onTiers(tiers - it.key)
+            }
         }
     }
 }

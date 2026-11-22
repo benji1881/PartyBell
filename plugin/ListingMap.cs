@@ -11,6 +11,9 @@ namespace PartyBell;
 internal static class ListingMap
 {
     public const byte Other = 16;
+    // ContentType rows.
+    private const uint Trials = 4;
+    private const uint Ultimate = 28;
 
     public static Listing From(IPartyFinderListing listing, int itemLevel)
     {
@@ -50,6 +53,7 @@ internal static class ListingMap
             DutyName(listing),
             listing.DutyType == DutyType.Normal ? DutyCodes.Of(listing.RawDuty) : "",
             CategoryOf(listing.Category),
+            TierOf(listing),
             listing.Description.TextValue,
             listing.Name.TextValue,
             listing.HomeWorld.ValueNullable?.Name.ExtractText() ?? "",
@@ -75,6 +79,17 @@ internal static class ListingMap
         && !Services.UnlockState.IsInstanceContentUnlocked(content);
 
     private static int CategoryOf(DutyCategory category) => category == DutyCategory.None ? Other : BitOperations.Log2((uint)category);
+
+    // Splits the High-end tab, which mixes savage and ultimate raids with extreme and unreal trials. Chaotic alliance raids count as savage.
+    private static string TierOf(IPartyFinderListing listing) =>
+        listing.Category != DutyCategory.HighEndDuty || listing.DutyType != DutyType.Normal || listing.Duty.ValueNullable is not { } duty
+            ? ""
+            : duty.ContentType.RowId switch
+            {
+                Ultimate => "ultimate",
+                Trials => "extreme",
+                _ => "savage",
+            };
 
     private static string DutyName(IPartyFinderListing listing) => GameText.Capitalised(listing.DutyType switch
     {

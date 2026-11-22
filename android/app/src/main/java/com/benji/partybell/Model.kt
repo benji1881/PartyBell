@@ -179,6 +179,7 @@ data class Listing(
     val duty: String,
     val code: String,
     val category: Int,
+    val tier: String,
     val description: String,
     val leader: String,
     val world: String,
@@ -278,14 +279,26 @@ object DutyAction {
     const val LEAVE = "leave"
 }
 
+// The High-end tab mixes raids and trials of different tiers.
+enum class Tier(val key: String, val label: String) {
+    Savage("savage", "Savage"),
+    Extreme("extreme", "Extreme"),
+    Ultimate("ultimate", "Ultimate");
+
+    companion object {
+        val DEFAULT = setOf(Savage.key, Extreme.key)
+    }
+}
+
 data class Listings(val category: Int = 0, val time: Long = 0L, val list: List<Listing> = emptyList())
 
 object FinderCategory {
     const val DEFAULT = 2
+    const val HIGH_END = 6
 
     // Most used first.
     val all = listOf(
-        6 to "High-end",
+        HIGH_END to "High-end",
         4 to "Trials",
         5 to "Raids",
         14 to "Field operations",
