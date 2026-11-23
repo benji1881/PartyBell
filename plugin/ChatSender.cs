@@ -18,56 +18,64 @@ internal sealed partial class ChatSender(Configuration config, PartyTracker trac
     private const int MaxBytes = 500;
     private const string ReplyPrefix = "/r ";
     private static readonly TimeSpan DeliveryTimeout = TimeSpan.FromSeconds(8);
-    private readonly List<(string Text, TaskCompletionSource Done)> undelivered = [];
+    private readonly List<(string Text, TaskCompletionSource<string> Done)> undelivered = [];
     private string replyTo = "";
 
     public void Received(string from) => replyTo = from;
 
-    public async Task<string?> Send(Say say)
+    public async Task<(string? Reason, string Error)> Send(Say say)
     {
-        if (!config.AllowPhoneChat)
-            return Reason.Disabled;
-
-        var prefix = say.Channel switch
-        {
-            Party => "/p ",
-            Alliance => "/a ",
-            FreeCompany => "/fc ",
-            Tell when Recipient().IsMatch(say.To) => $"/tell {say.To} ",
-            _ => null,
-        };
         var text = say.Text.Trim();
-        if (prefix == null || text.Length == 0 || text.Any(char.IsControl))
-            return Reason.Invalid;
-        if (text.StartsWith('/'))
-            return Reason.Command;
+        var prefix = Prefix(say);
+        if (Refusal(prefix, text) is { } refused)
+            return (refused, "");
 
         var line = prefix + text;
-        if (Encoding.UTF8.GetByteCount(line) > MaxBytes)
-            return Reason.TooLong;
-
         if (say.Channel != Tell)
-            return await Services.Framework.RunOnFrameworkThread(() => Post(say.Channel, line));
+            return (await Services.Framework.RunOnFrameworkThread(() => Post(say.Channel, line)), "");
 
-        var delivery = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var delivery = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         var reason = await Services.Framework.RunOnFrameworkThread(() =>
         {
             undelivered.Add((text, delivery));
             return Post(say.Channel, IsReply(say) ? ReplyPrefix + text : line);
         });
         if (reason == null && await Task.WhenAny(delivery.Task, Task.Delay(DeliveryTimeout)) == delivery.Task)
-            return null;
+            return delivery.Task.Result.Length == 0 ? (null, "") : (Reason.Game, delivery.Task.Result);
         await Services.Framework.RunOnFrameworkThread(() => undelivered.RemoveAll(t => t.Done == delivery));
-        return reason ?? Reason.NotDelivered;
+        return (reason ?? Reason.NotDelivered, "");
     }
 
-    public void Delivered(string text)
+    public void Delivered(string text) => Finish(undelivered.FindIndex(t => t.Text == text), "");
+
+    public void Failed(string error) => Finish(undelivered.Count > 0 && error.Length > 0 ? 0 : -1, error);
+
+    private void Finish(int index, string error)
     {
-        var index = undelivered.FindIndex(t => t.Text == text);
         if (index < 0)
             return;
-        undelivered[index].Done.TrySetResult();
+        undelivered[index].Done.TrySetResult(error);
         undelivered.RemoveAt(index);
+    }
+
+    private static string? Prefix(Say say) => say.Channel switch
+    {
+        Party => "/p ",
+        Alliance => "/a ",
+        FreeCompany => "/fc ",
+        Tell when Recipient().IsMatch(say.To) => $"/tell {say.To} ",
+        _ => null,
+    };
+
+    private string? Refusal(string? prefix, string text)
+    {
+        if (!config.AllowPhoneChat)
+            return Reason.Disabled;
+        if (prefix == null || text.Length == 0 || text.Any(char.IsControl))
+            return Reason.Invalid;
+        if (text.StartsWith('/'))
+            return Reason.Command;
+        return Encoding.UTF8.GetByteCount(prefix + text) > MaxBytes ? Reason.TooLong : null;
     }
 
     private unsafe string? Post(string channel, string line)

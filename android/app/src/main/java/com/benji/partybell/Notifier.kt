@@ -118,7 +118,7 @@ class Notifier(private val context: Context, private val settings: AppSettings) 
         when (item) {
             is PartyEventItem -> event(item)
             is ChatItem -> if (!item.self && settings.notifies(kindOf(item.channel)) && muteKey(item.conversation) !in ChatPrefs.muted.value) {
-                chat(item.conversation, item.name, item.text)
+                chat(item.conversation, item.name, item.preview)
             }
             is OutgoingItem -> Unit
         }

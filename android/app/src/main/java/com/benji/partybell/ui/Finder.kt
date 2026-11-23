@@ -210,7 +210,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                         matcher,
                         onTell = { onTell(listing.peer) },
                         onJoin = { PartyState.join(listing) },
-                        onOpen = { PartyState.open(listing) },
+                        onOpen = { PartyState.open(listing.id) },
                     )
                 }
                 item { Spacer(Modifier.height(8.dp)) }

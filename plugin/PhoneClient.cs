@@ -147,7 +147,11 @@ internal sealed class PhoneClient(PairedPhone phone, WebSocket socket, Sealer se
         }
     }
 
-    private async Task<string> Said(Say say) => Messages.Said(say.Id, await chat.Send(say));
+    private async Task<string> Said(Say say)
+    {
+        var (reason, error) = await chat.Send(say);
+        return Messages.Said(say.Id, reason, error);
+    }
 
     private async Task<string> Answered(Answer answer) => Messages.Answered(answer.Ready, await readyCheck.Answer(answer.Ready));
 

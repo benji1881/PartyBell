@@ -122,13 +122,20 @@ data class ChatItem(
     val self: Boolean,
     override val time: Long,
     val peer: String = "",
+    val listing: String = "",
+    val link: String = "",
 ) : FeedItem {
+    val preview: String
+        get() = preview(text, link)
+
     val conversation: String
         get() = ChatChannel.conversation(channel, peer)
 
     val kept: Boolean
         get() = !ChatChannel.isParty(channel)
 }
+
+fun preview(text: String, link: String) = listOf(text, link).filter(String::isNotEmpty).joinToString(" ")
 
 enum class SendState { Sending, Sent, Failed }
 

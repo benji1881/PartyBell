@@ -33,10 +33,12 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
@@ -80,6 +82,7 @@ import com.benji.partybell.PartyEventItem
 import com.benji.partybell.PartyState
 import com.benji.partybell.SendState
 import com.benji.partybell.groupText
+import com.benji.partybell.preview
 import kotlinx.coroutines.launch
 import java.util.Calendar
 import kotlin.math.ceil
@@ -171,7 +174,7 @@ fun ChatFeed(
                     is GroupLine -> GroupPill(line.items)
                     is BubbleLine -> when (val item = line.item) {
                         is ChatItem -> if (item.self) {
-                            Mine(item.text, item.time, SendState.Sent, "", line, null)
+                            Mine(item.text, item.time, SendState.Sent, "", line, item.listing, item.link, null)
                         } else {
                             val peer = item.peer.ifEmpty { peers[item.name].orEmpty() }
                             val tell = if (onTell != null && peer.isNotEmpty()) {
@@ -433,16 +436,25 @@ private fun Theirs(item: ChatItem, line: BubbleLine, showName: Boolean, tell: Me
                 Text(item.name, color = roleColor(item.role), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(1.dp))
             }
-            Timed(item.text, AppColors.text) {
+            Body(item.text, item.listing, item.link, AppColors.text, AppColors.accent) {
                 Text(clock(LocalContext.current, item.time), color = AppColors.muted, fontSize = 11.sp)
             }
-            MessageMenu(menu, { menu = false }, item.text, tell)
+            MessageMenu(menu, { menu = false }, item.preview, tell)
         }
     }
 }
 
 @Composable
-private fun Mine(text: String, time: Long, state: SendState, reason: String, line: BubbleLine, onRetry: (() -> Unit)?) {
+private fun Mine(
+    text: String,
+    time: Long,
+    state: SendState,
+    reason: String,
+    line: BubbleLine,
+    listing: String = "",
+    link: String = "",
+    onRetry: (() -> Unit)?,
+) {
     val failed = state == SendState.Failed
     var menu by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(
@@ -465,7 +477,7 @@ private fun Mine(text: String, time: Long, state: SendState, reason: String, lin
                 .then(if (failed) Modifier.border(1.dp, AppColors.red.copy(alpha = 0.6f), shape) else Modifier)
                 .padding(start = 12.dp, end = 10.dp, top = 8.dp, bottom = 6.dp)
         ) {
-            Timed(text, onBubble) {
+            Body(text, listing, link, onBubble, onBubble) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(clock(LocalContext.current, time), color = onBubble.copy(alpha = 0.75f), fontSize = 11.sp)
                     when (state) {
@@ -475,7 +487,7 @@ private fun Mine(text: String, time: Long, state: SendState, reason: String, lin
                     }
                 }
             }
-            MessageMenu(menu, { menu = false }, text, null)
+            MessageMenu(menu, { menu = false }, preview(text, link), null)
         }
         if (failed) {
             Text(
@@ -528,8 +540,47 @@ private fun JumpButton(count: Int, onClick: () -> Unit) {
 }
 
 @Composable
+private fun Body(text: String, listing: String, link: String, color: Color, tint: Color, meta: @Composable () -> Unit) {
+    if (listing.isEmpty()) return Timed(text, color, meta)
+    Column(horizontalAlignment = Alignment.End) {
+        if (text.isNotEmpty()) Text(text, style = bodyStyle(color), modifier = Modifier.align(Alignment.Start))
+        ListingCard(link, color, tint) { PartyState.open(listing) }
+        Spacer(Modifier.height(3.dp))
+        meta()
+    }
+}
+
+@Composable
+private fun ListingCard(link: String, color: Color, tint: Color, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(12.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .padding(top = 4.dp)
+            .widthIn(min = 200.dp)
+            .clip(shape)
+            .background(color.copy(alpha = 0.08f))
+            .border(1.dp, color.copy(alpha = 0.18f), shape)
+            .clickable(onClick = onClick)
+            .padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+    ) {
+        Icon(Icons.Filled.Search, contentDescription = null, tint = tint, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f, fill = false)) {
+            Text(link.ifEmpty { "Party finder listing" }, color = color, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            Text("Open in the game", color = tint, fontSize = 12.sp)
+        }
+        Spacer(Modifier.width(6.dp))
+        Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = color.copy(alpha = 0.6f), modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+private fun bodyStyle(color: Color) = LocalTextStyle.current.merge(TextStyle(color = color, fontSize = 15.sp, lineHeight = 21.sp))
+
+@Composable
 private fun Timed(text: String, color: Color, meta: @Composable () -> Unit) {
-    val style = LocalTextStyle.current.merge(TextStyle(color = color, fontSize = 15.sp, lineHeight = 21.sp))
+    val style = bodyStyle(color)
     val measurer = rememberTextMeasurer()
     Layout(content = {
         Text(text, style = style)

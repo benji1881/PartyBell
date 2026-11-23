@@ -13,7 +13,7 @@ data class History(val items: List<FeedItem>, val reset: Boolean, val all: Boole
 
 data class Live(val item: FeedItem) : Incoming
 
-data class Said(val id: Long, val ok: Boolean, val reason: String) : Incoming
+data class Said(val id: Long, val ok: Boolean, val reason: String, val error: String) : Incoming
 
 data class IconsUpdate(val text: String) : Incoming
 
@@ -61,7 +61,7 @@ object Protocol {
         when (json.optString("type")) {
             "party" -> PartyUpdate(party(json))
             "history" -> History(objects(json, "items").mapNotNull(::item), json.optBoolean("reset"), json.optBoolean("all"))
-            "said" -> Said(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"))
+            "said" -> Said(json.optLong("id"), json.optBoolean("ok"), json.optString("reason"), GameText.clean(json.optString("error")))
             "icons" -> IconsUpdate(text)
             "answered" -> Answered(json.optBoolean("ready"), json.optBoolean("ok"), json.optString("reason"))
             "dismiss" -> Dismiss(json.optString("kind"))
@@ -293,6 +293,8 @@ object Protocol {
             json.optBoolean("self"),
             json.optLong("time"),
             json.optString("peer"),
+            json.optString("listing"),
+            GameText.clean(json.optString("link")),
         )
         else -> null
     }
@@ -307,6 +309,8 @@ object Protocol {
         .put("self", item.self)
         .put("time", item.time)
         .put("peer", item.peer)
+        .put("listing", item.listing)
+        .put("link", item.link)
 
     private fun strings(json: JSONObject, key: String): List<String> {
         val array = json.optJSONArray(key) ?: return emptyList()

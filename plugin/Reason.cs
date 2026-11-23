@@ -28,4 +28,5 @@ internal static class Reason
     public const string NoFreeCompany = "no fc";
     public const string Unsupported = "unsupported";
     public const string NotDelivered = "not delivered";
+    public const string Game = "game";
 }

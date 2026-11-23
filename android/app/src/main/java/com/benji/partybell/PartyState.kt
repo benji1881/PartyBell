@@ -86,7 +86,7 @@ object PartyState {
                 (item as? ChatItem)?.takeIf { it.self }?.let(::echoed)
             }
             is Said -> update(incoming.id) {
-                if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = Reasons.chat(incoming.reason))
+                if (incoming.ok) it.copy(state = SendState.Sent) else it.copy(state = SendState.Failed, reason = incoming.error.ifEmpty { Reasons.chat(incoming.reason) })
             }
             is FriendsUpdate -> {
                 friendsFlow.value = incoming.friends
@@ -171,8 +171,8 @@ object PartyState {
         refreshingFriendsFlow.value = false
     }
 
-    fun open(listing: Listing) {
-        request(Protocol.open(listing.id))
+    fun open(id: String) {
+        request(Protocol.open(id))
     }
 
     fun join(listing: Listing) {

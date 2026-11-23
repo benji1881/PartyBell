@@ -15,8 +15,8 @@ internal static class Messages
     public static string Event(PartyEvent e) =>
         Json(new { type = "event", kind = e.Kind, name = e.Member?.Name ?? "", job = e.Member?.Job ?? "", role = e.Member?.Role ?? 0, time = Now });
 
-    public static string Chat(string name, Member? member, string text, string channel, bool self, string peer) =>
-        Json(new { type = "chat", name, job = member?.Job ?? "", role = member?.Role ?? 0, text, channel, self, peer, time = Now });
+    public static string Chat(string name, Member? member, ChatLink text, string channel, bool self, string peer) =>
+        Json(new { type = "chat", name, job = member?.Job ?? "", role = member?.Role ?? 0, text = text.Text, listing = text.Listing, link = text.Link, channel, self, peer, time = Now });
 
     public static string ReadyCheck(bool answerable) =>
         Json(new { type = "event", kind = AlertKind.ReadyCheck, answerable, time = Now });
@@ -61,7 +61,7 @@ internal static class Messages
     public static string History(IEnumerable<string> items, bool reset, bool all = false) =>
         $"{{\"type\":\"history\",\"reset\":{(reset ? "true" : "false")},\"all\":{(all ? "true" : "false")},\"items\":[{string.Join(',', items)}]}}";
 
-    public static string Said(long id, string? reason) => Reply("said", reason, new { id });
+    public static string Said(long id, string? reason, string error) => Reply("said", reason, new { id, error });
 
     public static string Invited(long id, string? reason) => Reply("invited", reason, new { id });
 
