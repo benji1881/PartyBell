@@ -24,12 +24,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
@@ -91,7 +88,6 @@ private const val TRACK_ALPHA = 0.35f
 private const val EMPTY_ALPHA = 0.35f
 private const val TABULAR = "tnum"
 private const val MILLION = 1_000_000L
-private val EDIT_SIZE = 32.dp
 private const val SHORT_DIGITS = 3
 private val HeroTile = 64.dp
 private val HeroGap = 5.dp
@@ -189,37 +185,24 @@ private fun HeroCard(character: Profile?, picked: List<Long>, onPick: () -> Unit
             }
         }
         Line()
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            val shown = picked.mapNotNull { id -> character?.currencies?.firstOrNull { it.id == id } }.take(MAX_CURRENCIES)
-            // Same width as the edit button, so the currencies sit in the middle of the card.
-            Spacer(Modifier.width(EDIT_SIZE))
-            Row(
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(40.dp)
-                    .alpha(fade)
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable(enabled = character != null, role = Role.Button, onClickLabel = "Pick currencies", onClick = onPick),
-            ) {
-                when {
-                    character == null -> Unit
-                    shown.isEmpty() -> Text("Pick currencies to show", color = AppColors.muted, fontSize = 13.sp)
-                    else -> shown.forEachIndexed { index, currency ->
-                        if (index > 0) Box(Modifier.padding(horizontal = 10.dp).width(1.dp).fillMaxHeight().background(AppColors.line))
-                        CurrencyColumn(currency, Modifier.weight(1f))
-                    }
+        val shown = picked.mapNotNull { id -> character?.currencies?.firstOrNull { it.id == id } }.take(MAX_CURRENCIES)
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .alpha(fade)
+                .clip(RoundedCornerShape(10.dp))
+                .clickable(enabled = character != null, role = Role.Button, onClickLabel = "Pick currencies", onClick = onPick),
+        ) {
+            when {
+                character == null -> Unit
+                shown.isEmpty() -> Text("Pick currencies to show", color = AppColors.muted, fontSize = 13.sp)
+                else -> shown.forEachIndexed { index, currency ->
+                    if (index > 0) Box(Modifier.padding(horizontal = 10.dp).width(1.dp).fillMaxHeight().background(AppColors.line))
+                    CurrencyColumn(currency, Modifier.weight(1f))
                 }
-            }
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(EDIT_SIZE)
-                    .clip(CircleShape)
-                    .clickable(enabled = character != null, role = Role.Button, onClickLabel = "Pick currencies", onClick = onPick),
-            ) {
-                Icon(Icons.Filled.Edit, contentDescription = "Pick currencies", tint = AppColors.muted, modifier = Modifier.size(18.dp))
             }
         }
     }
