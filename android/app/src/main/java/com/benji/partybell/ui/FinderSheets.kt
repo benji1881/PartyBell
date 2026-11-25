@@ -186,8 +186,8 @@ private fun CategoryRow(category: Int, onCategory: (Int) -> Unit) {
 
 // Any mix of tiers can be shown, but not none.
 @Composable
-private fun TierRow(tiers: Set<String>, onTiers: (Set<String>) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 8.dp)) {
+internal fun TierRow(tiers: Set<String>, onTiers: (Set<String>) -> Unit, modifier: Modifier = Modifier.padding(top = 8.dp)) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = modifier) {
         Tier.entries.forEach {
             val picked = it.key in tiers
             Chip(it.label, picked, trailing = Icons.Filled.Check.takeIf { picked }) {
@@ -233,7 +233,7 @@ private fun SubSheet(title: String, onDismiss: () -> Unit, content: @Composable 
 }
 
 @Composable
-private fun JobsSheet(fits: Boolean, picks: Set<String>, jobs: List<Job>, onJobs: (Boolean, Set<String>) -> Unit, onDismiss: () -> Unit) {
+internal fun JobsSheet(fits: Boolean, picks: Set<String>, jobs: List<Job>, onJobs: (Boolean, Set<String>) -> Unit, onDismiss: () -> Unit) {
     SubSheet("Jobs", onDismiss) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Chip("Any job", !fits && picks.isEmpty()) { onJobs(false, emptySet()) }
@@ -271,32 +271,35 @@ private fun JobPick(job: Job, picked: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun WordsSheet(words: List<String>, onWords: (List<String>) -> Unit, onDismiss: () -> Unit) {
-    var draft by rememberSaveable { mutableStateOf("") }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
-    SubSheet("Highlight words", onDismiss) {
-        if (words.isNotEmpty()) {
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                words.forEach { word -> Removable(word) { onWords(words - word) } }
-            }
-            Spacer(Modifier.height(12.dp))
-        }
-        PillField(
-            value = draft,
-            placeholder = "Add a word or phrase",
-            onChange = { draft = it },
-            modifier = Modifier.fillMaxWidth().focusRequester(focus),
-            onDone = {
-                val word = draft.trim()
-                if (word.isNotEmpty() && words.none { it.equals(word, ignoreCase = true) }) onWords(words + word)
-                draft = ""
-            },
-        )
-    }
+    SubSheet("Highlight words", onDismiss) { WordsEditor(words, onWords, Modifier.focusRequester(focus)) }
 }
 
 @Composable
-private fun SheetLabel(text: String) {
+internal fun WordsEditor(words: List<String>, onWords: (List<String>) -> Unit, field: Modifier = Modifier) {
+    var draft by rememberSaveable { mutableStateOf("") }
+    if (words.isNotEmpty()) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            words.forEach { word -> Removable(word) { onWords(words - word) } }
+        }
+        Spacer(Modifier.height(12.dp))
+    }
+    PillField(
+        value = draft,
+        placeholder = "Add a word or phrase",
+        onChange = { draft = it },
+        modifier = field.fillMaxWidth(),
+        onDone = {
+            val word = draft.trim()
+            if (word.isNotEmpty() && words.none { it.equals(word, ignoreCase = true) }) onWords(words + word)
+            draft = ""
+        },
+    )
+}
+
+@Composable
+internal fun SheetLabel(text: String) {
     Text(
         text,
         color = AppColors.muted,
@@ -307,7 +310,7 @@ private fun SheetLabel(text: String) {
 }
 
 @Composable
-private fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit, icon: ImageBitmap? = null) {
+internal fun ToggleRow(label: String, on: Boolean, onChange: (Boolean) -> Unit, icon: ImageBitmap? = null) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

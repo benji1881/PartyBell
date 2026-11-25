@@ -17,26 +17,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.AccountCircle
-import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.BadgedBox
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,11 +36,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -58,7 +45,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.AppSettings
 import com.benji.partybell.ChatChannel
 import com.benji.partybell.ChatItem
-import com.benji.partybell.ChatPrefs
 import com.benji.partybell.FeedItem
 import com.benji.partybell.Link
 import com.benji.partybell.Notifier
@@ -67,19 +53,14 @@ import com.benji.partybell.PartyService
 import com.benji.partybell.PartyState
 import com.benji.partybell.Status
 
-private enum class Tab(val label: String, val icon: ImageVector) {
-    Finder("Finder", Icons.Filled.Search),
-    Chats("Chats", Icons.Filled.Email),
-    Friends("Friends", Icons.Filled.Person),
-    Character("Character", Icons.Filled.AccountCircle),
-}
-
 @Composable
 fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
     var showSettings by rememberSaveable { mutableStateOf(!settings.isPaired) }
     var tab by rememberSaveable { mutableStateOf(Tab.Finder) }
     var open by rememberSaveable { mutableStateOf<String?>(null) }
     val context = LocalContext.current
+    val wide = isWide()
+    val tabletop = rememberTabletop()
 
     LaunchedEffect(request) {
         val conversation = request ?: return@LaunchedEffect
@@ -102,33 +83,49 @@ fun App(settings: AppSettings, request: String?, onRequestHandled: () -> Unit) {
                 BackHandler { showSettings = false }
                 SettingsScreen(settings, onBack = { showSettings = false }, modifier = Modifier.safeDrawingPadding())
             }
-            else -> Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            else -> Row(Modifier.fillMaxSize().safeDrawingPadding()) {
                 val onSettings = { showSettings = true }
                 val current = open
-                QueueBar(Modifier.padding(horizontal = 14.dp))
-                LinkBanner(Modifier.padding(horizontal = 14.dp))
-                Box(Modifier.weight(1f).padding(horizontal = 14.dp)) {
-                    when {
-                        current != null && ChatChannel.isParty(current) -> {
-                            BackHandler { open = null }
-                            PartyScreen(current, onBack = { open = null }, onTell = { open = ChatChannel.tell(it) })
-                        }
-                        current != null -> {
-                            BackHandler { open = null }
-                            ConversationScreen(current, onBack = { open = null })
-                        }
-                        tab == Tab.Finder -> FinderScreen(settings, onSettings, onTell = { open = ChatChannel.tell(it) })
-                        tab == Tab.Chats -> ChatsScreen(onSettings, onOpen = { open = it })
-                        tab == Tab.Friends -> FriendsScreen(onSettings, onMessage = { open = ChatChannel.tell(it.key) })
-                        else -> CharacterScreen(settings, onSettings)
-                    }
+                val close = { open = null }
+                val onTell = { name: String -> open = ChatChannel.tell(name) }
+                if (current != null) BackHandler(onBack = close) else if (tab != Tab.Finder) BackHandler { tab = Tab.Finder }
+                if (wide) {
+                    NavRail(if (current != null) Tab.Chats else tab, onSelect = {
+                        if (it != Tab.Chats) open = null
+                        tab = it
+                    })
                 }
-                if (current == null) {
-                    if (tab != Tab.Finder) BackHandler { tab = Tab.Finder }
-                    BottomNav(tab, onSelect = { tab = it })
+                Column(Modifier.weight(1f)) {
+                    QueueBar(Modifier.padding(horizontal = 14.dp))
+                    LinkBanner(Modifier.padding(horizontal = 14.dp))
+                    Box(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                        when {
+                            wide && (current != null || tab == Tab.Chats) -> Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                Box(Modifier.weight(LIST_PANE)) { ChatsScreen(onSettings, onOpen = { open = it }, selected = current) }
+                                Box(Modifier.weight(1f - LIST_PANE)) {
+                                    if (current == null) Empty("Pick a chat", Modifier.fillMaxSize()) else Conversation(current, close, onTell)
+                                }
+                            }
+                            current != null -> Conversation(current, close, onTell)
+                            tab == Tab.Finder -> FinderScreen(settings, onSettings, onTell, wide)
+                            tab == Tab.Chats -> ChatsScreen(onSettings, onOpen = { open = it })
+                            tab == Tab.Friends -> FriendsScreen(onSettings, onMessage = { open = ChatChannel.tell(it.key) })
+                            else -> CharacterScreen(settings, onSettings, wide, tabletop)
+                        }
+                    }
+                    if (current == null && !wide) BottomNav(tab, onSelect = { tab = it })
                 }
             }
         }
+    }
+}
+
+private const val LIST_PANE = 0.42f
+
+@Composable
+private fun Conversation(conversation: String, onBack: () -> Unit, onTell: (String) -> Unit) {
+    key(conversation) {
+        if (ChatChannel.isParty(conversation)) PartyScreen(conversation, onBack, onTell) else ConversationScreen(conversation, onBack)
     }
 }
 
@@ -169,56 +166,6 @@ private fun LinkBanner(modifier: Modifier = Modifier) {
                     .clickable { PartyService.nudge(context) }
                     .padding(horizontal = 12.dp, vertical = 5.dp),
             )
-        }
-    }
-}
-
-@Composable
-private fun BottomNav(selected: Tab, onSelect: (Tab) -> Unit) {
-    val feed by PartyState.feed.collectAsStateWithLifecycle()
-    val messages by PartyState.messages.collectAsStateWithLifecycle()
-    val viewed by PartyState.viewed.collectAsStateWithLifecycle()
-    val cleared by ChatPrefs.cleared.collectAsStateWithLifecycle()
-    val muted by ChatPrefs.muted.collectAsStateWithLifecycle()
-
-    Column(Modifier.background(AppColors.card)) {
-        HorizontalDivider(color = AppColors.line)
-        Row(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-            Tab.entries.forEach { tab ->
-                val count = when {
-                    tab == selected -> 0
-                    tab == Tab.Chats -> messages.map { it.conversation }.distinct()
-                        .filter { it !in muted }
-                        .sumOf { unreadIn(messages, it, viewed, cleared) } +
-                        if (ChatChannel.PARTY in muted) 0 else feed.count { it is ChatItem && incoming(it, viewed[it.channel] ?: 0L) }
-                    else -> 0
-                }
-                val active = tab == selected
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(14.dp))
-                        .clickable { onSelect(tab) }
-                        .padding(vertical = 6.dp),
-                ) {
-                    BadgedBox(badge = { if (count > 0) Badge(count) }) {
-                        Icon(
-                            tab.icon,
-                            contentDescription = null,
-                            tint = if (active) AppColors.accent else AppColors.muted,
-                            modifier = Modifier.size(24.dp),
-                        )
-                    }
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        tab.label,
-                        color = if (active) AppColors.accent else AppColors.muted,
-                        fontSize = 12.sp,
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
-                    )
-                }
-            }
         }
     }
 }

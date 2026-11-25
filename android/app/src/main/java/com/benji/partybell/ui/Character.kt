@@ -80,25 +80,29 @@ import java.text.NumberFormat
 
 private const val MAX_CURRENCIES = 3
 private const val REPAIR_BELOW = 10
-private const val FULL = 100
-private const val RING_MS = 900
-private const val FADE_MS = 400
+internal const val FULL = 100
+internal const val RING_MS = 900
+internal const val FADE_MS = 400
 private const val LOAD_MS = 5_000L
 private const val TRACK_ALPHA = 0.35f
-private const val EMPTY_ALPHA = 0.35f
-private const val TABULAR = "tnum"
+internal const val EMPTY_ALPHA = 0.35f
+internal const val TABULAR = "tnum"
 private const val MILLION = 1_000_000L
 private const val SHORT_DIGITS = 3
 private val HeroTile = 64.dp
 private val HeroGap = 5.dp
-private val SlotSize = 44.dp
+internal val SlotSize = 44.dp
 private val SheetSlotSize = 48.dp
 private val Ink = Color(0xFF2B2F2A)
 
-private data class SlotInfo(val index: Int, val symbol: String, val label: String)
+internal data class SlotInfo(val index: Int, val symbol: String, val label: String)
 
-private val LeftSlots = listOf(
+internal val Weapons = listOf(
     SlotInfo(0, "main", "Main hand"),
+    SlotInfo(1, "off", "Off hand"),
+)
+
+internal val Armour = listOf(
     SlotInfo(2, "head", "Head"),
     SlotInfo(3, "body", "Body"),
     SlotInfo(4, "hands", "Hands"),
@@ -106,8 +110,7 @@ private val LeftSlots = listOf(
     SlotInfo(7, "feet", "Feet"),
 )
 
-private val RightSlots = listOf(
-    SlotInfo(1, "off", "Off hand"),
+internal val Accessories = listOf(
     SlotInfo(8, "ears", "Earrings"),
     SlotInfo(9, "neck", "Necklace"),
     SlotInfo(10, "wrists", "Bracelets"),
@@ -115,8 +118,28 @@ private val RightSlots = listOf(
     SlotInfo(12, "ring", "Ring"),
 )
 
+private val LeftSlots = Weapons.take(1) + Armour
+private val RightSlots = Weapons.drop(1) + Accessories
+internal val AllSlots = Weapons + Armour + Accessories
+
+internal val GearPiece.needsRepair get() = condition < REPAIR_BELOW
+
+internal fun Profile.piece(slot: Int?) = gear.firstOrNull { it.slot == slot }
+
+internal fun Profile.home() = listOf(world, dataCenter).filter { it.isNotEmpty() }.joinToString(" · ")
+
+internal fun Profile.toNext() = if (!max && expNeeded > 0) "${exp * FULL / expNeeded}% to level ${level + 1}" else null
+
+internal fun Profile?.shown(picked: List<Long>) = picked.mapNotNull { id -> this?.currencies?.firstOrNull { it.id == id } }.take(MAX_CURRENCIES)
+
+internal fun GearPiece.detail(info: SlotInfo) = "${category.ifEmpty { info.label }} · Item level $level"
+
+internal fun Profile?.repairs() = this?.gear?.count { it.needsRepair } ?: 0
+
+internal fun repairLabel(repairs: Int) = "$repairs need repair"
+
 @Composable
-fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit) {
+fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit, wide: Boolean, tabletop: Tabletop?) {
     val character by PartyState.character.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
     var picked by remember { mutableStateOf(settings.characterCurrencies) }
@@ -138,6 +161,8 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit) {
         when {
             status != Status.Connected -> Empty(Reasons.NOT_CONNECTED, Modifier.weight(1f))
             current == null && idle -> Empty("Log in to a character in the game", Modifier.weight(1f))
+            tabletop != null -> CharacterTabletop(current, tabletop, picked, slot, Modifier.weight(1f), onSlot = { slot = it.takeIf { it != slot } }, onPick = { picking = true })
+            wide -> CharacterColumns(current, picked, Modifier.weight(1f), onSlot = { slot = it }, onPick = { picking = true })
             else -> Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 14.dp),
@@ -155,9 +180,9 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit) {
             settings.characterCurrencies = it
         }, onDismiss = { picking = false })
     }
-    val piece = current?.gear?.firstOrNull { it.slot == slot }
-    val info = (LeftSlots + RightSlots).firstOrNull { it.index == slot }
-    if (piece != null && info != null) GearSheet(piece, info, onDismiss = { slot = null })
+    val piece = current?.piece(slot)
+    val info = AllSlots.firstOrNull { it.index == slot }
+    if (tabletop == null && piece != null && info != null) GearSheet(piece, info, onDismiss = { slot = null })
 }
 
 @Composable
@@ -169,23 +194,15 @@ private fun HeroCard(character: Profile?, picked: List<Long>, onPick: () -> Unit
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f).alpha(fade)) {
                 if (character != null) {
-                    Text(
-                        "Lv ${character.level} ${character.jobName}",
-                        color = Ink,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp,
-                        modifier = Modifier.background(AppColors.yellow, CircleShape).padding(horizontal = 9.dp, vertical = 2.dp),
-                    )
+                    LevelPill(character)
                     Text(character.name, fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(listOf(character.world, character.dataCenter).filter { it.isNotEmpty() }.joinToString(" · "), color = AppColors.muted, fontSize = 13.sp)
-                    if (!character.max && character.expNeeded > 0) {
-                        Text("${character.exp * FULL / character.expNeeded}% to level ${character.level + 1}", color = AppColors.muted, fontSize = 12.sp)
-                    }
+                    Text(character.home(), color = AppColors.muted, fontSize = 13.sp)
+                    character.toNext()?.let { Text(it, color = AppColors.muted, fontSize = 12.sp) }
                 }
             }
         }
         Line()
-        val shown = picked.mapNotNull { id -> character?.currencies?.firstOrNull { it.id == id } }.take(MAX_CURRENCIES)
+        val shown = character.shown(picked)
         Row(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
@@ -209,7 +226,18 @@ private fun HeroCard(character: Profile?, picked: List<Long>, onPick: () -> Unit
 }
 
 @Composable
-private fun HeroJob(character: Profile?) {
+internal fun LevelPill(character: Profile) {
+    Text(
+        "Lv ${character.level} ${character.jobName}",
+        color = Ink,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.sp,
+        modifier = Modifier.background(AppColors.yellow, CircleShape).padding(horizontal = 9.dp, vertical = 2.dp),
+    )
+}
+
+@Composable
+internal fun HeroJob(character: Profile?) {
     val progress = animated(if (character != null && !character.max && character.expNeeded > 0) character.exp.toFloat() / character.expNeeded else 0f, RING_MS)
     val fade = animated(if (character != null) 1f else 0f, FADE_MS)
     val track = AppColors.muted.copy(alpha = TRACK_ALPHA)
@@ -259,14 +287,14 @@ private fun CurrencyColumn(currency: Currency, modifier: Modifier) {
     }
 }
 
-private fun short(count: Long): String = if (count < MILLION) {
+internal fun short(count: Long): String = if (count < MILLION) {
     NumberFormat.getIntegerInstance().format(count)
 } else {
     BigDecimal(count).divide(BigDecimal(MILLION)).round(MathContext(SHORT_DIGITS, RoundingMode.DOWN)).stripTrailingZeros().toPlainString() + "M"
 }
 
 @Composable
-private fun LocationCard(character: Profile?) {
+internal fun LocationCard(character: Profile?) {
     val symbols by JobIcons.symbols.collectAsStateWithLifecycle()
     val fade = animated(if (character != null) 1f else 0f, FADE_MS)
     Card {
@@ -289,7 +317,7 @@ private fun LocationCard(character: Profile?) {
 @Composable
 private fun GearCard(character: Profile?, onSlot: (Int) -> Unit) {
     val fade = animated(if (character != null) 1f else 0f, FADE_MS)
-    val repairs = character?.gear?.count { it.condition < REPAIR_BELOW } ?: 0
+    val repairs = character.repairs()
     Card {
         Row(verticalAlignment = Alignment.CenterVertically) {
             SlotColumn(LeftSlots, character, onSlot)
@@ -299,7 +327,7 @@ private fun GearCard(character: Profile?, onSlot: (Int) -> Unit) {
                     Text("Average item level", color = AppColors.muted, fontSize = 12.sp)
                     Spacer(Modifier.height(10.dp))
                     Text(
-                        if (repairs > 0) "$repairs need repair" else "Nothing to repair",
+                        if (repairs > 0) repairLabel(repairs) else "Nothing to repair",
                         color = if (repairs > 0) AppColors.red else AppColors.muted,
                         fontWeight = if (repairs > 0) FontWeight.SemiBold else FontWeight.Normal,
                         fontSize = 12.5.sp,
@@ -314,20 +342,23 @@ private fun GearCard(character: Profile?, onSlot: (Int) -> Unit) {
 @Composable
 private fun SlotColumn(slots: List<SlotInfo>, character: Profile?, onSlot: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        slots.forEach { info ->
-            val piece = character?.gear?.firstOrNull { it.slot == info.index }
-            GearSlot(info, piece, character != null, SlotSize, AppColors.card, Modifier.clickable(enabled = piece != null, role = Role.Button, onClickLabel = info.label) { onSlot(info.index) })
-        }
+        slots.forEach { SlotButton(it, character, AppColors.card, onSlot) }
     }
 }
 
 @Composable
-private fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: Dp, surface: Color, modifier: Modifier = Modifier) {
+internal fun SlotButton(info: SlotInfo, character: Profile?, surface: Color, onSlot: (Int) -> Unit) {
+    val piece = character?.piece(info.index)
+    GearSlot(info, piece, character != null, SlotSize, surface, Modifier.clickable(enabled = piece != null, role = Role.Button, onClickLabel = info.label) { onSlot(info.index) })
+}
+
+@Composable
+internal fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: Dp, surface: Color, modifier: Modifier = Modifier) {
     val symbols by JobIcons.symbols.collectAsStateWithLifecycle()
     val items by ItemIcons.icons.collectAsStateWithLifecycle()
     val progress = animated((piece?.condition ?: 0).coerceIn(0, FULL) / FULL.toFloat(), RING_MS)
     val fade = animated(if (loaded) 1f else 0f, FADE_MS)
-    val color = if (piece != null && piece.condition < REPAIR_BELOW) AppColors.red else AppColors.accent
+    val color = if (piece?.needsRepair == true) AppColors.red else AppColors.accent
     val icon = piece?.let { items[it.icon] }
     Box(Modifier.size(size)) {
         Ring(progress, color, size, Modifier.clip(CircleShape).then(modifier)) {
@@ -354,7 +385,7 @@ private fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: D
 }
 
 @Composable
-private fun Ring(progress: Float, color: Color, size: Dp, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
+internal fun Ring(progress: Float, color: Color, size: Dp, modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val track = AppColors.muted.copy(alpha = TRACK_ALPHA)
     Box(
         contentAlignment = Alignment.Center,
@@ -383,7 +414,7 @@ private fun GearSheet(piece: GearPiece, info: SlotInfo, onDismiss: () -> Unit) {
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(piece.name, fontFamily = Fraunces, fontSize = 20.sp, color = AppColors.text)
-                    Text("${piece.category.ifEmpty { info.label }} · Item level ${piece.level}", color = AppColors.muted, fontSize = 13.sp)
+                    Text(piece.detail(info), color = AppColors.muted, fontSize = 13.sp)
                 }
             }
             if (piece.stats.isNotEmpty()) {
@@ -401,9 +432,7 @@ private fun GearSheet(piece: GearPiece, info: SlotInfo, onDismiss: () -> Unit) {
                 }
             }
             Line(Modifier.padding(vertical = 16.dp))
-            Meter("Condition", piece.condition, if (piece.condition < REPAIR_BELOW) AppColors.red else AppColors.accent)
-            Spacer(Modifier.height(14.dp))
-            Meter("Spiritbond", piece.spiritbond, AppColors.yellow)
+            PieceMeters(piece)
             if (piece.spiritbond >= FULL) {
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 12.dp)) {
                     Dot(AppColors.yellow)
@@ -424,12 +453,24 @@ private fun StatBox(stat: ItemStat, modifier: Modifier) {
 }
 
 @Composable
+internal fun PieceMeters(piece: GearPiece) {
+    Meter("Condition", piece.condition, if (piece.needsRepair) AppColors.red else AppColors.accent)
+    Spacer(Modifier.height(14.dp))
+    Meter("Spiritbond", piece.spiritbond, AppColors.yellow)
+}
+
+@Composable
 private fun Meter(label: String, percent: Int, color: Color) {
     Row {
         Text(label, color = AppColors.muted, fontSize = 13.sp, modifier = Modifier.weight(1f))
         Text("$percent%", color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 13.sp, style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR))
     }
-    Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(CircleShape).background(AppColors.line)) {
+    Bar(percent, color, Modifier.padding(top = 6.dp).fillMaxWidth())
+}
+
+@Composable
+internal fun Bar(percent: Int, color: Color, modifier: Modifier) {
+    Box(modifier.height(6.dp).clip(CircleShape).background(AppColors.line)) {
         Box(Modifier.fillMaxWidth(percent.coerceIn(0, FULL) / FULL.toFloat()).fillMaxHeight().background(color, CircleShape))
     }
 }
@@ -490,7 +531,7 @@ private fun Glyph(icon: ImageBitmap, color: Color, modifier: Modifier) {
 }
 
 @Composable
-private fun animated(target: Float, duration: Int): Float {
+internal fun animated(target: Float, duration: Int): Float {
     val value = remember { Animatable(0f) }
     LaunchedEffect(target) { value.animateTo(target, tween(duration, easing = FastOutSlowInEasing)) }
     return value.value

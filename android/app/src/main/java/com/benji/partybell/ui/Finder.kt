@@ -22,9 +22,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridItemSpan
+import androidx.compose.foundation.lazy.staggeredgrid.items
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -34,9 +36,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -77,7 +77,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.AppSettings
-import com.benji.partybell.FinderCategory
 import com.benji.partybell.JobIcons
 import com.benji.partybell.Listing
 import com.benji.partybell.Listings
@@ -94,7 +93,7 @@ private val CompletionColor = Color(0xFF4E82C4)
 private val LootColor = Color(0xFFD9853B)
 internal const val BEGINNERS = "Beginners welcome"
 private const val HIGHLIGHT_ALPHA = 0.4f
-private const val SHOWN_JOBS = 3
+internal const val SHOWN_JOBS = 3
 private val HighlightIcon = ImageVector.Builder("Highlight", 24.dp, 24.dp, 24f, 24f)
     .addPath(
         PathParser().parsePathString(
@@ -109,7 +108,7 @@ private val Sliders = ImageVector.Builder("Sliders", 24.dp, 24.dp, 24f, 24f)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String) -> Unit) {
+fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String) -> Unit, wide: Boolean) {
     val all by PartyState.listings.collectAsStateWithLifecycle()
     val finding by PartyState.finding.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
@@ -152,6 +151,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     val setBeginners = { on: Boolean -> beginners = on; settings.finderBeginners = on }
     val setBlocked = { on: Boolean -> blocked = on; settings.finderBlocked = on }
     val setGoal = { picked: Goal -> goal = picked; settings.finderGoal = picked.ordinal }
+    val setCategory = { picked: Int -> category = picked; settings.finderCategory = picked }
     val clear = { setJobs(false, emptySet()); setBeginners(false); setBlocked(false); setGoal(Goal.Any) }
     val jobFilter = fits || picks.isNotEmpty()
     val active = listOf(jobFilter, beginners, goal != Goal.Any).count { it }
@@ -162,11 +162,32 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             PillField(query, "Search duty, leader or description", onChange = { query = it }, modifier = Modifier.weight(1f), icon = Icons.Filled.Search)
-            Spacer(Modifier.width(8.dp))
-            FilterButton(active) { sheet = true }
+            if (!wide) {
+                Spacer(Modifier.width(8.dp))
+                FilterButton(active) { sheet = true }
+            }
         }
         Spacer(Modifier.height(8.dp))
-        FlowRow(
+        if (wide) {
+            WideFilters(
+                category = category,
+                tiers = tiers,
+                goal = goal,
+                fits = fits,
+                picks = picks,
+                jobs = jobs,
+                beginners = beginners,
+                blocked = blocked,
+                words = words,
+                onCategory = setCategory,
+                onTiers = setTiers,
+                onGoal = setGoal,
+                onJobs = setJobs,
+                onBeginners = setBeginners,
+                onBlocked = setBlocked,
+                onWords = setWords,
+            )
+        } else FlowRow(
             horizontalArrangement = Arrangement.spacedBy(6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
@@ -194,14 +215,16 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             onRefresh = { PartyState.find(category) },
             modifier = Modifier.weight(1f),
         ) {
-            val list = rememberLazyListState()
-            LazyColumn(
+            val list = rememberLazyStaggeredGridState()
+            LazyVerticalStaggeredGrid(
+                columns = StaggeredGridCells.Fixed(if (wide) 2 else 1),
                 state = list,
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalItemSpacing = 6.dp,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize().fadeEdges(start = list.canScrollBackward, end = false, vertical = true),
             ) {
                 if (shown.isEmpty()) {
-                    item { Empty(emptyText(status, finding, loaded, listings.list.isEmpty())) }
+                    item(span = StaggeredGridItemSpan.FullLine) { Empty(emptyText(status, finding, loaded, listings.list.isEmpty())) }
                 }
                 items(shown, key = { it.id }) { listing ->
                     ListingCard(
@@ -213,7 +236,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                         onOpen = { PartyState.open(listing.id) },
                     )
                 }
-                item { Spacer(Modifier.height(8.dp)) }
+                item(span = StaggeredGridItemSpan.FullLine) { Spacer(Modifier.height(8.dp)) }
             }
         }
     }
@@ -230,10 +253,7 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
             blocked = blocked,
             words = words,
             count = shown.size,
-            onCategory = {
-                category = it
-                settings.finderCategory = it
-            },
+            onCategory = setCategory,
             onTiers = setTiers,
             onGoal = setGoal,
             onJobs = setJobs,

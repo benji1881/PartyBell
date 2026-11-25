@@ -27,14 +27,16 @@ internal fun ScreenHeader(title: String, onBack: () -> Unit) {
     }
 }
 
+internal val CardShape = RoundedCornerShape(18.dp)
+
 @Composable
-internal fun Card(content: @Composable ColumnScope.() -> Unit) {
+internal fun Card(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
         verticalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .background(AppColors.card, RoundedCornerShape(18.dp))
-            .border(1.dp, AppColors.line, RoundedCornerShape(18.dp))
+            .background(AppColors.card, CardShape)
+            .border(1.dp, AppColors.line, CardShape)
             .padding(16.dp),
         content = content,
     )

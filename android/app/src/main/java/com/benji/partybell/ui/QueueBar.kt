@@ -67,8 +67,7 @@ private const val SHORT_WAIT = 5
 private const val LONG_WAIT = 30
 private const val LAST_POSITION = 50
 private const val TINT_ALPHA = 0.16f
-private const val TABULAR = "tnum"
-private val CardShape = RoundedCornerShape(20.dp)
+private val BarShape = RoundedCornerShape(20.dp)
 private val Hourglass = ImageVector.Builder("Hourglass", 24.dp, 24.dp, 24f, 24f)
     .addPath(
         PathParser().parsePathString(
@@ -102,10 +101,10 @@ private fun QueueCard(status: QueueStatus, modifier: Modifier) {
         modifier = modifier
             .padding(top = 8.dp)
             .fillMaxWidth()
-            .clip(CardShape)
+            .clip(BarShape)
             .background(AppColors.card)
             .background(Brush.verticalGradient(listOf(if (ready) tone.copy(alpha = TINT_ALPHA) else Color.Transparent, Color.Transparent)))
-            .border(1.dp, if (ready) tone else AppColors.line, CardShape)
+            .border(1.dp, if (ready) tone else AppColors.line, BarShape)
             .clickable(enabled = !ready, onClickLabel = if (open) "Hide details" else "Show details") { expanded = !expanded }
             .padding(14.dp),
     ) {

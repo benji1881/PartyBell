@@ -1,7 +1,6 @@
 package com.benji.partybell.ui
 
 import android.content.Context
-import android.text.format.DateFormat
 import android.text.format.DateUtils
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -69,7 +68,7 @@ fun unreadIn(messages: List<ChatItem>, conversation: String, viewed: Map<String,
 }
 
 @Composable
-fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
+fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit, selected: String? = null) {
     val feed by PartyState.feed.collectAsStateWithLifecycle()
     val messages by PartyState.messages.collectAsStateWithLifecycle()
     val outbox by PartyState.outbox.collectAsStateWithLifecycle()
@@ -82,6 +81,7 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
     val muted by ChatPrefs.muted.collectAsStateWithLifecycle()
     val cleared by ChatPrefs.cleared.collectAsStateWithLifecycle()
     var deleting by remember { mutableStateOf<String?>(null) }
+    val picked = selected?.let { if (ChatChannel.isParty(it)) ChatChannel.PARTY else it }
 
     val partySlots = remember(party) { slotsOf(party) }
     val groups = remember(feed, messages, outbox, viewed, cleared, company) {
@@ -111,7 +111,7 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
                 val isParty = thread.conversation == ChatChannel.PARTY
                 ThreadRow(
                     thread,
-                    Modifier.groupRow(index, groups.size, RowInset),
+                    Modifier.groupRow(index, groups.size, RowInset).picked(thread.conversation == picked),
                     friend = null,
                     pinned = !isParty && thread.conversation in pinned,
                     muted = thread.conversation in muted,
@@ -128,7 +128,7 @@ fun ChatsScreen(onSettings: () -> Unit, onOpen: (String) -> Unit) {
             itemsIndexed(tells, key = { _, it -> it.conversation }) { index, thread ->
                 ThreadRow(
                     thread,
-                    Modifier.groupRow(index, tells.size, RowInset),
+                    Modifier.groupRow(index, tells.size, RowInset).picked(thread.conversation == picked),
                     friend = friends.list.firstOrNull { it.key.equals(ChatChannel.peerOf(thread.conversation), ignoreCase = true) },
                     pinned = thread.conversation in pinned,
                     muted = thread.conversation in muted,
@@ -182,6 +182,10 @@ private fun thread(
 }
 
 private val RowInset = 68.dp
+private const val PICKED_ALPHA = 0.14f
+
+@Composable
+private fun Modifier.picked(on: Boolean) = if (on) background(AppColors.accent.copy(alpha = PICKED_ALPHA)) else this
 
 private val MuteChoices = listOf(
     "For 1 hour" to DateUtils.HOUR_IN_MILLIS,
