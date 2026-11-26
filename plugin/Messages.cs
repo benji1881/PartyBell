@@ -77,6 +77,15 @@ internal static class Messages
 
     public static string Joining(string? reason) => Reply("joining", reason);
 
+    public static string Recruit(bool open, IReadOnlyList<RecruitDuty> duties) =>
+        Json(new { type = "recruit", open, duties });
+
+    public static string Recruiting(string? reason) => Reply("recruiting", reason);
+
+    public static string Bis(string? link, BisView? set) => Json(new { type = "bis", link, set });
+
+    public static string BisLinked(string? reason) => Reply("bislinked", reason);
+
     // The answer to a phone request: ok, or the reason it failed, plus any fields that say which request it was.
     private static string Reply(string type, string? reason, object? fields = null)
     {

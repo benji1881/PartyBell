@@ -69,6 +69,22 @@ object Reasons {
         else -> "The game couldn't join the party"
     }
 
+    fun recruit(code: String) = when (code) {
+        DISABLED -> "Posting listings from phones is off in the plugin"
+        NOT_READY -> GAME_NOT_READY
+        IN_DUTY -> "You can't recruit in a duty"
+        "queued" -> "You're in a duty queue"
+        "in party" -> "You're already in a party"
+        "recruiting" -> "You're already recruiting"
+        WINDOW_OPEN -> "The recruitment window is open in the game"
+        "not found" -> "That duty isn't in the game's list"
+        "too long" -> "The comment is too long"
+        "busy" -> "Already posting a listing"
+        "timeout" -> "The game didn't post the listing"
+        OFFLINE -> NOT_CONNECTED
+        else -> "The game couldn't post the listing"
+    }
+
     fun duty(code: String) = when (code) {
         DISABLED -> "Accepting duties from phones is off in the plugin"
         "not queued" -> "You're not in the queue"
@@ -76,6 +92,15 @@ object Reasons {
         "no window" -> "The duty window isn't open in the game"
         OFFLINE -> NOT_CONNECTED
         else -> GAME_REFUSED
+    }
+
+    fun bis(code: String) = when (code) {
+        NOT_READY -> GAME_NOT_READY
+        "invalid" -> "Not an etro.gg gear set link"
+        "not found" -> "Couldn't read that set from etro.gg"
+        "wrong job" -> "That set is for another job"
+        OFFLINE -> NOT_CONNECTED
+        else -> REQUEST_REFUSED
     }
 
     fun readyCheck(code: String) = when (code) {

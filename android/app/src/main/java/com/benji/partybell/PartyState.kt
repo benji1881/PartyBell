@@ -28,6 +28,10 @@ object PartyState {
     private val linkFlow = MutableStateFlow(Link.Ok)
     private val queueFlow = MutableStateFlow<QueueStatus?>(null)
     private val characterFlow = MutableStateFlow<Profile?>(null)
+    private val bisFlow = MutableStateFlow(Bis())
+    private val recruitFlow = MutableStateFlow(RecruitState())
+    private val postingFlow = MutableStateFlow(false)
+    private val postedFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
     private val noticesFlow = MutableSharedFlow<String>(extraBufferCapacity = 8)
     private val invites = mutableMapOf<Long, Friend>()
     private var nextId = 1L
@@ -48,6 +52,10 @@ object PartyState {
     val link: StateFlow<Link> = linkFlow.asStateFlow()
     val queue: StateFlow<QueueStatus?> = queueFlow.asStateFlow()
     val character: StateFlow<Profile?> = characterFlow.asStateFlow()
+    val bis: StateFlow<Bis> = bisFlow.asStateFlow()
+    val recruit: StateFlow<RecruitState> = recruitFlow.asStateFlow()
+    val posting: StateFlow<Boolean> = postingFlow.asStateFlow()
+    val posted: SharedFlow<Unit> = postedFlow.asSharedFlow()
     val notices: SharedFlow<String> = noticesFlow.asSharedFlow()
 
     var sender: ((json: String) -> Boolean)? = null
@@ -115,6 +123,14 @@ object PartyState {
             is Joining -> noticesFlow.tryEmit(if (incoming.ok) "Join request sent" else Reasons.join(incoming.reason))
             is QueueUpdate -> queueFlow.value = incoming.status
             is CharacterUpdate -> characterFlow.value = incoming.profile
+            is RecruitUpdate -> recruitFlow.value = incoming.state
+            is BisUpdate -> bisFlow.value = incoming.bis
+            is BisLinked -> noticesFlow.tryEmit(if (incoming.ok) "BiS saved" else Reasons.bis(incoming.reason))
+            is Recruiting -> {
+                postingFlow.value = false
+                noticesFlow.tryEmit(if (incoming.ok) "Listing posted" else Reasons.recruit(incoming.reason))
+                if (incoming.ok) postedFlow.tryEmit(Unit)
+            }
             is DutyReply -> when {
                 !incoming.ok -> noticesFlow.tryEmit(Reasons.duty(incoming.reason))
                 incoming.action == DutyAction.LEAVE -> noticesFlow.tryEmit("Left the queue")
@@ -123,6 +139,9 @@ object PartyState {
                 listingsFlow.value = emptyMap()
                 queueFlow.value = null
                 characterFlow.value = null
+                bisFlow.value = Bis()
+                recruitFlow.value = RecruitState()
+                postingFlow.value = false
             }
             is IconsUpdate, is ItemIconsUpdate, is Answered, is Dismiss, is PluginVersion -> Unit
         }
@@ -183,6 +202,12 @@ object PartyState {
 
     fun duty(action: String): Boolean = request(Protocol.duty(action))
 
+    fun recruit(form: RecruitForm) {
+        if (request(Protocol.recruit(form))) postingFlow.value = true
+    }
+
+    fun bisLink(link: String): Boolean = request(Protocol.bisLink(link))
+
     fun retry(item: OutgoingItem) {
         outboxFlow.value = outboxFlow.value.filter { it.id != item.id }
         send(item.channel, item.text, item.to)
@@ -206,6 +231,9 @@ object PartyState {
         refreshingFriendsFlow.value = false
         queueFlow.value = null
         characterFlow.value = null
+        bisFlow.value = Bis()
+        recruitFlow.value = RecruitState()
+        postingFlow.value = false
         friendsAskedAt = 0L
         friendsFlow.value = Friends()
         outboxFlow.value = outboxFlow.value.map {

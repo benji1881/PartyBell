@@ -111,6 +111,6 @@ internal static class ItemStats
         _ => stat.ChestPercent,
     };
 
-    private static string Name(uint param) =>
+    public static string Name(uint param) =>
         Services.DataManager.GetExcelSheet<Sheets.BaseParam>().GetRowOrDefault(param)?.Name.ExtractText() ?? "";
 }

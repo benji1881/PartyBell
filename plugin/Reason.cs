@@ -29,4 +29,7 @@ internal static class Reason
     public const string Unsupported = "unsupported";
     public const string NotDelivered = "not delivered";
     public const string Game = "game";
+    public const string Queued = "queued";
+    public const string InParty = "in party";
+    public const string Recruiting = "recruiting";
 }

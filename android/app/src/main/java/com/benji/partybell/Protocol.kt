@@ -47,6 +47,14 @@ data class ItemIconsUpdate(val text: String) : Incoming
 
 data class DutyReply(val action: String, val ok: Boolean, val reason: String) : Incoming
 
+data class RecruitUpdate(val state: RecruitState) : Incoming
+
+data class Recruiting(val ok: Boolean, val reason: String) : Incoming
+
+data class BisUpdate(val bis: Bis) : Incoming
+
+data class BisLinked(val ok: Boolean, val reason: String) : Incoming
+
 data object Bye : Incoming
 
 data class SavedTells(val tells: List<ChatItem>, val viewed: Map<String, Long>)
@@ -78,6 +86,10 @@ object Protocol {
             "character" -> CharacterUpdate(json.optJSONObject("character")?.let(::profile))
             "itemicons" -> ItemIconsUpdate(text)
             "duty" -> DutyReply(json.optString("action"), json.optBoolean("ok"), json.optString("reason"))
+            "recruit" -> RecruitUpdate(recruit(json))
+            "recruiting" -> Recruiting(json.optBoolean("ok"), json.optString("reason"))
+            "bis" -> BisUpdate(Bis(json.optString("link").takeIf { !json.isNull("link") }, json.optJSONObject("set")?.let(::bis)))
+            "bislinked" -> BisLinked(json.optBoolean("ok"), json.optString("reason"))
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
@@ -168,6 +180,31 @@ object Protocol {
         .put("type", "duty")
         .put("action", action)
         .toString()
+
+    fun recruit(form: RecruitForm): String = JSONObject()
+        .put("type", "recruit")
+        .put("category", form.category)
+        .put("duty", form.duty)
+        .put("objective", form.objective)
+        .put("completion", form.completion)
+        .put("loot", form.loot)
+        .put("slots", JSONArray(form.slots))
+        .put("itemLevel", form.itemLevel)
+        .apply { form.password?.let { put("password", it) } }
+        .put("beginners", form.beginners)
+        .put("onePerJob", form.onePerJob)
+        .put("comment", form.comment)
+        .toString()
+
+    fun bisLink(link: String): String = JSONObject()
+        .put("type", "bislink")
+        .put("link", link)
+        .toString()
+
+    private fun recruit(json: JSONObject) = RecruitState(
+        json.optBoolean("open"),
+        objects(json, "duties").map { RecruitDuty(it.optInt("category"), it.optLong("id"), it.optString("name")) },
+    )
 
     private fun party(json: JSONObject) = Party(
         members = objects(json, "members").map {
@@ -316,6 +353,15 @@ object Protocol {
         val array = json.optJSONArray(key) ?: return emptyList()
         return List(array.length()) { array.optString(it) }
     }
+
+    private fun bis(json: JSONObject) = BisSet(
+        name = json.optString("name"),
+        slots = objects(json, "slots").map { BisSlot(it.optInt("slot"), it.optString("name"), it.optInt("level"), it.optLong("icon"), it.optBoolean("done")) },
+        food = json.optJSONObject("food")?.let { BisItem(it.optString("name"), it.optLong("icon")) },
+        materia = objects(json, "materia").map { BisMateria(it.optString("name"), it.optLong("icon"), it.optString("stat"), it.optInt("value"), it.optInt("count")) },
+        gcd = json.optDouble("gcd"),
+        stats = objects(json, "stats").map { BisStat(it.optString("name"), it.optInt("now"), it.optInt("bis")) },
+    )
 
     private fun objects(json: JSONObject, key: String): List<JSONObject> {
         val array = json.optJSONArray(key) ?: return emptyList()

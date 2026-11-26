@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using Sheets = Lumina.Excel.Sheets;
 
@@ -24,6 +25,8 @@ internal static unsafe class Gear
         }
         return total / CountedSlots;
     }
+
+    public static Dictionary<int, uint> Ids() => Equipped().ToDictionary(e => e.Index, e => e.Item.RowId);
 
     public static List<GearPiece> Read()
     {

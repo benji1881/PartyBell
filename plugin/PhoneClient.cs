@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed class PhoneClient(PairedPhone phone, WebSocket socket, Sealer sealer, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder, DutyQueue queue)
+internal sealed class PhoneClient(PairedPhone phone, WebSocket socket, Sealer sealer, ChatSender chat, ReadyCheck readyCheck, Inviter inviter, PartyFinder finder, DutyQueue queue, BestInSlot bis)
 {
     private const int MaxMessageSize = 8192;
     private const int MaxQueued = 1000;
@@ -124,6 +124,8 @@ internal sealed class PhoneClient(PairedPhone phone, WebSocket socket, Sealer se
                 Finder.Type => Found(Finder.Read(root)),
                 OpenListing.Type => Opened(OpenListing.Read(root)),
                 JoinListing.Type => Joined(JoinListing.Read(root)),
+                Recruit.Type => Recruited(Recruit.Read(root)),
+                BisLink.Type => Linked(BisLink.Read(root)),
                 RefreshFriends => Refreshed(),
                 ItemIconRequest.Type => ItemIcons(ItemIconRequest.Read(root)),
                 _ => null,
@@ -164,6 +166,10 @@ internal sealed class PhoneClient(PairedPhone phone, WebSocket socket, Sealer se
     private async Task<string> Opened(OpenListing open) => Messages.Opened(await finder.Open(open));
 
     private async Task<string> Joined(JoinListing join) => Messages.Joining(await finder.Join(join));
+
+    private async Task<string> Recruited(Recruit recruit) => Messages.Recruiting(await finder.Recruit(recruit));
+
+    private async Task<string> Linked(BisLink link) => Messages.BisLinked(await bis.Link(link.Link));
 
     // Game files are read on the framework thread, like the rest of the game data.
     private static Task<string> ItemIcons(ItemIconRequest request) =>

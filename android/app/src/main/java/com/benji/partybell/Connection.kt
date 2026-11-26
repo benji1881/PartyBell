@@ -213,6 +213,9 @@ class Connection(private val context: Context, private val settings: AppSettings
         return !capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) || capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
     }
 
+    private fun icons(profile: Profile, bis: Bis) =
+        ItemIcons.missing(context, profile.gear.map { it.icon }.toSet() + bis.set?.icons.orEmpty())
+
     private fun versionStatus(theirs: Int) = if (theirs < Protocol.VERSION) Status.UpdatePlugin else Status.UpdateApp
 
     private inner class Listener(private val host: String, private val phoneId: String, private val secret: ByteArray) : WebSocketListener() {
@@ -261,7 +264,11 @@ class Connection(private val context: Context, private val settings: AppSettings
                 return
             }
             // Read from disk here rather than on the main thread.
-            val missingIcons = (message as? CharacterUpdate)?.profile?.let { profile -> ItemIcons.missing(context, profile.gear.map { it.icon }.toSet()) }
+            val missingIcons = when (message) {
+                is CharacterUpdate -> message.profile?.let { icons(it, PartyState.bis.value) }
+                is BisUpdate -> PartyState.character.value?.let { icons(it, message.bis) }
+                else -> null
+            }
             if (message == Bye) farewell = true
             wake.acquire(MESSAGE_AWAKE_MS)
             handler.post {

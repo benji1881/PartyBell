@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -64,6 +65,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.Reasons
 import com.benji.partybell.AppSettings
+import com.benji.partybell.Bis
+import com.benji.partybell.BisSlot
 import com.benji.partybell.Currency
 import com.benji.partybell.GearPiece
 import com.benji.partybell.ItemStat
@@ -141,11 +144,14 @@ internal fun repairLabel(repairs: Int) = "$repairs need repair"
 @Composable
 fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit, wide: Boolean, tabletop: Tabletop?) {
     val character by PartyState.character.collectAsStateWithLifecycle()
+    val bis by PartyState.bis.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
     var picked by remember { mutableStateOf(settings.characterCurrencies) }
     var picking by rememberSaveable { mutableStateOf(false) }
     var slot by rememberSaveable { mutableStateOf<Int?>(null) }
     var idle by remember { mutableStateOf(false) }
+    var upgrades by rememberSaveable { mutableStateOf(false) }
+    var linking by rememberSaveable { mutableStateOf(false) }
     val current = character
 
     LaunchedEffect(current == null, status) {
@@ -162,14 +168,14 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit, wide: Boolean
             status != Status.Connected -> Empty(Reasons.NOT_CONNECTED, Modifier.weight(1f))
             current == null && idle -> Empty("Log in to a character in the game", Modifier.weight(1f))
             tabletop != null -> CharacterTabletop(current, tabletop, picked, slot, Modifier.weight(1f), onSlot = { slot = it.takeIf { it != slot } }, onPick = { picking = true })
-            wide -> CharacterColumns(current, picked, Modifier.weight(1f), onSlot = { slot = it }, onPick = { picking = true })
+            wide -> CharacterColumns(current, bis, picked, Modifier.weight(1f), onSlot = { slot = it }, onPick = { picking = true }, onLink = { linking = true })
             else -> Column(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 14.dp),
             ) {
                 HeroCard(current, picked, onPick = { picking = true })
                 LocationCard(current)
-                GearCard(current, onSlot = { slot = it })
+                GearCard(current, bis, onSlot = { slot = it }, onBis = { if (bis.set != null) upgrades = true else linking = true })
             }
         }
     }
@@ -182,7 +188,10 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit, wide: Boolean
     }
     val piece = current?.piece(slot)
     val info = AllSlots.firstOrNull { it.index == slot }
-    if (tabletop == null && piece != null && info != null) GearSheet(piece, info, onDismiss = { slot = null })
+    if (tabletop == null && piece != null && info != null) GearSheet(piece, info, bis.set?.slot(info.index), onDismiss = { slot = null })
+    val set = bis.set
+    if (upgrades && set != null) UpgradesSheet(set, current, onChange = { upgrades = false; linking = true }, onDismiss = { upgrades = false })
+    if (linking && current != null) LinkSheet(current.jobName, bis.link, onDismiss = { linking = false })
 }
 
 @Composable
@@ -294,10 +303,10 @@ internal fun short(count: Long): String = if (count < MILLION) {
 }
 
 @Composable
-internal fun LocationCard(character: Profile?) {
+internal fun LocationCard(character: Profile?, modifier: Modifier = Modifier) {
     val symbols by JobIcons.symbols.collectAsStateWithLifecycle()
     val fade = animated(if (character != null) 1f else 0f, FADE_MS)
-    Card {
+    Card(modifier) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.heightIn(min = 40.dp)) {
             Box(Modifier.size(30.dp), contentAlignment = Alignment.Center) {
                 symbols["aetheryte"]?.let { Glyph(it, AppColors.accent, Modifier.fillMaxSize().alpha(fade)) }
@@ -315,16 +324,18 @@ internal fun LocationCard(character: Profile?) {
 }
 
 @Composable
-private fun GearCard(character: Profile?, onSlot: (Int) -> Unit) {
+private fun GearCard(character: Profile?, bis: Bis, onSlot: (Int) -> Unit, onBis: () -> Unit) {
     val fade = animated(if (character != null) 1f else 0f, FADE_MS)
     val repairs = character.repairs()
     Card {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            SlotColumn(LeftSlots, character, onSlot)
+            SlotColumn(LeftSlots, character, bis, onSlot)
             Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.weight(1f).alpha(fade)) {
                 if (character != null) {
                     Text("${character.itemLevel}", fontFamily = Fraunces, fontSize = 34.sp, color = AppColors.text)
                     Text("Average item level", color = AppColors.muted, fontSize = 12.sp)
+                    Spacer(Modifier.height(10.dp))
+                    UpgradeButton(bis, onBis)
                     Spacer(Modifier.height(10.dp))
                     Text(
                         if (repairs > 0) repairLabel(repairs) else "Nothing to repair",
@@ -334,26 +345,26 @@ private fun GearCard(character: Profile?, onSlot: (Int) -> Unit) {
                     )
                 }
             }
-            SlotColumn(RightSlots, character, onSlot)
+            SlotColumn(RightSlots, character, bis, onSlot)
         }
     }
 }
 
 @Composable
-private fun SlotColumn(slots: List<SlotInfo>, character: Profile?, onSlot: (Int) -> Unit) {
+private fun SlotColumn(slots: List<SlotInfo>, character: Profile?, bis: Bis, onSlot: (Int) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        slots.forEach { SlotButton(it, character, AppColors.card, onSlot) }
+        slots.forEach { SlotButton(it, character, AppColors.card, onSlot, bis.pending(it.index) != null) }
     }
 }
 
 @Composable
-internal fun SlotButton(info: SlotInfo, character: Profile?, surface: Color, onSlot: (Int) -> Unit) {
+internal fun SlotButton(info: SlotInfo, character: Profile?, surface: Color, onSlot: (Int) -> Unit, upgrade: Boolean = false) {
     val piece = character?.piece(info.index)
-    GearSlot(info, piece, character != null, SlotSize, surface, Modifier.clickable(enabled = piece != null, role = Role.Button, onClickLabel = info.label) { onSlot(info.index) })
+    GearSlot(info, piece, character != null, SlotSize, surface, Modifier.clickable(enabled = piece != null, role = Role.Button, onClickLabel = info.label) { onSlot(info.index) }, upgrade)
 }
 
 @Composable
-internal fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: Dp, surface: Color, modifier: Modifier = Modifier) {
+internal fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: Dp, surface: Color, modifier: Modifier = Modifier, upgrade: Boolean = false) {
     val symbols by JobIcons.symbols.collectAsStateWithLifecycle()
     val items by ItemIcons.icons.collectAsStateWithLifecycle()
     val progress = animated((piece?.condition ?: 0).coerceIn(0, FULL) / FULL.toFloat(), RING_MS)
@@ -381,6 +392,7 @@ internal fun GearSlot(info: SlotInfo, piece: GearPiece?, loaded: Boolean, size: 
                     .background(AppColors.yellow, CircleShape),
             )
         }
+        if (upgrade) UpgradeTab(size, surface, Modifier.align(Alignment.BottomCenter).offset(y = size * 0.12f).alpha(fade))
     }
 }
 
@@ -402,7 +414,7 @@ internal fun Ring(progress: Float, color: Color, size: Dp, modifier: Modifier = 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun GearSheet(piece: GearPiece, info: SlotInfo, onDismiss: () -> Unit) {
+private fun GearSheet(piece: GearPiece, info: SlotInfo, bis: BisSlot?, onDismiss: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -410,7 +422,7 @@ private fun GearSheet(piece: GearPiece, info: SlotInfo, onDismiss: () -> Unit) {
     ) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                GearSlot(info, piece, true, SheetSlotSize, AppColors.background)
+                GearSlot(info, piece, true, SheetSlotSize, AppColors.background, upgrade = bis?.done == false)
                 Spacer(Modifier.width(14.dp))
                 Column(Modifier.weight(1f)) {
                     Text(piece.name, fontFamily = Fraunces, fontSize = 20.sp, color = AppColors.text)
@@ -431,6 +443,7 @@ private fun GearSheet(piece: GearPiece, info: SlotInfo, onDismiss: () -> Unit) {
                     }
                 }
             }
+            bis?.let { BisCompare(piece, it) }
             Line(Modifier.padding(vertical = 16.dp))
             PieceMeters(piece)
             if (piece.spiritbond >= FULL) {
@@ -521,7 +534,7 @@ private fun CurrencySheet(currencies: List<Currency>, picked: List<Long>, onPick
 }
 
 @Composable
-private fun Line(modifier: Modifier = Modifier) {
+internal fun Line(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(1.dp).background(AppColors.line))
 }
 

@@ -22,6 +22,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     private readonly Feed feed;
     private readonly Configuration config;
     private readonly ListingWindow window = new();
+    private readonly Recruiter recruiter;
     private readonly object gate = new();
     private readonly Dictionary<string, Listing> listings = [];
     private readonly HashSet<ulong> blocked = [];
@@ -36,10 +37,11 @@ internal sealed unsafe class PartyFinder : IDisposable
     private DateTime changedAt;
     private DateTime? requestedAt;
 
-    public PartyFinder(Feed feed, Configuration config)
+    public PartyFinder(Feed feed, Configuration config, PartyTracker tracker)
     {
         this.feed = feed;
         this.config = config;
+        recruiter = new Recruiter(feed, config, tracker);
         Services.PartyFinderGui.ReceiveListing += OnListing;
         try
         {
@@ -64,11 +66,15 @@ internal sealed unsafe class PartyFinder : IDisposable
 
     public Task<string?> Join(JoinListing join) => PhoneGate.Run(config.AllowPhoneJoin, () => window.Join(join.Id));
 
+    public Task<string?> Recruit(Recruit recruit) => recruiter.Start(recruit);
+
     public void Centre(DateTime now) => window.Centre(now);
 
     public void Update(DateTime now)
     {
         window.Step(now);
+        recruiter.Step(now);
+        recruiter.Update();
         lock (gate)
         {
             if (dirty && (complete || now - changedAt >= Quiet))
@@ -101,6 +107,7 @@ internal sealed unsafe class PartyFinder : IDisposable
     public void Reset()
     {
         window.Reset();
+        recruiter.Reset();
         answered = false;
         Clear();
     }

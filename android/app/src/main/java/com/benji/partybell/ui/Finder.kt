@@ -72,6 +72,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -123,6 +124,10 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
     var goal by rememberSaveable { mutableStateOf(Goal.entries.getOrElse(settings.finderGoal) { Goal.Any }) }
     var sheet by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
+    val recruit by PartyState.recruit.collectAsStateWithLifecycle()
+    var creating by rememberSaveable { mutableStateOf(false) }
+    val canCreate = recruit.open && status == Status.Connected
+    if (creating && canCreate) CreateListing { creating = false }
     val now = rememberNow(CLOCK_MS)
     LaunchedEffect(category, status) {
         val current = PartyState.listings.value[category]
@@ -223,6 +228,9 @@ fun FinderScreen(settings: AppSettings, onSettings: () -> Unit, onTell: (String)
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 modifier = Modifier.fillMaxSize().fadeEdges(start = list.canScrollBackward, end = false, vertical = true),
             ) {
+                if (canCreate) {
+                    item(span = StaggeredGridItemSpan.FullLine) { CreateListingCard { creating = true } }
+                }
                 if (shown.isEmpty()) {
                     item(span = StaggeredGridItemSpan.FullLine) { Empty(emptyText(status, finding, loaded, listings.list.isEmpty())) }
                 }
@@ -317,6 +325,7 @@ internal fun PillField(
     modifier: Modifier = Modifier,
     icon: ImageVector? = null,
     onDone: (() -> Unit)? = null,
+    keyboard: KeyboardType = KeyboardType.Text,
 ) {
     val shape = RoundedCornerShape(50)
     Row(
@@ -337,7 +346,7 @@ internal fun PillField(
                 value = value,
                 onValueChange = onChange,
                 singleLine = true,
-                keyboardOptions = KeyboardOptions(imeAction = if (onDone != null) ImeAction.Done else ImeAction.Default),
+                keyboardOptions = KeyboardOptions(keyboardType = keyboard, imeAction = if (onDone != null) ImeAction.Done else ImeAction.Default),
                 keyboardActions = KeyboardActions(onDone = onDone?.let { done -> { done() } }),
                 textStyle = TextStyle(color = AppColors.text, fontSize = 14.sp, fontFamily = Jakarta),
                 cursorBrush = SolidColor(AppColors.accent),

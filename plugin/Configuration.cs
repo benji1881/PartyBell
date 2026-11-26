@@ -17,7 +17,9 @@ public sealed class Configuration : IPluginConfiguration
     public bool AllowPhoneInvite { get; set; } = true;
     public bool AllowPhoneJoin { get; set; } = true;
     public bool AllowPhoneDuty { get; set; } = true;
+    public bool AllowPhoneRecruit { get; set; } = true;
     public List<PairedPhone> Phones { get; set; } = [];
+    public Dictionary<uint, string> BestInSlot { get; set; } = [];
 
     public void AddPhone(PairedPhone phone)
     {

@@ -83,6 +83,7 @@ internal sealed class MainWindow : Window
         Toggle("Allow party invites from phones", config.AllowPhoneInvite, on => config.AllowPhoneInvite = on);
         Toggle("Allow joining listings from phones", config.AllowPhoneJoin, on => config.AllowPhoneJoin = on);
         Toggle("Allow accepting duties from phones", config.AllowPhoneDuty, on => config.AllowPhoneDuty = on);
+        Toggle("Allow posting listings from phones", config.AllowPhoneRecruit, on => config.AllowPhoneRecruit = on);
 
         ImGui.Separator();
         DrawPhones();

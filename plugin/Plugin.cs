@@ -23,6 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly ReadyCheck readyCheck;
     private readonly DutyQueue queue;
     private readonly PartyFinder finder;
+    private readonly BestInSlot bis;
     private readonly MainWindow window;
     private readonly Configuration config;
     private DateTime nextRead;
@@ -38,9 +39,10 @@ public sealed class Plugin : IDalamudPlugin
 
         readyCheck = new ReadyCheck(feed, config, tracker);
         queue = new DutyQueue(feed, config);
-        finder = new PartyFinder(feed, config);
+        finder = new PartyFinder(feed, config, tracker);
         var sender = new ChatSender(config, tracker);
-        server = new PhoneServer(feed, config, sender, readyCheck, new Inviter(config, tracker), finder, queue);
+        bis = new BestInSlot(config);
+        server = new PhoneServer(feed, config, sender, readyCheck, new Inviter(config, tracker), finder, queue, bis);
         chat = new ChatRelay(config, feed, tracker, sender);
         window = new MainWindow(config, server, feed);
         windows.AddWindow(window);
@@ -84,6 +86,7 @@ public sealed class Plugin : IDalamudPlugin
                 feed.SetParty(Messages.Party(PartySnapshot.Empty));
             feed.SetCompany(Messages.Company(false));
             SetCharacter(null);
+            feed.SetBis(Messages.Bis(null, null));
             readyCheck.Reset();
             queue.Reset();
             if (loggedIn)
@@ -108,6 +111,7 @@ public sealed class Plugin : IDalamudPlugin
             feed.SetFriends(Messages.Friends(config.SendFriends && feed.Count > 0 ? FriendList.Read() : null));
             feed.SetCompany(Messages.Company(Company.IsMember));
             SetCharacter(feed.Count > 0 ? Character.Read() : null);
+            feed.SetBis(feed.Count > 0 ? bis.Message() : Messages.Bis(null, null));
         }
         if (Services.PlayerState.HomeWorld.ValueNullable is not { } home)
             return;
