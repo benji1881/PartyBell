@@ -181,9 +181,9 @@ private fun Gain(gain: Int) {
 }
 
 @Composable
-internal fun LinkRow(set: BisSet, onChange: () -> Unit) {
+internal fun LinkRow(set: BisSet, site: String, onChange: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text("${set.name.ifEmpty { "Gear set" }} · etro.gg", color = AppColors.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        Text("${set.name.ifEmpty { "Gear set" }} · $site", color = AppColors.muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(8.dp))
         Chip("Change link", false, onClick = onChange)
     }
@@ -191,7 +191,7 @@ internal fun LinkRow(set: BisSet, onChange: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun UpgradesSheet(set: BisSet, character: Profile?, onChange: () -> Unit, onDismiss: () -> Unit) {
+internal fun UpgradesSheet(set: BisSet, site: String, character: Profile?, onChange: () -> Unit, onDismiss: () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -202,7 +202,7 @@ internal fun UpgradesSheet(set: BisSet, character: Profile?, onChange: () -> Uni
             Spacer(Modifier.height(12.dp))
             UpgradeRows(set, character)
             Line(Modifier.padding(vertical = 14.dp))
-            LinkRow(set, onChange)
+            LinkRow(set, site, onChange)
         }
     }
 }
@@ -221,10 +221,10 @@ internal fun LinkSheet(jobName: String, link: String?, onDismiss: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(14.dp), modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
             Column {
                 Text("Best in slot (BiS)", fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text)
-                Text("Paste an Etro link for $jobName. Each job keeps its own.", color = AppColors.muted, fontSize = 13.sp)
+                Text("Paste an Etro or xivgear link for $jobName. Each job keeps its own.", color = AppColors.muted, fontSize = 13.sp)
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
-                PillField(text, "etro.gg/gearset/…", { text = it }, Modifier.weight(1f), onDone = save)
+                PillField(text, "etro.gg or xivgear.app link", { text = it }, Modifier.weight(1f), onDone = save)
                 Spacer(Modifier.width(8.dp))
                 Chip("Paste", false) {
                     context.getSystemService(ClipboardManager::class.java).primaryClip?.takeIf { it.itemCount > 0 }?.let { text = it.getItemAt(0).coerceToText(context).toString().trim() }

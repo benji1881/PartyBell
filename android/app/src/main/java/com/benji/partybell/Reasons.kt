@@ -96,8 +96,8 @@ object Reasons {
 
     fun bis(code: String) = when (code) {
         NOT_READY -> GAME_NOT_READY
-        "invalid" -> "Not an etro.gg gear set link"
-        "not found" -> "Couldn't read that set from etro.gg"
+        "invalid" -> "Not an Etro or xivgear link"
+        "not found" -> "Couldn't read that set"
         "wrong job" -> "That set is for another job"
         OFFLINE -> NOT_CONNECTED
         else -> REQUEST_REFUSED

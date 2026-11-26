@@ -190,7 +190,7 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit, wide: Boolean
     val info = AllSlots.firstOrNull { it.index == slot }
     if (tabletop == null && piece != null && info != null) GearSheet(piece, info, bis.set?.slot(info.index), onDismiss = { slot = null })
     val set = bis.set
-    if (upgrades && set != null) UpgradesSheet(set, current, onChange = { upgrades = false; linking = true }, onDismiss = { upgrades = false })
+    if (upgrades && set != null) UpgradesSheet(set, bis.site, current, onChange = { upgrades = false; linking = true }, onDismiss = { upgrades = false })
     if (linking && current != null) LinkSheet(current.jobName, bis.link, onDismiss = { linking = false })
 }
 

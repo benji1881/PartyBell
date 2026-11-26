@@ -30,7 +30,7 @@ Install [Tailscale](https://tailscale.com) on your PC and phone, sign in with th
 
 ## Privacy
 
-Your party, chat, friend list and Party Finder listings go only from the plugin to your paired phone, encrypted. The app saves the last 1,000 tells with each person on your phone, until you delete the conversation. The plugin saves each phone's key encrypted for your user account, and the app only allows unencrypted network traffic to your PC, whose messages PartyBell encrypts itself. There is no PartyBell server and no analytics. The plugin contacts etro.gg only to read the best in slot sets you link. The app contacts GitHub to check for updates, and the QR scanner comes from Google Play services.
+Your party, chat, friend list and Party Finder listings go only from the plugin to your paired phone, encrypted. The app saves the last 1,000 tells with each person on your phone, until you delete the conversation. The plugin saves each phone's key encrypted for your user account, and the app only allows unencrypted network traffic to your PC, whose messages PartyBell encrypts itself. There is no PartyBell server and no analytics. The plugin contacts etro.gg and xivgear.app only to read the best in slot sets you link. The app contacts GitHub to check for updates, and the QR scanner comes from Google Play services.
 
 ## License
 

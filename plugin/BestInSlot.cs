@@ -5,7 +5,6 @@ using System.Linq;
 using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
-using FFXIVClientStructs.FFXIV.Client.Game.UI;
 using Sheets = Lumina.Excel.Sheets;
 
 namespace PartyBell;
@@ -16,18 +15,18 @@ internal sealed record BisItem(string Name, uint Icon);
 
 internal sealed record BisMateria(string Name, uint Icon, string Stat, int Value, int Count);
 
-internal sealed record BisStat(string Name, int Now, int Bis);
+internal sealed record BisStat(string Name, int Value);
 
 internal sealed record BisView(string Name, IReadOnlyList<BisSlot> Slots, BisItem? Food, IReadOnlyList<BisMateria> Materia, double Gcd, IReadOnlyList<BisStat> Stats);
 
-// Keeps an Etro best in slot set per job and compares it with what is equipped.
+// Keeps a best in slot set per job and compares it with what is equipped.
 internal sealed class BestInSlot(Configuration config)
 {
     private const string WrongJob = "wrong job";
     private static readonly TimeSpan Retry = TimeSpan.FromMinutes(1);
     private static readonly int[] Rings = [11, 12];
 
-    private readonly ConcurrentDictionary<string, EtroSet> sets = new();
+    private readonly ConcurrentDictionary<string, GearSet> sets = new();
     private readonly ConcurrentDictionary<string, DateTime> loading = new();
 
     public async Task<string?> Link(string link)
@@ -40,7 +39,7 @@ internal sealed class BestInSlot(Configuration config)
             await Save(job, null);
             return null;
         }
-        if (Etro.Id(link) is not { } id)
+        if (GearSets.Key(link) is not { } id)
             return Reason.Invalid;
         var set = await Load(id);
         if (set == null)
@@ -56,23 +55,23 @@ internal sealed class BestInSlot(Configuration config)
         if (!Services.PlayerState.IsLoaded || !config.BestInSlot.TryGetValue(Services.PlayerState.ClassJob.RowId, out var id))
             return Messages.Bis(null, null);
         if (sets.TryGetValue(id, out var set))
-            return Messages.Bis(Etro.Link(id), View(set));
+            return Messages.Bis(GearSets.Link(id), View(set));
         if (DateTime.UtcNow >= loading.GetValueOrDefault(id))
             _ = Load(id);
-        return Messages.Bis(Etro.Link(id), null);
+        return Messages.Bis(GearSets.Link(id), null);
     }
 
-    private async Task<EtroSet?> Load(string id)
+    private async Task<GearSet?> Load(string id)
     {
         loading[id] = DateTime.UtcNow + Retry;
         try
         {
-            if (await Etro.Fetch(id) is { } set)
+            if (await GearSets.Fetch(id) is { } set)
                 return sets[id] = set;
         }
         catch (Exception e) when (e is HttpRequestException or TaskCanceledException or JsonException or KeyNotFoundException or InvalidOperationException or FormatException)
         {
-            Services.Log.Warning(e, "Could not read the Etro set.");
+            Services.Log.Warning(e, "Could not read the best in slot set.");
         }
         return null;
     }
@@ -86,7 +85,7 @@ internal sealed class BestInSlot(Configuration config)
         config.Save();
     });
 
-    private static BisView View(EtroSet set)
+    private static BisView View(GearSet set)
     {
         var items = Services.DataManager.GetExcelSheet<Sheets.Item>();
         var equipped = Gear.Ids();
@@ -97,14 +96,7 @@ internal sealed class BestInSlot(Configuration config)
                 slots.Add(new BisSlot(slot, item.Name.ExtractText(), (int)item.LevelItem.RowId, item.Icon, equipped.GetValueOrDefault(slot) == id));
         }
         var food = items.GetRowOrDefault(set.Food) is { } meal ? new BisItem(meal.Name.ExtractText(), meal.Icon) : null;
-        var stats = set.Stats.Select(s => new BisStat(ItemStats.Name(s.Param), Attribute(s.Param), s.Value)).ToList();
-        return new BisView(set.Name, slots, food, Materia(set.Materia), set.Gcd, stats);
-    }
-
-    private static unsafe int Attribute(uint param)
-    {
-        var player = PlayerState.Instance();
-        return player == null || param >= player->Attributes.Length ? 0 : player->Attributes[(int)param];
+        return new BisView(set.Name, slots, food, Materia(set.Materia), CurrentStats.Gcd(), CurrentStats.Read());
     }
 
     private static Dictionary<int, uint> Placed(IReadOnlyDictionary<int, uint> slots, IReadOnlyDictionary<int, uint> equipped)

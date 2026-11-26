@@ -2,11 +2,9 @@ package com.benji.partybell.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
@@ -16,12 +14,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -31,78 +24,31 @@ import com.benji.partybell.BisStat
 import com.benji.partybell.Profile
 import java.util.Locale
 
-private const val STAT_ROOM = 1.1f
-private const val NAME_SHARE = 0.9f
-private const val BAR_SHARE = 1.3f
 private val BoxShape = RoundedCornerShape(12.dp)
 private val StatValue = 44.dp
-private val StatChange = 34.dp
 private val MateriaIcon = 26.dp
 private val FoodIcon = 30.dp
 
 @Composable
 internal fun StatsCard(set: BisSet) {
     Card {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Stats", color = AppColors.muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-            Text("Line marks BiS", color = AppColors.muted, fontSize = 11.sp)
-        }
+        CardTitle("Stats")
         set.stats.forEach { StatRow(it) }
     }
 }
 
 @Composable
 private fun StatRow(stat: BisStat) {
-    val change = stat.bis - stat.now
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(stat.name, color = AppColors.text, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(NAME_SHARE))
-        StatBar(stat, Modifier.weight(BAR_SHARE))
+        Text(stat.name, color = AppColors.text, fontSize = 12.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         Text(
-            "${stat.now}",
+            "${stat.value}",
             color = AppColors.text,
             fontWeight = FontWeight.Bold,
             fontSize = 12.5.sp,
-            textAlign = TextAlign.End,
             style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
-            modifier = Modifier.width(StatValue),
-        )
-        Text(
-            when {
-                change > 0 -> "+$change"
-                change < 0 -> "$change"
-                else -> "—"
-            },
-            color = when {
-                change > 0 -> AppColors.accent
-                change < 0 -> AppColors.red
-                else -> AppColors.muted
-            },
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 12.sp,
-            textAlign = TextAlign.End,
-            style = LocalTextStyle.current.copy(fontFeatureSettings = TABULAR),
-            modifier = Modifier.width(StatChange),
         )
     }
-}
-
-@Composable
-private fun StatBar(stat: BisStat, modifier: Modifier) {
-    val track = AppColors.line
-    val fill = AppColors.accent
-    val mark = AppColors.text
-    val scale = maxOf(stat.now, stat.bis, 1) * STAT_ROOM
-    Box(
-        modifier.padding(horizontal = 8.dp).height(12.dp).drawBehind {
-            val bar = 6.dp.toPx()
-            val top = (size.height - bar) / 2
-            val radius = CornerRadius(bar / 2)
-            drawRoundRect(track, Offset(0f, top), Size(size.width, bar), radius)
-            drawRoundRect(fill, Offset(0f, top), Size(size.width * stat.now / scale, bar), radius)
-            val x = size.width * stat.bis / scale
-            drawLine(mark, Offset(x, 0f), Offset(x, size.height), 2.dp.toPx())
-        },
-    )
 }
 
 @Composable
@@ -156,6 +102,6 @@ internal fun UpgradesCard(bis: Bis, character: Profile?, modifier: Modifier, onL
         UpgradeRows(set, character)
         Spacer(Modifier.weight(1f))
         Line()
-        LinkRow(set, onLink)
+        LinkRow(set, bis.site, onLink)
     }
 }

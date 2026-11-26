@@ -360,7 +360,7 @@ object Protocol {
         food = json.optJSONObject("food")?.let { BisItem(it.optString("name"), it.optLong("icon")) },
         materia = objects(json, "materia").map { BisMateria(it.optString("name"), it.optLong("icon"), it.optString("stat"), it.optInt("value"), it.optInt("count")) },
         gcd = json.optDouble("gcd"),
-        stats = objects(json, "stats").map { BisStat(it.optString("name"), it.optInt("now"), it.optInt("bis")) },
+        stats = objects(json, "stats").map { BisStat(it.optString("name"), it.optInt("value")) },
     )
 
     private fun objects(json: JSONObject, key: String): List<JSONObject> {
