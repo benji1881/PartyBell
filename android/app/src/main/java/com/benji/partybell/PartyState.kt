@@ -29,6 +29,7 @@ object PartyState {
     private val queueFlow = MutableStateFlow<QueueStatus?>(null)
     private val characterFlow = MutableStateFlow<Profile?>(null)
     private val bisFlow = MutableStateFlow(Bis())
+    private val bisChoicesFlow = MutableStateFlow<List<BisChoice>>(emptyList())
     private val recruitFlow = MutableStateFlow(RecruitState())
     private val postingFlow = MutableStateFlow(false)
     private val postedFlow = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -53,6 +54,7 @@ object PartyState {
     val queue: StateFlow<QueueStatus?> = queueFlow.asStateFlow()
     val character: StateFlow<Profile?> = characterFlow.asStateFlow()
     val bis: StateFlow<Bis> = bisFlow.asStateFlow()
+    val bisChoices: StateFlow<List<BisChoice>> = bisChoicesFlow.asStateFlow()
     val recruit: StateFlow<RecruitState> = recruitFlow.asStateFlow()
     val posting: StateFlow<Boolean> = postingFlow.asStateFlow()
     val posted: SharedFlow<Unit> = postedFlow.asSharedFlow()
@@ -125,7 +127,7 @@ object PartyState {
             is CharacterUpdate -> characterFlow.value = incoming.profile
             is RecruitUpdate -> recruitFlow.value = incoming.state
             is BisUpdate -> bisFlow.value = incoming.bis
-            is BisLinked -> noticesFlow.tryEmit(if (incoming.ok) "BiS saved" else Reasons.bis(incoming.reason))
+            is BisLinked -> if (incoming.choices.isNotEmpty()) bisChoicesFlow.value = incoming.choices else noticesFlow.tryEmit(if (incoming.ok) "BiS saved" else Reasons.bis(incoming.reason))
             is Recruiting -> {
                 postingFlow.value = false
                 noticesFlow.tryEmit(if (incoming.ok) "Listing posted" else Reasons.recruit(incoming.reason))
@@ -207,6 +209,10 @@ object PartyState {
     }
 
     fun bisLink(link: String): Boolean = request(Protocol.bisLink(link))
+
+    fun clearBisChoices() {
+        bisChoicesFlow.value = emptyList()
+    }
 
     fun retry(item: OutgoingItem) {
         outboxFlow.value = outboxFlow.value.filter { it.id != item.id }

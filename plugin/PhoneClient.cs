@@ -169,7 +169,11 @@ internal sealed class PhoneClient(PairedPhone phone, WebSocket socket, Sealer se
 
     private async Task<string> Recruited(Recruit recruit) => Messages.Recruiting(await finder.Recruit(recruit));
 
-    private async Task<string> Linked(BisLink link) => Messages.BisLinked(await bis.Link(link.Link));
+    private async Task<string> Linked(BisLink link)
+    {
+        var (reason, choices) = await bis.Link(link.Link);
+        return Messages.BisLinked(reason, choices);
+    }
 
     // Game files are read on the framework thread, like the rest of the game data.
     private static Task<string> ItemIcons(ItemIconRequest request) =>

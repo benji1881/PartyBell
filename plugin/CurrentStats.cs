@@ -8,16 +8,16 @@ namespace PartyBell;
 // Reads the player's current substats and works out their GCD.
 internal static unsafe class CurrentStats
 {
-    private const uint Vitality = 3;
+    internal const uint Vitality = 3;
     private const uint Intelligence = 4;
     private const uint Mind = 5;
-    private const uint Piety = 6;
-    private const uint Tenacity = 19;
-    private const uint DirectHit = 22;
-    private const uint Critical = 27;
-    private const uint Determination = 44;
-    private const uint SkillSpeed = 45;
-    private const uint SpellSpeed = 46;
+    internal const uint Piety = 6;
+    internal const uint Tenacity = 19;
+    internal const uint DirectHit = 22;
+    internal const uint Critical = 27;
+    internal const uint Determination = 44;
+    internal const uint SkillSpeed = 45;
+    internal const uint SpellSpeed = 46;
     private const byte Tank = 1;
     private const byte Healer = 4;
     private const int BaseGcd = 2500;
@@ -26,25 +26,34 @@ internal static unsafe class CurrentStats
     public static List<BisStat> Read()
     {
         var job = Services.PlayerState.ClassJob.Value;
-        var stats = new List<uint> { job.PrimaryStat, Vitality, Critical, DirectHit, Determination, Speed(job) };
+        return new[] { job.PrimaryStat, Vitality }.Concat(Substats(job)).Select(s => new BisStat(ItemStats.Name(s), Attribute(s))).ToList();
+    }
+
+    public static List<uint> Substats(Sheets.ClassJob job)
+    {
+        var stats = new List<uint> { Critical, DirectHit, Determination, Speed(job) };
         if (job.Role == Tank)
             stats.Add(Tenacity);
         if (job.Role == Healer)
             stats.Add(Piety);
-        return stats.Select(s => new BisStat(ItemStats.Name(s), Attribute(s))).ToList();
+        return stats;
     }
 
     public static double Gcd()
     {
         var player = PlayerState.Instance();
-        if (player == null || Services.DataManager.GetExcelSheet<Sheets.ParamGrow>().GetRowOrDefault((uint)player->CurrentLevel) is not { } grow || grow.LevelModifier == 0)
+        return player == null ? 0 : Gcd(Attribute(Speed(Services.PlayerState.ClassJob.Value)), (uint)player->CurrentLevel);
+    }
+
+    public static double Gcd(int speed, uint level)
+    {
+        if (Services.DataManager.GetExcelSheet<Sheets.ParamGrow>().GetRowOrDefault(level) is not { } grow || grow.LevelModifier == 0)
             return 0;
-        var speed = Attribute(Speed(Services.PlayerState.ClassJob.Value));
         var cut = SpeedScale * (speed - (int)grow.BaseSpeed) / (int)grow.LevelModifier;
         return BaseGcd * (1000 - cut) / 10000 / 100.0;
     }
 
-    private static uint Speed(Sheets.ClassJob job) => (uint)job.PrimaryStat is Intelligence or Mind ? SpellSpeed : SkillSpeed;
+    public static uint Speed(Sheets.ClassJob job) => (uint)job.PrimaryStat is Intelligence or Mind ? SpellSpeed : SkillSpeed;
 
     private static int Attribute(uint param)
     {

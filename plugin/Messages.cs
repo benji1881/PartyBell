@@ -84,7 +84,7 @@ internal static class Messages
 
     public static string Bis(string? link, BisView? set) => Json(new { type = "bis", link, set });
 
-    public static string BisLinked(string? reason) => Reply("bislinked", reason);
+    public static string BisLinked(string? reason, IReadOnlyList<BisChoice> choices) => Reply("bislinked", reason, new { choices });
 
     // The answer to a phone request: ok, or the reason it failed, plus any fields that say which request it was.
     private static string Reply(string type, string? reason, object? fields = null)

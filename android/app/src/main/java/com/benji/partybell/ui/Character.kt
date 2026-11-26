@@ -145,6 +145,7 @@ internal fun repairLabel(repairs: Int) = "$repairs need repair"
 fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit, wide: Boolean, tabletop: Tabletop?) {
     val character by PartyState.character.collectAsStateWithLifecycle()
     val bis by PartyState.bis.collectAsStateWithLifecycle()
+    val choices by PartyState.bisChoices.collectAsStateWithLifecycle()
     val status by PartyState.status.collectAsStateWithLifecycle()
     var picked by remember { mutableStateOf(settings.characterCurrencies) }
     var picking by rememberSaveable { mutableStateOf(false) }
@@ -192,6 +193,7 @@ fun CharacterScreen(settings: AppSettings, onSettings: () -> Unit, wide: Boolean
     val set = bis.set
     if (upgrades && set != null) UpgradesSheet(set, bis.site, current, onChange = { upgrades = false; linking = true }, onDismiss = { upgrades = false })
     if (linking && current != null) LinkSheet(current.jobName, bis.link, onDismiss = { linking = false })
+    if (choices.isNotEmpty()) SetPickSheet(choices, onDismiss = PartyState::clearBisChoices)
 }
 
 @Composable

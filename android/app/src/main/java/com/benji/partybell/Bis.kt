@@ -9,6 +9,8 @@ data class BisMateria(val name: String, val icon: Long, val stat: String, val va
 
 data class BisStat(val name: String, val value: Int)
 
+data class BisChoice(val name: String, val link: String, val gcd: Double, val stats: List<BisStat>)
+
 data class BisSet(
     val name: String,
     val slots: List<BisSlot>,

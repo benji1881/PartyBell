@@ -47,12 +47,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.benji.partybell.Bis
+import com.benji.partybell.BisChoice
 import com.benji.partybell.BisSet
 import com.benji.partybell.BisSlot
 import com.benji.partybell.GearPiece
 import com.benji.partybell.ItemIcons
 import com.benji.partybell.PartyState
 import com.benji.partybell.Profile
+import java.util.Locale
 
 private const val COUNTED_SLOTS = 12
 private const val MAIN_HAND = 0
@@ -256,3 +258,34 @@ internal fun BisCompare(piece: GearPiece, slot: BisSlot) {
         Gain((slot.level - piece.level).coerceAtLeast(0))
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun SetPickSheet(choices: List<BisChoice>, onDismiss: () -> Unit) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = AppColors.background,
+    ) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 20.dp, end = 20.dp, bottom = 28.dp)) {
+            Text("Pick a set", fontFamily = Fraunces, fontSize = 22.sp, color = AppColors.text)
+            Text("This sheet has ${choices.size} sets.", color = AppColors.muted, fontSize = 13.sp)
+            Spacer(Modifier.height(8.dp))
+            choices.forEachIndexed { index, choice ->
+                if (index > 0) Line()
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(role = Role.Button) { if (PartyState.bisLink(choice.link)) onDismiss() }
+                        .padding(vertical = 12.dp),
+                ) {
+                    Text(choice.name.ifEmpty { "Gear set" }, color = AppColors.text, fontSize = 15.sp)
+                    val summary = choice.stats.map { "${it.name} ${it.value}" } + listOfNotNull(choice.gcd.takeIf { it > 0 }?.let { "GCD ${gcdText(it)}" })
+                    if (summary.isNotEmpty()) Text(summary.joinToString(" · "), color = AppColors.muted, fontSize = 12.sp)
+                }
+            }
+        }
+    }
+}
+
+internal fun gcdText(gcd: Double): String = String.format(Locale.ROOT, "%.2fs", gcd)

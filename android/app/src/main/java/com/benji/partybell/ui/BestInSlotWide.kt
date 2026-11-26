@@ -22,7 +22,6 @@ import com.benji.partybell.Bis
 import com.benji.partybell.BisSet
 import com.benji.partybell.BisStat
 import com.benji.partybell.Profile
-import java.util.Locale
 
 private val BoxShape = RoundedCornerShape(12.dp)
 private val StatValue = 44.dp
@@ -68,7 +67,7 @@ internal fun SetCard(set: BisSet, modifier: Modifier) {
             if (set.gcd > 0) {
                 Column(Modifier.widthIn(min = StatValue).background(AppColors.background, BoxShape).padding(10.dp)) {
                     Text("GCD", color = AppColors.muted, fontSize = 11.sp)
-                    Text(String.format(Locale.ROOT, "%.2fs", set.gcd), color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
+                    Text(gcdText(set.gcd), color = AppColors.text, fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
                 }
             }
         }

@@ -23,31 +23,40 @@ internal sealed record BisView(string Name, IReadOnlyList<BisSlot> Slots, BisIte
 internal sealed class BestInSlot(Configuration config)
 {
     private const string WrongJob = "wrong job";
+    private const string Pick = "pick";
     private static readonly TimeSpan Retry = TimeSpan.FromMinutes(1);
     private static readonly int[] Rings = [11, 12];
 
     private readonly ConcurrentDictionary<string, GearSet> sets = new();
     private readonly ConcurrentDictionary<string, DateTime> loading = new();
+    private readonly ConcurrentDictionary<string, GearSet> picks = new();
 
-    public async Task<string?> Link(string link)
+    public async Task<(string? Reason, IReadOnlyList<BisChoice> Choices)> Link(string link)
     {
         var job = await Services.Framework.RunOnFrameworkThread(() => Services.PlayerState.IsLoaded ? Services.PlayerState.ClassJob.RowId : 0);
         if (job == 0)
-            return Reason.NotReady;
+            return (Reason.NotReady, []);
         if (link.Trim().Length == 0)
         {
             await Save(job, null);
-            return null;
+            return (null, []);
         }
         if (GearSets.Key(link) is not { } id)
-            return Reason.Invalid;
-        var set = await Load(id);
+            return (Reason.Invalid, []);
+        var set = picks.TryRemove(id, out var picked) ? sets[id] = picked : await Load(id);
         if (set == null)
-            return Reason.NotFound;
+            return (Reason.NotFound, []);
         if (set.Job != job)
-            return WrongJob;
+            return (WrongJob, []);
+        if (set.Choices.Count > 0)
+        {
+            picks.Clear();
+            foreach (var (choice, choiceSet) in set.Choices)
+                picks[choice.Link] = choiceSet;
+            return (Pick, set.Choices.Select(c => c.Choice).ToList());
+        }
         await Save(job, id);
-        return null;
+        return (null, []);
     }
 
     public string Message()

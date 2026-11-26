@@ -37,7 +37,7 @@ internal static partial class Etro
         }
         var food = root.TryGetProperty("food", out var foodId) && foodId.ValueKind == JsonValueKind.Number ? await FoodItem(foodId.GetUInt32()) : 0;
         var totals = root.GetProperty("totalParams").EnumerateArray().ToList();
-        return new GearSet(root.GetProperty("job").GetUInt32(), root.GetProperty("name").GetString() ?? "", slots, food, Counts(Total(totals, "Materia Totals")));
+        return new GearSet(root.GetProperty("job").GetUInt32(), root.GetProperty("name").GetString() ?? "", slots, food, Counts(Total(totals, "Materia Totals")), []);
     }
 
     private static async Task<uint> FoodItem(uint id)

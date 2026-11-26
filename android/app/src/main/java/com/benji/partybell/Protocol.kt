@@ -53,7 +53,7 @@ data class Recruiting(val ok: Boolean, val reason: String) : Incoming
 
 data class BisUpdate(val bis: Bis) : Incoming
 
-data class BisLinked(val ok: Boolean, val reason: String) : Incoming
+data class BisLinked(val ok: Boolean, val reason: String, val choices: List<BisChoice>) : Incoming
 
 data object Bye : Incoming
 
@@ -89,7 +89,7 @@ object Protocol {
             "recruit" -> RecruitUpdate(recruit(json))
             "recruiting" -> Recruiting(json.optBoolean("ok"), json.optString("reason"))
             "bis" -> BisUpdate(Bis(json.optString("link").takeIf { !json.isNull("link") }, json.optJSONObject("set")?.let(::bis)))
-            "bislinked" -> BisLinked(json.optBoolean("ok"), json.optString("reason"))
+            "bislinked" -> BisLinked(json.optBoolean("ok"), json.optString("reason"), objects(json, "choices").map { BisChoice(it.optString("name"), it.optString("link"), it.optDouble("gcd"), bisStats(it)) })
             "bye" -> Bye
             else -> item(json)?.let(::Live)
         }
@@ -360,8 +360,10 @@ object Protocol {
         food = json.optJSONObject("food")?.let { BisItem(it.optString("name"), it.optLong("icon")) },
         materia = objects(json, "materia").map { BisMateria(it.optString("name"), it.optLong("icon"), it.optString("stat"), it.optInt("value"), it.optInt("count")) },
         gcd = json.optDouble("gcd"),
-        stats = objects(json, "stats").map { BisStat(it.optString("name"), it.optInt("value")) },
+        stats = bisStats(json),
     )
+
+    private fun bisStats(json: JSONObject): List<BisStat> = objects(json, "stats").map { BisStat(it.optString("name"), it.optInt("value")) }
 
     private fun objects(json: JSONObject, key: String): List<JSONObject> {
         val array = json.optJSONArray(key) ?: return emptyList()

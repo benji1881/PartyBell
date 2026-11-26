@@ -6,7 +6,9 @@ using System.Threading.Tasks;
 
 namespace PartyBell;
 
-internal sealed record GearSet(uint Job, string Name, IReadOnlyDictionary<int, uint> Slots, uint Food, IReadOnlyDictionary<uint, int> Materia);
+internal sealed record GearSet(uint Job, string Name, IReadOnlyDictionary<int, uint> Slots, uint Food, IReadOnlyDictionary<uint, int> Materia, IReadOnlyList<(BisChoice Choice, GearSet Set)> Choices);
+
+internal sealed record BisChoice(string Name, string Link, double Gcd, IReadOnlyList<BisStat> Stats);
 
 // Picks the site a saved best in slot link belongs to: a bare id is Etro, a full link is xivgear.
 internal static class GearSets
