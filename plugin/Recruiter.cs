@@ -9,6 +9,7 @@ using Lumina.Text.ReadOnly;
 using static FFXIVClientStructs.FFXIV.Client.UI.Agent.AgentLookingForGroup;
 using JobFlags = Dalamud.Game.Gui.PartyFinder.Types.JobFlags;
 using JobFlagsExtensions = Dalamud.Game.Gui.PartyFinder.Types.JobFlagsExtensions;
+using Sheets = Lumina.Excel.Sheets;
 
 namespace PartyBell;
 
@@ -20,13 +21,12 @@ internal sealed unsafe class Recruiter(Feed feed, Configuration config, PartyTra
     private const uint RecruitButton = 46;
     private const byte DataCenter = 0;
     private const ushort NoPassword = 10000;
-    private const byte Any = 0;
     private const int Yes = 0;
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
     private enum Stage { Finder, Criteria, Post, Confirm }
 
-    private Dictionary<byte, ulong>? masks;
+    private List<(ulong Flag, Sheets.ClassJob Job)>? jobs;
     private IReadOnlyList<RecruitDuty> duties = [];
     private TaskCompletionSource<string?>? posting;
     private Recruit request = null!;
@@ -102,7 +102,7 @@ internal sealed unsafe class Recruiter(Feed feed, Configuration config, PartyTra
 
     private Task<string?> Begin(Recruit recruit)
     {
-        var name = recruit.Duty == 0 ? "" : duties.FirstOrDefault(d => d.Id == recruit.Duty && d.Category == recruit.Category)?.Name;
+        var name = recruit.Duty == 0 ? "" : duties.FirstOrDefault(d => d.Id == recruit.Duty && d.Category == recruit.Category && d.Mode == recruit.Mode)?.Name;
         var agent = AgentLookingForGroup.Instance();
         var reason = posting != null ? Reason.Busy
             : !recruit.Valid ? Reason.Invalid
@@ -145,10 +145,21 @@ internal sealed unsafe class Recruiter(Feed feed, Configuration config, PartyTra
         info.BeginnerFriendly = (byte)(request.Beginners ? 1 : 0);
         info.OnePlayerPerJob = (byte)(request.OnePerJob ? 1 : 0);
         info.Password = request.Password ?? NoPassword;
-        info.NumberOfGroups = 1;
-        info.NumberOfSlotsInMainParty = (byte)request.Slots.Count;
+        var size = request.Mode switch
+        {
+            RecruitMode.Alliance => RecruitMode.PartySize,
+            RecruitMode.CustomMatch => RecruitMode.TeamSize,
+            _ => request.Slots.Count,
+        };
+        agent->GroupTypeTab = request.Mode;
+        var spectators = request.Mode == RecruitMode.CustomMatch && !request.NoSpectators;
+        info.NumberOfGroups = (byte)(request.Mode == RecruitMode.Normal ? 1 : request.Mode == RecruitMode.CustomMatch && !spectators ? 2 : RecruitMode.Groups);
+        info.NumberOfSlotsInMainParty = (byte)size;
+        info.SlotFlags.Clear();
         for (var i = 0; i < request.Slots.Count; i++)
-            info.SlotFlags[i] = Mask(request.Slots[i]);
+            info.SlotFlags[i / size * RecruitMode.PartySize + i % size] = Mask(request.Slots[i]);
+        if (spectators)
+            info.SlotFlags.Slice(2 * RecruitMode.PartySize, RecruitMode.PartySize).Fill(Mask(RecruitSlot.Any));
         info.CommentString = request.Comment + "\0";
         agent->AvgItemLv = request.ItemLevel;
         agent->AvgItemLvEnabled = (byte)(request.ItemLevel > 0 ? 1 : 0);
@@ -193,14 +204,14 @@ internal sealed unsafe class Recruiter(Feed feed, Configuration config, PartyTra
         return -1;
     }
 
-    private ulong Mask(byte role)
+    private ulong Mask(byte slot)
     {
-        masks ??= Enum.GetValues<JobFlags>()
-            .Select(flag => (Flag: (ulong)flag, Role: (byte)JobRole.Grouped(JobFlagsExtensions.ClassJob(flag, Services.DataManager)?.Role ?? 0)))
-            .Where(job => job.Role != 0)
-            .GroupBy(job => job.Role)
-            .ToDictionary(group => group.Key, group => group.Aggregate(0UL, (all, job) => all | job.Flag));
-        return role == Any ? masks.Values.Aggregate(0UL, (all, mask) => all | mask) : masks.GetValueOrDefault(role);
+        jobs ??= Enum.GetValues<JobFlags>()
+            .Select(flag => (Flag: (ulong)flag, Job: JobFlagsExtensions.ClassJob(flag, Services.DataManager)))
+            .Where(job => job.Job != null)
+            .Select(job => (job.Flag, job.Job!.Value))
+            .ToList();
+        return jobs.Where(job => RecruitSlot.Fits(job.Job, slot)).Aggregate(0UL, (all, job) => all | job.Flag);
     }
 
     private void Finish(string? reason)

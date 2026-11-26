@@ -188,11 +188,13 @@ object Protocol {
         .put("objective", form.objective)
         .put("completion", form.completion)
         .put("loot", form.loot)
+        .put("mode", form.mode)
         .put("slots", JSONArray(form.slots))
         .put("itemLevel", form.itemLevel)
         .apply { form.password?.let { put("password", it) } }
         .put("beginners", form.beginners)
         .put("onePerJob", form.onePerJob)
+        .put("noSpectators", form.noSpectators)
         .put("comment", form.comment)
         .toString()
 
@@ -203,7 +205,7 @@ object Protocol {
 
     private fun recruit(json: JSONObject) = RecruitState(
         json.optBoolean("open"),
-        objects(json, "duties").map { RecruitDuty(it.optInt("category"), it.optLong("id"), it.optString("name")) },
+        objects(json, "duties").map { RecruitDuty(it.optInt("category"), it.optLong("id"), it.optString("name"), it.optInt("mode")) },
     )
 
     private fun party(json: JSONObject) = Party(

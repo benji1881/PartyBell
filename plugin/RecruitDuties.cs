@@ -4,7 +4,7 @@ using Lumina.Excel.Sheets;
 
 namespace PartyBell;
 
-internal sealed record RecruitDuty(int Category, uint Id, string Name);
+internal sealed record RecruitDuty(int Category, uint Id, string Name, byte Mode);
 
 // The duties a listing can be posted for, newest first, leaving out ones the character hasn't unlocked.
 internal static class RecruitDuties
@@ -13,17 +13,19 @@ internal static class RecruitDuties
     public const byte Guildhests = 3;
     public const byte Trials = 4;
     public const byte Raids = 5;
+    public const byte PvP = 7;
     public const byte HighEnd = 6;
     public const byte Fates = 9;
     public const byte Hunt = 11;
     public const byte DeepDungeons = 13;
     public const byte VariantCriterion = 15;
-    public static readonly byte[] Categories = [Dungeons, Guildhests, Trials, Raids, HighEnd, Fates, Hunt, DeepDungeons, VariantCriterion, ListingMap.Other];
+    public static readonly byte[] Categories = [Dungeons, Guildhests, Trials, Raids, PvP, HighEnd, Fates, Hunt, DeepDungeons, VariantCriterion, ListingMap.Other];
 
     private const uint DungeonType = 2;
     private const uint GuildhestType = 3;
     private const uint TrialType = 4;
     private const uint RaidType = 5;
+    private const uint PvPType = 6;
     private const uint DeepDungeonType = 21;
     private const uint UltimateType = 28;
     private const uint VariantType = 30;
@@ -38,7 +40,7 @@ internal static class RecruitDuties
             .Where(d => d.Category != 0)
             .OrderByDescending(d => d.Duty.ClassJobLevelRequired)
             .ThenByDescending(d => d.Duty.ItemLevelRequired)
-            .Select(d => new RecruitDuty(d.Category, d.Duty.RowId, d.Duty.Name.ExtractText()))
+            .Select(d => new RecruitDuty(d.Category, d.Duty.RowId, d.Duty.Name.ExtractText(), RecruitMode.Of(d.Duty)))
             .ToList();
 
     private static bool Unlocked(ContentFinderCondition duty) =>
@@ -55,6 +57,7 @@ internal static class RecruitDuties
                 GuildhestType => Guildhests,
                 TrialType => Trials,
                 RaidType => Raids,
+                PvPType when RecruitMode.IsCustomMatch(duty) => PvP,
                 DeepDungeonType => DeepDungeons,
                 VariantType => VariantCriterion,
                 _ => (byte)0,

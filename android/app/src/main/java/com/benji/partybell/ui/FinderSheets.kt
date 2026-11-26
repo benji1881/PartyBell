@@ -206,7 +206,7 @@ private fun Modifier.bleed(horizontal: Dp) = layout { measurable, constraints ->
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SubSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
+internal fun SubSheet(title: String, onDismiss: () -> Unit, content: @Composable () -> Unit) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
